@@ -16,8 +16,26 @@ serve(async (req) => {
   );
   if (authError || !user) return new Response('Unauthorized', { status: 401 });
 
-  const body = await req.json();
-  const workouts: unknown[] = Array.isArray(body.workouts) ? body.workouts : [];
+  const body = (await req.json()) as {
+    appleWorkouts?: unknown;
+    source?: string;
+  };
+
+  if (body.source !== 'apple') {
+    return new Response(JSON.stringify({ error: 'Expected source: "apple"' }), {
+      status: 400,
+      headers: { 'Content-Type': 'application/json' },
+    });
+  }
+
+  if (!Array.isArray(body.appleWorkouts)) {
+    return new Response(JSON.stringify({ error: 'Expected appleWorkouts array' }), {
+      status: 400,
+      headers: { 'Content-Type': 'application/json' },
+    });
+  }
+
+  const workouts: unknown[] = body.appleWorkouts;
 
   const results = [];
   for (const workout of workouts) {

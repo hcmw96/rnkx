@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAthleteProfile } from '../hooks/useAthleteProfile';
+import { buildSyncActivitiesAppleBody } from '../lib/syncActivitiesApple';
 import { fetchRecentWorkouts, requestHealthKitPermissions } from '../services/despia';
 import { supabase } from '../services/supabase';
 
@@ -42,7 +43,7 @@ export default function Profile({ userId }: ProfileProps) {
     }
 
     const { data, error: invokeError } = await supabase.functions.invoke('sync-activities', {
-      body: { workouts: syncData.workouts },
+      body: buildSyncActivitiesAppleBody(syncData.workouts),
       headers: { Authorization: `Bearer ${token}` },
     });
 

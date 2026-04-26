@@ -1,13 +1,27 @@
-import { useCallback, useEffect, useRef, useState, type ChangeEvent } from 'react';
+import { useCallback, useEffect, useRef, useState, type ChangeEvent, type ComponentType } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import { AppShell } from '@/components/app/AppShell';
 import { Button } from '@/components/ui/button';
+import {
+  AppleLogo,
+  CorosLogo,
+  FitbitLogo,
+  GarminLogo,
+  OuraLogo,
+  PolarLogo,
+  SamsungLogo,
+  StravaLogo,
+  WhoopLogo,
+} from '@/components/BrandLogos';
+import { providerLabel } from '@/components/terra/TerraWearableProviders';
 import { getCountryByName } from '@/data/countries';
-import { fetchRecentWorkouts } from '@/services/despia';
+import { buildSyncActivitiesAppleBody } from '@/lib/syncActivitiesApple';
+import { fetchRecentWorkouts, isDespia } from '@/services/despia';
 import { supabase } from '@/services/supabase';
 
-const ATHLETE_COLUMNS = 'id,username,display_name,country,avatar_url,total_score,selected_leagues';
+const ATHLETE_COLUMNS =
+  'id,username,display_name,country,avatar_url,total_score,selected_leagues,wearables,user_id';
 
 interface AthleteRow {
   id: string;
@@ -17,11 +31,42 @@ interface AthleteRow {
   avatar_url: string | null;
   total_score: number | string | null;
   selected_leagues: string[] | null;
+  wearables: string[] | null;
+  user_id: string | null;
+}
+
+interface TerraConnectionRow {
+  id: string;
+  terra_user_id: string;
+  provider: string;
 }
 
 function numScore(v: number | string | null | undefined): number {
   if (v === null || v === undefined) return 0;
   return typeof v === 'number' ? v : Number(v);
+}
+
+const WEARABLE_LOGO_BY_CODE: Record<string, ComponentType<{ className?: string }>> = {
+  GARMIN: GarminLogo,
+  POLAR: PolarLogo,
+  COROS: CorosLogo,
+  FITBIT: FitbitLogo,
+  OURA: OuraLogo,
+  SAMSUNG: SamsungLogo,
+  STRAVA: StravaLogo,
+  WHOOP: WhoopLogo,
+};
+
+function wearableLogoForCode(code: string) {
+  return WEARABLE_LOGO_BY_CODE[code.toUpperCase()] ?? null;
+}
+
+function ConnectedBadge() {
+  return (
+    <span className="shrink-0 rounded-full border border-emerald-500/50 bg-emerald-500/15 px-2 py-0.5 text-xs font-semibold text-emerald-400">
+      Connected
+    </span>
+  );
 }
 
 function twoLetterAvatar(username: string | null, displayName: string | null): string {
@@ -42,6 +87,9 @@ export default function ProfilePage() {
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
   const [syncing, setSyncing] = useState(false);
+  const [terraConnecting, setTerraConnecting] = useState(false);
+  const [terraConnections, setTerraConnections] = useState<TerraConnectionRow[]>([]);
+  const [disconnectingId, setDisconnectingId] = useState<string | null>(null);
 
   const loadProfile = useCallback(async () => {
     setLoading(true);
@@ -49,6 +97,7 @@ export default function ProfilePage() {
     if (authErr || !auth.user) {
       toast.error(authErr?.message ?? 'Not signed in.');
       setAthlete(null);
+      setTerraConnections([]);
       setRank(null);
       setLoading(false);
       return;
@@ -67,8 +116,19 @@ export default function ProfilePage() {
       const err = byUserId.error ?? byId.error;
       if (err) toast.error(err.message);
       setAthlete(null);
+      setTerraConnections([]);
     } else {
       setAthlete(athleteRow);
+      const { data: connRows, error: connErr } = await supabase
+        .from('terra_connections')
+        .select('id,terra_user_id,provider')
+        .eq('athlete_id', athleteRow.id);
+      if (connErr) {
+        toast.error(connErr.message);
+        setTerraConnections([]);
+      } else {
+        setTerraConnections((connRows ?? []) as TerraConnectionRow[]);
+      }
     }
 
     if (rankErr) {
@@ -146,7 +206,7 @@ export default function ProfilePage() {
     }
 
     const { data, error: invokeError } = await supabase.functions.invoke('sync-activities', {
-      body: { workouts: syncData.workouts },
+      body: buildSyncActivitiesAppleBody(syncData.workouts),
       headers: { Authorization: `Bearer ${token}` },
     });
 
@@ -165,9 +225,70 @@ export default function ProfilePage() {
     navigate('/auth', { replace: true });
   };
 
+  async function openTerraWidget() {
+    if (!athlete?.id) return;
+    try {
+      setTerraConnecting(true);
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+      if (!session) {
+        toast.error('Could not open device connection');
+        return;
+      }
+      const { data, error } = await supabase.functions.invoke('terra-widget-session', {
+        body: { reference_id: athlete.id },
+      });
+      if (error || !(data as { url?: string } | null)?.url) {
+        toast.error('Could not open device connection');
+        return;
+      }
+      window.location.href = (data as { url: string }).url;
+    } catch {
+      toast.error('Could not open device connection');
+    } finally {
+      setTerraConnecting(false);
+    }
+  }
+
+  async function handleTerraDisconnect(row: TerraConnectionRow) {
+    if (!athlete?.id) return;
+    setDisconnectingId(row.id);
+    try {
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+      const token = session?.access_token;
+      if (!token) {
+        toast.error('Not signed in.');
+        return;
+      }
+      const { data, error } = await supabase.functions.invoke('terra-disconnect', {
+        body: { terra_user_id: row.terra_user_id, provider: row.provider },
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (error) {
+        toast.error(error.message);
+        return;
+      }
+      const wearables = (data as { wearables?: string[] } | null)?.wearables;
+      setTerraConnections((prev) => prev.filter((r) => r.id !== row.id));
+      setAthlete((prev) =>
+        prev && wearables != null ? { ...prev, wearables } : prev,
+      );
+      toast.success(`${providerLabel(row.provider)} disconnected.`);
+    } catch {
+      toast.error('Disconnect failed.');
+    } finally {
+      setDisconnectingId(null);
+    }
+  }
+
   const countryInfo = athlete?.country ? getCountryByName(athlete.country) : null;
   const score = athlete ? numScore(athlete.total_score) : 0;
   const initials = athlete ? twoLetterAvatar(athlete.username, athlete.display_name) : '??';
+  const inDespia = isDespia();
+  const hasAnyDevice = inDespia || terraConnections.length > 0;
 
   return (
     <AppShell>
@@ -255,6 +376,84 @@ export default function ProfilePage() {
                 </p>
               </article>
             </div>
+
+            <article className="rounded-xl border border-border bg-card p-5 shadow-sm">
+              <h2 className="text-lg font-semibold text-foreground">Connected Devices</h2>
+
+              <div className="mt-4 space-y-3">
+                {inDespia ? (
+                  <div className="rounded-lg border border-border bg-muted/20 px-3 py-3">
+                    <div className="flex items-center gap-3">
+                      <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg bg-muted/50">
+                        <AppleLogo className="h-8 w-8" />
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <p className="font-medium text-foreground">Apple Watch</p>
+                        <p className="text-xs text-muted-foreground">HealthKit</p>
+                      </div>
+                      <ConnectedBadge />
+                    </div>
+                    <p className="mt-2 text-xs text-muted-foreground">
+                      Manage in iOS Settings {'>'} Privacy {'>'} Health
+                    </p>
+                  </div>
+                ) : null}
+
+                {terraConnections.map((row) => {
+                  const Logo = wearableLogoForCode(row.provider);
+                  const name = providerLabel(row.provider);
+                  return (
+                    <div
+                      key={row.id}
+                      className="flex flex-col gap-2 rounded-lg border border-border bg-muted/20 px-3 py-3 sm:flex-row sm:items-center sm:gap-3"
+                    >
+                      <div className="flex min-w-0 flex-1 items-center gap-3">
+                        <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg bg-muted/50">
+                          {Logo ? (
+                            <Logo className="h-8 max-w-[3rem]" />
+                          ) : (
+                            <span className="text-xs font-semibold text-muted-foreground">
+                              {row.provider.slice(0, 3)}
+                            </span>
+                          )}
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <p className="font-medium text-foreground">{name}</p>
+                        </div>
+                        <ConnectedBadge />
+                      </div>
+                      <Button
+                        type="button"
+                        variant="destructive"
+                        size="sm"
+                        className="h-8 shrink-0 self-start text-xs sm:self-center"
+                        disabled={disconnectingId === row.id}
+                        onClick={() => void handleTerraDisconnect(row)}
+                      >
+                        {disconnectingId === row.id ? '…' : 'Disconnect'}
+                      </Button>
+                    </div>
+                  );
+                })}
+
+                {!hasAnyDevice ? (
+                  <div className="rounded-lg border border-dashed border-border bg-muted/10 px-3 py-6 text-center">
+                    <p className="text-sm font-medium text-foreground">No devices connected</p>
+                    <p className="mt-1 text-xs text-muted-foreground">Connect devices to sync your workouts</p>
+                  </div>
+                ) : null}
+              </div>
+
+              <Button
+                type="button"
+                variant="outline"
+                className="mt-4 w-full font-semibold"
+                disabled={terraConnecting}
+                onClick={() => void openTerraWidget()}
+              >
+                {terraConnecting ? 'Opening…' : '+ Connect Device'}
+              </Button>
+            </article>
 
             <div className="flex flex-col gap-3 sm:flex-row">
               <Button type="button" className="flex-1 font-semibold" disabled={syncing} onClick={() => void handleSync()}>
