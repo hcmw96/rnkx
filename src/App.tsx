@@ -1,0 +1,167 @@
+import { useCallback, useEffect, useState } from 'react';
+import type { Session } from '@supabase/supabase-js';
+import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { Loader2 } from 'lucide-react';
+import { Toaster } from 'sonner';
+import { ProfileGateContext } from '@/context/ProfileGateContext';
+import LeaderboardPage from './pages/app/LeaderboardPage';
+import ProfilePage from './pages/app/ProfilePage';
+import Dashboard from './pages/app/Dashboard';
+import AthleteAuth from './pages/AthleteAuth';
+import Onboarding from './pages/Onboarding';
+import { supabase } from './services/supabase';
+
+const queryClient = new QueryClient();
+
+async function fetchAthleteProfileComplete(userId: string): Promise<boolean> {
+  const { data, error } = await supabase
+    .from('athletes')
+    .select('id')
+    .eq('user_id', userId)
+    .not('username', 'is', null)
+    .maybeSingle();
+
+  if (error) return false;
+  return !!data;
+}
+
+function SessionRoutes() {
+  const [initialized, setInitialized] = useState(false);
+  const [session, setSession] = useState<Session | null>(null);
+  const [profileComplete, setProfileComplete] = useState(false);
+
+  const refetchProfile = useCallback(async () => {
+    const {
+      data: { session: s },
+    } = await supabase.auth.getSession();
+    if (!s?.user) {
+      setProfileComplete(false);
+      return;
+    }
+    const ok = await fetchAthleteProfileComplete(s.user.id);
+    setProfileComplete(ok);
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function applySession(s: Session | null) {
+      setSession(s);
+      if (s?.user) {
+        const ok = await fetchAthleteProfileComplete(s.user.id);
+        if (!cancelled) setProfileComplete(ok);
+      } else if (!cancelled) {
+        setProfileComplete(false);
+      }
+      if (!cancelled) setInitialized(true);
+    }
+
+    void supabase.auth.getSession().then(({ data }) => {
+      if (cancelled) return;
+      void applySession(data.session);
+    });
+
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, newSession) => {
+      if (cancelled) return;
+      void applySession(newSession);
+    });
+
+    return () => {
+      cancelled = true;
+      subscription.unsubscribe();
+    };
+  }, []);
+
+  if (!initialized) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-background">
+        <Loader2 className="h-10 w-10 animate-spin text-primary" aria-label="Loading session" />
+      </div>
+    );
+  }
+
+  return (
+    <ProfileGateContext.Provider value={{ refetchProfile }}>
+      <Routes>
+        <Route
+          path="/auth"
+          element={
+            session ? (
+              profileComplete ? (
+                <Navigate to="/app" replace />
+              ) : (
+                <Navigate to="/onboarding" replace />
+              )
+            ) : (
+              <AthleteAuth />
+            )
+          }
+        />
+        <Route
+          path="/onboarding"
+          element={
+            !session ? (
+              <Navigate to="/auth" replace />
+            ) : profileComplete ? (
+              <Navigate to="/app" replace />
+            ) : (
+              <Onboarding />
+            )
+          }
+        />
+        <Route
+          path="/app"
+          element={
+            !session ? (
+              <Navigate to="/auth" replace />
+            ) : !profileComplete ? (
+              <Navigate to="/onboarding" replace />
+            ) : (
+              <Dashboard />
+            )
+          }
+        />
+        <Route
+          path="/app/leaderboard"
+          element={
+            !session ? (
+              <Navigate to="/auth" replace />
+            ) : !profileComplete ? (
+              <Navigate to="/onboarding" replace />
+            ) : (
+              <LeaderboardPage />
+            )
+          }
+        />
+        <Route
+          path="/app/profile"
+          element={
+            !session ? (
+              <Navigate to="/auth" replace />
+            ) : !profileComplete ? (
+              <Navigate to="/onboarding" replace />
+            ) : (
+              <ProfilePage />
+            )
+          }
+        />
+        <Route path="/" element={<Navigate to="/app" replace />} />
+        <Route path="*" element={<Navigate to="/app" replace />} />
+      </Routes>
+    </ProfileGateContext.Provider>
+  );
+}
+
+export default function App() {
+  return (
+    <QueryClientProvider client={queryClient}>
+      <BrowserRouter>
+        <Toaster richColors closeButton position="top-center" theme="dark" />
+        <SessionRoutes />
+      </BrowserRouter>
+    </QueryClientProvider>
+  );
+}

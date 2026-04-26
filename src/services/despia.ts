@@ -1,0 +1,110 @@
+import despia from 'despia-native';
+
+export interface WorkoutObject {
+  sourceId: string;
+  startedAt: string;
+  durationMin: number;
+  activityType: string;
+  avgHr: number | null;
+  peakHr: number | null;
+  distanceM: number | null;
+  avgPacePerKm: number | null;
+}
+
+export interface DespiaSyncResult {
+  workouts: WorkoutObject[];
+  rawPayload: unknown;
+  error: string | null;
+}
+
+export function isDespia(): boolean {
+  return navigator.userAgent.toLowerCase().includes('despia');
+}
+
+export async function requestHealthKitPermissions(): Promise<boolean> {
+  if (!isDespia()) return false;
+  try {
+    await despia(
+      'healthkit://read?types=HKWorkoutTypeIdentifier,HKQuantityTypeIdentifierHeartRate,HKQuantityTypeIdentifierDistanceWalkingRunning,HKQuantityTypeIdentifierRunningSpeed&days=1',
+      ['healthkitResponse']
+    );
+    return true;
+  } catch (err) {
+    console.error('[Despia] Permission request failed:', err);
+    return false;
+  }
+}
+
+export async function fetchRecentWorkouts(): Promise<DespiaSyncResult> {
+  if (!isDespia()) {
+    console.log('[Despia] Not in Despia runtime — skipping HealthKit fetch');
+    return { workouts: [], rawPayload: null, error: 'Not in Despia runtime' };
+  }
+
+  try {
+    const result = await despia(
+      'healthkit://read?types=HKWorkoutTypeIdentifier,HKQuantityTypeIdentifierHeartRate,HKQuantityTypeIdentifierDistanceWalkingRunning,HKQuantityTypeIdentifierRunningSpeed&days=2',
+      ['healthkitResponse']
+    );
+
+    console.log('[Despia] Raw response:', JSON.stringify(result, null, 2));
+
+    const raw = (result as Record<string, unknown> | null)?.healthkitResponse;
+    const workouts = normaliseWorkouts(raw);
+
+    return { workouts, rawPayload: result, error: null };
+  } catch (err) {
+    console.error('[Despia] fetchRecentWorkouts failed:', err);
+    return { workouts: [], rawPayload: null, error: String(err) };
+  }
+}
+
+function normaliseWorkouts(raw: unknown): WorkoutObject[] {
+  const items: unknown[] = Array.isArray(raw)
+    ? raw
+    : Array.isArray((raw as Record<string, unknown>)?.workouts)
+      ? ((raw as Record<string, unknown>).workouts as unknown[])
+      : [];
+
+  return items.map((item) => {
+    const w = item as Record<string, unknown>;
+
+    let avgPacePerKm: number | null = null;
+    if (typeof w.avgPacePerKm === 'number') {
+      avgPacePerKm = w.avgPacePerKm;
+    } else if (typeof w.avgSpeed === 'number' && w.avgSpeed > 0) {
+      avgPacePerKm = 1000 / (w.avgSpeed as number);
+    }
+
+    return {
+      sourceId: String(w.uuid ?? w.id ?? w.sourceId ?? Math.random()),
+      startedAt: String(w.startDate ?? w.startedAt ?? new Date().toISOString()),
+      durationMin:
+        typeof w.duration === 'number'
+          ? w.duration / 60
+          : typeof w.durationMin === 'number'
+            ? w.durationMin
+            : 0,
+      activityType: String(w.workoutActivityType ?? w.activityType ?? 'unknown'),
+      avgHr:
+        typeof w.avgHeartRate === 'number'
+          ? w.avgHeartRate
+          : typeof w.avgHr === 'number'
+            ? w.avgHr
+            : null,
+      peakHr:
+        typeof w.maxHeartRate === 'number'
+          ? w.maxHeartRate
+          : typeof w.peakHr === 'number'
+            ? w.peakHr
+            : null,
+      distanceM:
+        typeof w.totalDistance === 'number'
+          ? w.totalDistance
+          : typeof w.distanceM === 'number'
+            ? w.distanceM
+            : null,
+      avgPacePerKm,
+    };
+  });
+}
