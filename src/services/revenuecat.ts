@@ -3,25 +3,11 @@ import { supabase } from '@/services/supabase';
 
 const PREMIUM_URL = 'https://rnkx.netlify.app/premium';
 
-export async function checkPremium(_athleteId: string): Promise<boolean> {
-  const {
-    data: { session },
-  } = await supabase.auth.getSession();
-
-  if (session?.access_token) {
-    const { data, error } = await supabase.functions.invoke('check-entitlement', {
-      body: {},
-      headers: { Authorization: `Bearer ${session.access_token}` },
-    });
-    if (!error && Boolean((data as { isPremium?: boolean } | null)?.isPremium)) {
-      return true;
-    }
-  }
-
+export async function checkPremium(athleteId?: string): Promise<boolean> {
   const {
     data: { user },
   } = await supabase.auth.getUser();
-  if (!user?.id) return false;
+  if (!user) return false;
 
   const { data: athlete } = await supabase
     .from('athletes')
@@ -29,9 +15,7 @@ export async function checkPremium(_athleteId: string): Promise<boolean> {
     .eq('user_id', user.id)
     .single();
 
-  if (athlete?.is_premium) return true;
-
-  return false;
+  return athlete?.is_premium === true;
 }
 
 export function presentPaywall(): void {
