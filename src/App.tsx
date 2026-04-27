@@ -13,6 +13,7 @@ import WhoopCallback from './pages/auth/WhoopCallback';
 import Onboarding from './pages/Onboarding';
 import { buildSyncActivitiesAppleBody } from './lib/syncActivitiesApple';
 import { fetchRecentWorkouts } from './services/despia';
+import { setOneSignalExternalId } from './services/onesignal';
 import { supabase } from './services/supabase';
 
 const queryClient = new QueryClient();
@@ -102,6 +103,26 @@ function SessionRoutes() {
         body: buildSyncActivitiesAppleBody(syncData.workouts),
         headers: { Authorization: `Bearer ${token}` },
       });
+    })();
+  }, [session?.user?.id, profileComplete]);
+
+  useEffect(() => {
+    if (!session?.user || !profileComplete) return;
+
+    const uid = session.user.id;
+    void (async () => {
+      const [byUserId, byId] = await Promise.all([
+        supabase.from('athletes').select('id').eq('user_id', uid).not('username', 'is', null).maybeSingle(),
+        supabase.from('athletes').select('id').eq('id', uid).not('username', 'is', null).maybeSingle(),
+      ]);
+      const athleteId = (byUserId.data?.id ?? byId.data?.id) as string | undefined;
+      if (!athleteId) return;
+
+      try {
+        await setOneSignalExternalId(athleteId);
+      } catch (err) {
+        console.warn('[OneSignal] set external id failed', err);
+      }
     })();
   }, [session?.user?.id, profileComplete]);
 
