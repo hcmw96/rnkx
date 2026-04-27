@@ -16,6 +16,7 @@ import UsernameInput from '@/components/onboarding/UsernameInput';
 import { Button } from '@/components/ui/button';
 import { useProfileGate } from '@/context/ProfileGateContext';
 import { supabase } from '@/services/supabase';
+import { getPendingLeagueInvitePath } from '@/lib/shareLeagueInvite';
 
 const ONBOARDING_STEP_COUNT = 8;
 
@@ -133,7 +134,7 @@ export default function Onboarding() {
 
       await refetchProfile();
       setFinishing(false);
-      navigate('/app', { replace: true });
+      navigate(getPendingLeagueInvitePath() ?? '/app', { replace: true });
       return;
     }
 

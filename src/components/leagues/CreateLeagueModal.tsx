@@ -80,19 +80,37 @@ export function CreateLeagueModal({ athleteId, onCreated }: CreateLeagueModalPro
         .insert({ conversation_id: conversationId, athlete_id: athleteId });
       if (memberConvError) throw memberConvError;
 
-      const { data: leagueRow, error: leagueError } = await supabase
-        .from('private_leagues')
-        .insert({
-          name: name.trim(),
-          created_by: athleteId,
-          league_type: leagueType,
-          conversation_id: conversationId,
-          description: description.trim() || null,
-          image_url: imageUrl,
-        })
-        .select('id')
-        .single();
-      if (leagueError) throw leagueError;
+      let inviteCode: string;
+      let leagueRow: { id: string } | null = null;
+      let leagueError: Error | null = null;
+      for (let attempt = 0; attempt < 8; attempt++) {
+        inviteCode = Math.random().toString(36).substring(2, 10);
+        const ins = await supabase
+          .from('private_leagues')
+          .insert({
+            name: name.trim(),
+            created_by: athleteId,
+            league_type: leagueType,
+            conversation_id: conversationId,
+            description: description.trim() || null,
+            image_url: imageUrl,
+            invite_code: inviteCode,
+          })
+          .select('id')
+          .single();
+        if (!ins.error) {
+          leagueRow = ins.data as { id: string };
+          leagueError = null;
+          break;
+        }
+        if (ins.error.code === '23505') {
+          leagueError = new Error(ins.error.message);
+          continue;
+        }
+        leagueError = new Error(ins.error.message);
+        break;
+      }
+      if (leagueError || !leagueRow) throw leagueError ?? new Error('Failed to create league');
 
       const leagueId = leagueRow.id as string;
 

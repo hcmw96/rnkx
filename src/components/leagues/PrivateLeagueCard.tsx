@@ -6,19 +6,21 @@ interface PrivateLeagueCardProps {
   id: string;
   name: string;
   memberCount: number;
+  inviteCode: string | null;
   conversationId?: string | null;
   imageUrl?: string | null;
   description?: string | null;
-  onInvite: () => void;
+  onShareInvite: () => void;
 }
 
 export function PrivateLeagueCard({
   id,
   name,
   memberCount,
+  inviteCode,
   imageUrl,
   description,
-  onInvite,
+  onShareInvite,
 }: PrivateLeagueCardProps) {
   return (
     <Link
@@ -51,9 +53,12 @@ export function PrivateLeagueCard({
           onClick={(e) => {
             e.preventDefault();
             e.stopPropagation();
-            onInvite();
+            if (!inviteCode) return;
+            onShareInvite();
           }}
-          className="p-2 text-muted-foreground transition-colors hover:text-foreground"
+          disabled={!inviteCode}
+          title={inviteCode ? 'Invite friends' : 'Invite link unavailable'}
+          className="p-2 text-muted-foreground transition-colors hover:text-foreground disabled:opacity-40"
         >
           <UserPlus className="h-4 w-4" />
         </button>

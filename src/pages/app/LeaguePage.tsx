@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
-import { ArrowLeft, Send } from 'lucide-react';
+import { ArrowLeft, Send, Share2 } from 'lucide-react';
 import { AppShell } from '@/components/app/AppShell';
 import { PremiumGate } from '@/components/PremiumGate';
 import { Button } from '@/components/ui/button';
@@ -11,6 +11,7 @@ import { LeagueActivityFeed } from '@/components/leagues/LeagueActivityFeed';
 import { EditLeagueModal } from '@/components/leagues/EditLeagueModal';
 import { supabase } from '@/services/supabase';
 import { toast } from 'sonner';
+import { shareLeagueInvite } from '@/lib/shareLeagueInvite';
 import type { RealtimeChannel } from '@supabase/supabase-js';
 
 type League = {
@@ -21,6 +22,7 @@ type League = {
   league_type: 'engine' | 'run';
   created_by: string;
   conversation_id: string | null;
+  invite_code: string | null;
 };
 
 type MemberRow = {
@@ -70,7 +72,7 @@ export default function LeaguePage() {
 
     const { data: leagueRow, error: leagueErr } = await supabase
       .from('private_leagues')
-      .select('id, name, description, image_url, league_type, created_by, conversation_id')
+      .select('id, name, description, image_url, league_type, created_by, conversation_id, invite_code')
       .eq('id', leagueId)
       .maybeSingle();
 
@@ -261,9 +263,23 @@ export default function LeaguePage() {
                 <h1 className="font-display text-xl text-foreground">{league.name}</h1>
                 {league.description ? <p className="text-sm text-muted-foreground">{league.description}</p> : null}
                 {isCreator ? (
-                  <Button type="button" variant="outline" size="sm" onClick={() => setEditOpen(true)}>
-                    Edit league
-                  </Button>
+                  <div className="flex flex-wrap gap-2">
+                    <Button type="button" variant="outline" size="sm" onClick={() => setEditOpen(true)}>
+                      Edit league
+                    </Button>
+                    {league.invite_code ? (
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        className="gap-1"
+                        onClick={() => void shareLeagueInvite(league.name, league.invite_code!)}
+                      >
+                        <Share2 className="h-3.5 w-3.5" />
+                        Invite
+                      </Button>
+                    ) : null}
+                  </div>
                 ) : null}
               </header>
 

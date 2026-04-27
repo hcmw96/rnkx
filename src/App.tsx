@@ -12,6 +12,7 @@ import PrivateLeaguesPage from './pages/app/PrivateLeaguesPage';
 import LeaguePage from './pages/app/LeaguePage';
 import FriendsPage from './pages/app/FriendsPage';
 import Dashboard from './pages/app/Dashboard';
+import JoinLeaguePage from './pages/JoinLeaguePage';
 import AthleteAuth from './pages/AthleteAuth';
 import WhoopCallback from './pages/auth/WhoopCallback';
 import Onboarding from './pages/Onboarding';
@@ -142,6 +143,7 @@ function SessionRoutes() {
     <ProfileGateContext.Provider value={{ refetchProfile }}>
       <Routes>
         <Route path="/auth/whoop/callback" element={<WhoopCallback />} />
+        <Route path="/join/:code" element={<JoinLeaguePage />} />
         <Route path="/premium" element={<PremiumPage />} />
         <Route
           path="/auth"

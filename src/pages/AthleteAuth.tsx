@@ -5,6 +5,7 @@ import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { supabase } from '@/services/supabase';
+import { getPendingLeagueInvitePath } from '@/lib/shareLeagueInvite';
 import rnkxLogo from '@/assets/rnkx-logo.svg';
 
 const HERO_VIDEO_URL =
@@ -50,7 +51,7 @@ export default function AthleteAuth() {
         setAuthError(error.message);
         return;
       }
-      navigate('/app', { replace: true });
+      navigate(getPendingLeagueInvitePath() ?? '/app', { replace: true });
       return;
     }
 

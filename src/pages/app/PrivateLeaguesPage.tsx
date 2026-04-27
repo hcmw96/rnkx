@@ -3,9 +3,9 @@ import { AppShell } from '@/components/app/AppShell';
 import { PremiumGate } from '@/components/PremiumGate';
 import { CreateLeagueModal } from '@/components/leagues/CreateLeagueModal';
 import { PrivateLeagueCard } from '@/components/leagues/PrivateLeagueCard';
-import { InviteFriendModal } from '@/components/leagues/InviteFriendModal';
 import { supabase } from '@/services/supabase';
 import { toast } from 'sonner';
+import { shareLeagueInvite } from '@/lib/shareLeagueInvite';
 
 type LeagueRow = {
   id: string;
@@ -14,14 +14,13 @@ type LeagueRow = {
   image_url: string | null;
   conversation_id: string | null;
   league_type: string;
+  invite_code: string | null;
 };
 
 export default function PrivateLeaguesPage() {
   const [athleteId, setAthleteId] = useState<string | undefined>();
   const [leagues, setLeagues] = useState<{ league: LeagueRow; memberCount: number }[]>([]);
   const [loading, setLoading] = useState(true);
-  const [inviteLeague, setInviteLeague] = useState<LeagueRow | null>(null);
-
   const load = useCallback(async () => {
     setLoading(true);
     const { data: auth, error: authErr } = await supabase.auth.getUser();
@@ -68,7 +67,7 @@ export default function PrivateLeaguesPage() {
 
     const { data: leagueRows, error: leagueErr } = await supabase
       .from('private_leagues')
-      .select('id, name, description, image_url, conversation_id, league_type')
+      .select('id, name, description, image_url, conversation_id, league_type, invite_code')
       .in('id', leagueIds);
 
     if (leagueErr) {
@@ -122,28 +121,23 @@ export default function PrivateLeaguesPage() {
                     id={league.id}
                     name={league.name}
                     memberCount={memberCount}
+                    inviteCode={league.invite_code}
                     conversationId={league.conversation_id}
                     imageUrl={league.image_url}
                     description={league.description}
-                    onInvite={() => setInviteLeague(league)}
+                    onShareInvite={() => {
+                      if (!league.invite_code) {
+                        toast.error('Invite link is not available for this league yet.');
+                        return;
+                      }
+                      void shareLeagueInvite(league.name, league.invite_code);
+                    }}
                   />
                 </li>
               ))}
             </ul>
           )}
 
-          {inviteLeague ? (
-            <InviteFriendModal
-              open
-              onOpenChange={(o) => !o && setInviteLeague(null)}
-              leagueId={inviteLeague.id}
-              leagueName={inviteLeague.name}
-              onInvited={() => {
-                setInviteLeague(null);
-                void load();
-              }}
-            />
-          ) : null}
         </section>
       </PremiumGate>
     </AppShell>
