@@ -67,7 +67,7 @@ serve(async (req) => {
     const supabase = createClient(supabaseUrl, serviceKey);
     const { data: athlete, error: athErr } = await supabase
       .from('athletes')
-      .select('user_id')
+      .select('id')
       .eq('id', athleteId)
       .maybeSingle();
 
@@ -75,11 +75,11 @@ serve(async (req) => {
       console.error('[notify-workout-scored] athlete lookup', athErr);
       return json({ success: true });
     }
-    const externalUserId = athlete?.user_id ? String(athlete.user_id) : '';
-    if (!externalUserId) {
-      console.warn('[notify-workout-scored] no user_id for athlete', athleteId);
+    if (!athlete?.id) {
+      console.warn('[notify-workout-scored] unknown athlete', athleteId);
       return json({ success: true });
     }
+    const externalUserId = String(athlete.id);
 
     const lt = formatLeagueType(leagueType);
     const title = 'Workout scored! 💪';

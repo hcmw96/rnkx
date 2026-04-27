@@ -71,7 +71,7 @@ serve(async (req) => {
     const supabase = createClient(supabaseUrl, serviceKey);
     const { data: athlete, error: athErr } = await supabase
       .from('athletes')
-      .select('user_id')
+      .select('id')
       .eq('id', athleteId)
       .maybeSingle();
 
@@ -79,11 +79,11 @@ serve(async (req) => {
       console.error('[notify-rank-change] athlete lookup', athErr);
       return json({ success: true });
     }
-    const externalUserId = athlete?.user_id ? String(athlete.user_id) : '';
-    if (!externalUserId) {
-      console.warn('[notify-rank-change] no user_id for athlete', athleteId);
+    if (!athlete?.id) {
+      console.warn('[notify-rank-change] unknown athlete', athleteId);
       return json({ success: true });
     }
+    const externalUserId = String(athlete.id);
 
     const lt = formatLeagueType(leagueType);
     let title: string;

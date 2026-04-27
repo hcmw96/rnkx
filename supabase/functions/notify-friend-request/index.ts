@@ -59,18 +59,18 @@ serve(async (req) => {
     const supabase = createClient(supabaseUrl, serviceKey);
 
     const [fromRes, toRes] = await Promise.all([
-      supabase.from('athletes').select('user_id, username').eq('id', fromId).maybeSingle(),
-      supabase.from('athletes').select('user_id, username').eq('id', toId).maybeSingle(),
+      supabase.from('athletes').select('id, username').eq('id', fromId).maybeSingle(),
+      supabase.from('athletes').select('id').eq('id', toId).maybeSingle(),
     ]);
 
     if (fromRes.error) console.error('[notify-friend-request] from athlete', fromRes.error);
     if (toRes.error) console.error('[notify-friend-request] to athlete', toRes.error);
 
-    const toUserId = toRes.data?.user_id ? String(toRes.data.user_id) : '';
-    if (!toUserId) {
-      console.warn('[notify-friend-request] no user_id for recipient', toId);
+    if (!toRes.data?.id) {
+      console.warn('[notify-friend-request] unknown recipient athlete', toId);
       return json({ success: true });
     }
+    const externalUserId = String(toRes.data.id);
 
     const fromUsername = sanitize(
       (fromRes.data?.username as string | undefined) || 'Someone',
@@ -88,7 +88,7 @@ serve(async (req) => {
       },
       body: JSON.stringify({
         app_id: appId,
-        include_external_user_ids: [toUserId],
+        include_external_user_ids: [externalUserId],
         headings: { en: title },
         contents: { en: message },
         url: SOCIAL_URL,

@@ -65,7 +65,7 @@ serve(async (req) => {
     const supabase = createClient(supabaseUrl, serviceKey);
     const { data: athlete, error: athErr } = await supabase
       .from('athletes')
-      .select('user_id')
+      .select('id')
       .eq('id', receiverAthleteId)
       .maybeSingle();
 
@@ -74,11 +74,11 @@ serve(async (req) => {
       return json({ success: true });
     }
 
-    const externalUserId = athlete?.user_id ? String(athlete.user_id) : '';
-    if (!externalUserId) {
-      console.warn('[notify-new-message] no user_id for receiver', receiverAthleteId);
+    if (!athlete?.id) {
+      console.warn('[notify-new-message] unknown receiver athlete', receiverAthleteId);
       return json({ success: true });
     }
+    const externalUserId = String(athlete.id);
 
     const title = `${sanitize(senderName, 60)} 💬`;
     const message = sanitize(preview || 'New message', 200);

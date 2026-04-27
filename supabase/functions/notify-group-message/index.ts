@@ -98,27 +98,7 @@ serve(async (req) => {
       return json({ success: true });
     }
 
-    const { data: athletes, error: athErr } = await supabase
-      .from('athletes')
-      .select('user_id')
-      .in('id', recipientAthleteIds);
-
-    if (athErr) {
-      console.error('[notify-group-message] athletes lookup', athErr);
-      return json({ success: true });
-    }
-
-    const externalUserIds = [
-      ...new Set(
-        (athletes || [])
-          .map((a: { user_id: string | null }) => (a.user_id ? String(a.user_id) : ''))
-          .filter(Boolean),
-      ),
-    ];
-
-    if (externalUserIds.length === 0) {
-      return json({ success: true });
-    }
+    const externalUserIds = [...new Set(recipientAthleteIds.map((id: string) => String(id)))];
 
     const safeSender = sanitize(senderName, 60);
     const safePreview = sanitize(preview || 'Message', 180);

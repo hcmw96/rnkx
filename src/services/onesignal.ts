@@ -18,6 +18,10 @@ export async function initOneSignal(): Promise<void> {
   return initPromise;
 }
 
+/**
+ * Registers the device with OneSignal using the athlete row primary key.
+ * Must be `athletes.id` (UUID), never `auth.users.id` / `athletes.user_id`.
+ */
 export async function setOneSignalExternalId(athleteId: string): Promise<void> {
   await OneSignal.login(athleteId);
 }

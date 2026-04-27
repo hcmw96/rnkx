@@ -122,6 +122,7 @@ function SessionRoutes() {
         supabase.from('athletes').select('id').eq('user_id', uid).not('username', 'is', null).maybeSingle(),
         supabase.from('athletes').select('id').eq('id', uid).not('username', 'is', null).maybeSingle(),
       ]);
+      // athletes.id — same external_user_id server-side pushes must target
       const athleteId = (byUserId.data?.id ?? byId.data?.id) as string | undefined;
       if (!athleteId) return;
 
