@@ -13,48 +13,62 @@ export default function WhoopCallback() {
   const [message, setMessage] = useState('');
 
   useEffect(() => {
-    const code = searchParams.get('code');
-    if (!code) {
-      setMessage('Missing authorization code. Return to the app and try connecting WHOOP again.');
-      setPhase('error');
-      return;
-    }
-
     let cancelled = false;
 
     void (async () => {
-      const {
-        data: { session },
-      } = await supabase.auth.getSession();
-      if (!session?.access_token) {
+      try {
+        const returnedState = searchParams.get('state');
+        const savedState = sessionStorage.getItem('whoop_oauth_state');
+        if (returnedState !== savedState) {
+          throw new Error('Invalid state');
+        }
+        sessionStorage.removeItem('whoop_oauth_state');
+
+        const code = searchParams.get('code');
+        if (!code) {
+          setMessage('Missing authorization code. Return to the app and try connecting WHOOP again.');
+          setPhase('error');
+          return;
+        }
+
+        const {
+          data: { session },
+        } = await supabase.auth.getSession();
+        if (!session?.access_token) {
+          if (!cancelled) {
+            setMessage('You need to be signed in to finish connecting WHOOP. Sign in, then use Connect WHOOP from your profile.');
+            setPhase('error');
+          }
+          return;
+        }
+
+        const { data, error } = await supabase.functions.invoke('whoop-auth', {
+          body: { code },
+          headers: { Authorization: `Bearer ${session.access_token}` },
+        });
+
+        if (cancelled) return;
+
+        if (error) {
+          setMessage(error.message || 'Could not complete WHOOP connection.');
+          setPhase('error');
+          return;
+        }
+
+        const errText = (data as { error?: string } | null)?.error;
+        if (errText) {
+          setMessage(typeof errText === 'string' ? errText : 'Could not complete WHOOP connection.');
+          setPhase('error');
+          return;
+        }
+
+        navigate('/app/profile', { replace: true });
+      } catch (e) {
         if (!cancelled) {
-          setMessage('You need to be signed in to finish connecting WHOOP. Sign in, then use Connect WHOOP from your profile.');
+          setMessage(e instanceof Error ? e.message : 'Invalid state');
           setPhase('error');
         }
-        return;
       }
-
-      const { data, error } = await supabase.functions.invoke('whoop-auth', {
-        body: { code },
-        headers: { Authorization: `Bearer ${session.access_token}` },
-      });
-
-      if (cancelled) return;
-
-      if (error) {
-        setMessage(error.message || 'Could not complete WHOOP connection.');
-        setPhase('error');
-        return;
-      }
-
-      const errText = (data as { error?: string } | null)?.error;
-      if (errText) {
-        setMessage(typeof errText === 'string' ? errText : 'Could not complete WHOOP connection.');
-        setPhase('error');
-        return;
-      }
-
-      navigate('/app/profile', { replace: true });
     })();
 
     return () => {

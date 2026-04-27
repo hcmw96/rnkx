@@ -45,8 +45,8 @@ interface WhoopConnectionRow {
   id: string;
 }
 
-/** WHOOP OAuth (production callback registered in WHOOP dashboard). */
-const WHOOP_OAUTH_AUTHORIZE_URL =
+/** WHOOP OAuth (production callback registered in WHOOP dashboard); append `&state=…` before redirect. */
+const WHOOP_OAUTH_AUTHORIZE_BASE =
   'https://api.prod.whoop.com/oauth/oauth2/auth?client_id=35885b30-f053-4b61-813b-e63702f1c83a' +
   '&redirect_uri=https://rnkx.netlify.app/auth/whoop/callback' +
   '&response_type=code' +
@@ -475,7 +475,9 @@ export default function ProfilePage() {
                         size="sm"
                         className="h-8 shrink-0 self-start text-xs font-semibold sm:self-center"
                         onClick={() => {
-                          window.location.href = WHOOP_OAUTH_AUTHORIZE_URL;
+                          const state = Math.random().toString(36).substring(2);
+                          sessionStorage.setItem('whoop_oauth_state', state);
+                          window.location.href = `${WHOOP_OAUTH_AUTHORIZE_BASE}&state=${state}`;
                         }}
                       >
                         Connect WHOOP
