@@ -28,23 +28,29 @@ export function usePremium(athleteId: string | undefined): {
   presentPaywall: () => void;
 } {
   const [isPremium, setIsPremium] = useState(false);
-  const [loading, setLoading] = useState(Boolean(athleteId));
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (!athleteId) {
-      setIsPremium(false);
-      setLoading(false);
-      return;
-    }
-
     let cancelled = false;
     setLoading(true);
+
     void (async () => {
-      const ok = await checkPremium();
-      if (!cancelled) {
-        setIsPremium(ok);
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+
+      if (cancelled) return;
+
+      if (!user) {
+        setIsPremium(false);
         setLoading(false);
+        return;
       }
+
+      const ok = await checkPremium();
+      if (cancelled) return;
+      setIsPremium(ok);
+      setLoading(false);
     })();
 
     return () => {

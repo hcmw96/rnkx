@@ -12,10 +12,10 @@ export function PremiumGate({ athleteId, children }: PremiumGateProps) {
   const { isPremium, loading, presentPaywall } = usePremium(athleteId);
 
   if (loading) {
-    return null;
+    return <div />;
   }
 
-  if (!isPremium) {
+  if (!loading && !isPremium) {
     return (
       <div className="rounded-xl border border-border bg-card p-6 shadow-sm">
         <div className="flex flex-col items-center gap-4 text-center">
