@@ -8,6 +8,9 @@ import { ProfileGateContext } from '@/context/ProfileGateContext';
 import LeaderboardPage from './pages/app/LeaderboardPage';
 import ProfilePage from './pages/app/ProfilePage';
 import PremiumPage from './pages/app/PremiumPage';
+import PrivateLeaguesPage from './pages/app/PrivateLeaguesPage';
+import LeaguePage from './pages/app/LeaguePage';
+import FriendsPage from './pages/app/FriendsPage';
 import Dashboard from './pages/app/Dashboard';
 import AthleteAuth from './pages/AthleteAuth';
 import WhoopCallback from './pages/auth/WhoopCallback';
@@ -199,6 +202,42 @@ function SessionRoutes() {
               <Navigate to="/onboarding" replace />
             ) : (
               <ProfilePage />
+            )
+          }
+        />
+        <Route
+          path="/app/leagues/:leagueId"
+          element={
+            !session ? (
+              <Navigate to="/auth" replace />
+            ) : !profileComplete ? (
+              <Navigate to="/onboarding" replace />
+            ) : (
+              <LeaguePage />
+            )
+          }
+        />
+        <Route
+          path="/app/leagues"
+          element={
+            !session ? (
+              <Navigate to="/auth" replace />
+            ) : !profileComplete ? (
+              <Navigate to="/onboarding" replace />
+            ) : (
+              <PrivateLeaguesPage />
+            )
+          }
+        />
+        <Route
+          path="/app/friends"
+          element={
+            !session ? (
+              <Navigate to="/auth" replace />
+            ) : !profileComplete ? (
+              <Navigate to="/onboarding" replace />
+            ) : (
+              <FriendsPage />
             )
           }
         />
