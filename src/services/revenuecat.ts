@@ -3,7 +3,7 @@ import { supabase } from '@/services/supabase';
 
 const PREMIUM_URL = 'https://rnkx.netlify.app/premium';
 
-export async function checkPremium(athleteId?: string): Promise<boolean> {
+export async function checkPremium(): Promise<boolean> {
   const {
     data: { user },
   } = await supabase.auth.getUser();
@@ -40,7 +40,7 @@ export function usePremium(athleteId: string | undefined): {
     let cancelled = false;
     setLoading(true);
     void (async () => {
-      const ok = await checkPremium(athleteId);
+      const ok = await checkPremium();
       if (!cancelled) {
         setIsPremium(ok);
         setLoading(false);
