@@ -17,7 +17,11 @@ type LeagueRow = {
   invite_code: string | null;
 };
 
-export default function PrivateLeaguesPage() {
+type PrivateLeaguesPageProps = {
+  embedded?: boolean;
+};
+
+export default function PrivateLeaguesPage({ embedded = false }: PrivateLeaguesPageProps) {
   const [athleteId, setAthleteId] = useState<string | undefined>();
   const [leagues, setLeagues] = useState<{ league: LeagueRow; memberCount: number }[]>([]);
   const [loading, setLoading] = useState(true);
@@ -98,48 +102,57 @@ export default function PrivateLeaguesPage() {
     void load();
   }, [load]);
 
+  const content = (
+    <section className="mx-auto max-w-lg space-y-4">
+      <div className="flex items-center justify-between gap-3">
+        {!embedded ? (
+          <h1 className="font-display text-xl text-foreground">Private leagues</h1>
+        ) : (
+          <h2 className="font-display text-lg text-foreground">Leagues</h2>
+        )}
+        {athleteId ? <CreateLeagueModal athleteId={athleteId} onCreated={() => void load()} /> : null}
+      </div>
+
+      {loading ? (
+        <p className="text-sm text-muted-foreground">Loading…</p>
+      ) : leagues.length === 0 ? (
+        <p className="rounded-lg border border-dashed border-border p-6 text-center text-sm text-muted-foreground">
+          No leagues yet. Create one to compete with friends.
+        </p>
+      ) : (
+        <ul className="space-y-2">
+          {leagues.map(({ league, memberCount }) => (
+            <li key={league.id}>
+              <PrivateLeagueCard
+                id={league.id}
+                name={league.name}
+                memberCount={memberCount}
+                inviteCode={league.invite_code}
+                conversationId={league.conversation_id}
+                imageUrl={league.image_url}
+                description={league.description}
+                onShareInvite={() => {
+                  if (!league.invite_code) {
+                    toast.error('Invite link is not available for this league yet.');
+                    return;
+                  }
+                  void shareLeagueInvite(league.name, league.invite_code);
+                }}
+              />
+            </li>
+          ))}
+        </ul>
+      )}
+    </section>
+  );
+
+  if (embedded) {
+    return content;
+  }
+
   return (
     <AppShell>
-      <PremiumGate athleteId={athleteId}>
-        <section className="mx-auto max-w-lg space-y-4">
-          <div className="flex items-center justify-between gap-3">
-            <h1 className="font-display text-xl text-foreground">Private leagues</h1>
-            {athleteId ? <CreateLeagueModal athleteId={athleteId} onCreated={() => void load()} /> : null}
-          </div>
-
-          {loading ? (
-            <p className="text-sm text-muted-foreground">Loading…</p>
-          ) : leagues.length === 0 ? (
-            <p className="rounded-lg border border-dashed border-border p-6 text-center text-sm text-muted-foreground">
-              No leagues yet. Create one to compete with friends.
-            </p>
-          ) : (
-            <ul className="space-y-2">
-              {leagues.map(({ league, memberCount }) => (
-                <li key={league.id}>
-                  <PrivateLeagueCard
-                    id={league.id}
-                    name={league.name}
-                    memberCount={memberCount}
-                    inviteCode={league.invite_code}
-                    conversationId={league.conversation_id}
-                    imageUrl={league.image_url}
-                    description={league.description}
-                    onShareInvite={() => {
-                      if (!league.invite_code) {
-                        toast.error('Invite link is not available for this league yet.');
-                        return;
-                      }
-                      void shareLeagueInvite(league.name, league.invite_code);
-                    }}
-                  />
-                </li>
-              ))}
-            </ul>
-          )}
-
-        </section>
-      </PremiumGate>
+      <PremiumGate athleteId={athleteId}>{content}</PremiumGate>
     </AppShell>
   );
 }

@@ -229,7 +229,7 @@ export default function JoinLeaguePage() {
           <h1 className="font-display text-2xl text-primary">RNKX</h1>
           <p className="text-muted-foreground">Invalid or expired invite link.</p>
           <Button asChild variant="outline">
-            <Link to="/app/leagues">My leagues</Link>
+            <Link to="/app/social/leagues">My leagues</Link>
           </Button>
         </div>
       </div>

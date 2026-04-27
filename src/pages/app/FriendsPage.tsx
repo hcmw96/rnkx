@@ -23,7 +23,11 @@ type FriendshipRow = {
 
 type FriendWithMeta = AthleteLite & { rank: number | null; total_score: number };
 
-export default function FriendsPage() {
+type FriendsPageProps = {
+  embedded?: boolean;
+};
+
+export default function FriendsPage({ embedded = false }: FriendsPageProps) {
   const [athleteId, setAthleteId] = useState<string | undefined>();
   const [search, setSearch] = useState('');
   const [results, setResults] = useState<AthleteLite[]>([]);
@@ -185,11 +189,9 @@ export default function FriendsPage() {
     void loadFriendsData();
   };
 
-  return (
-    <AppShell>
-      <PremiumGate athleteId={athleteId}>
-        <section className="mx-auto max-w-lg space-y-6">
-          <h1 className="font-display text-xl text-foreground">Friends</h1>
+  const content = (
+    <section className="mx-auto max-w-lg space-y-6">
+      {!embedded ? <h1 className="font-display text-xl text-foreground">Friends</h1> : null}
 
           <div className="space-y-2">
             <div className="relative">
@@ -278,8 +280,16 @@ export default function FriendsPage() {
               </ul>
             )}
           </div>
-        </section>
-      </PremiumGate>
+    </section>
+  );
+
+  if (embedded) {
+    return content;
+  }
+
+  return (
+    <AppShell>
+      <PremiumGate athleteId={athleteId}>{content}</PremiumGate>
     </AppShell>
   );
 }

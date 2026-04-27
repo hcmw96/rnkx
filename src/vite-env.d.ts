@@ -2,6 +2,8 @@
 
 declare global {
   interface Window {
+    /** Injected in Despia WebView; absent in normal browsers. */
+    despia?: unknown;
     TerraWidgetAPI?: {
       createWidget: (options: {
         dev_id: string;

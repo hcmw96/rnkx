@@ -246,7 +246,7 @@ export default function LeaguePage() {
         <section className="mx-auto max-w-lg space-y-4">
           <div className="flex items-center gap-2">
             <Button variant="ghost" size="sm" asChild className="-ml-2 gap-1 px-2">
-              <Link to="/app/leagues">
+              <Link to="/app/social/leagues">
                 <ArrowLeft className="h-4 w-4" />
                 Leagues
               </Link>

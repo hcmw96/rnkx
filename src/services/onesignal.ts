@@ -6,6 +6,7 @@ export async function initOneSignal(): Promise<void> {
   if (initPromise) return initPromise;
   initPromise = (async () => {
     try {
+      if (!window.despia) return; // Skip on web browser
       await OneSignal.init({
         appId: '54875193-0dd4-48a1-89f6-d8d15db085c8',
         allowLocalhostAsSecureOrigin: true,
