@@ -254,6 +254,27 @@ serve(async (req) => {
       });
     }
 
+    try {
+      const workoutMaxHr = typeof workout.score?.max_heart_rate === 'number'
+        ? workout.score.max_heart_rate
+        : null;
+      if (workoutMaxHr != null && workoutMaxHr > 0) {
+        const rawCur = athlete.max_hr as number | string | null | undefined;
+        const cur =
+          typeof rawCur === 'number' ? rawCur : typeof rawCur === 'string' ? Number(rawCur) : NaN;
+        const curOk = Number.isFinite(cur) && cur > 0;
+        if (!curOk || workoutMaxHr > cur) {
+          const { error: mxErr } = await supabase
+            .from('athletes')
+            .update({ max_hr: Math.round(workoutMaxHr), max_hr_source: 'whoop_live' })
+            .eq('id', athlete.id);
+          if (mxErr) console.error('[whoop-webhook] max_hr update', mxErr);
+        }
+      }
+    } catch (e) {
+      console.warn('[whoop-webhook] max_hr live update skipped', e);
+    }
+
     return new Response(JSON.stringify({ status: 'inserted', workout_id: wid }), {
       status: 200,
       headers: { 'Content-Type': 'application/json' },

@@ -37,7 +37,7 @@ serve(async (req) => {
 
     const { data: athlete } = await supabase
       .from('athletes')
-      .select('id, selected_leagues, date_of_birth, observed_max_hr')
+      .select('id, selected_leagues, date_of_birth, observed_max_hr, max_hr')
       .eq('id', connection.athlete_id)
       .single();
 
@@ -54,6 +54,7 @@ serve(async (req) => {
     const workouts = data?.workouts ?? (Array.isArray(data) ? data : []);
     let inserted = 0;
     let skipped = 0;
+    let sessionPeakMaxHr = 0;
 
     for (const workout of workouts) {
       const durationMin = Math.round((workout.active_durations_data?.duration_in_seconds ?? 0) / 60);
@@ -63,7 +64,14 @@ serve(async (req) => {
       if (!activityDate) { skipped++; continue; }
 
       // Heart rate
-      const avgHrBpm = workout.heart_rate_data?.summary?.avg_hr_bpm ?? null;
+      const summary = workout.heart_rate_data?.summary as
+        | { avg_hr_bpm?: number; max_hr_bpm?: number; max_heart_rate?: number }
+        | undefined;
+      const maxHrFromDevice = summary?.max_hr_bpm ?? summary?.max_heart_rate;
+      if (typeof maxHrFromDevice === 'number' && Number.isFinite(maxHrFromDevice) && maxHrFromDevice > sessionPeakMaxHr) {
+        sessionPeakMaxHr = maxHrFromDevice;
+      }
+      const avgHrBpm = summary?.avg_hr_bpm ?? null;
       const maxHrAge = athlete.date_of_birth 
         ? 220 - Math.floor((Date.now() - new Date(athlete.date_of_birth).getTime()) / (365.25 * 24 * 60 * 60 * 1000))
         : 190;
@@ -113,6 +121,24 @@ serve(async (req) => {
       } else if (!error) {
         inserted++;
       }
+    }
+
+    try {
+      if (sessionPeakMaxHr > 0) {
+        const rawMx = athlete.max_hr as number | string | null | undefined;
+        const curMx =
+          typeof rawMx === 'number' ? rawMx : typeof rawMx === 'string' ? Number(rawMx) : NaN;
+        const curOk = Number.isFinite(curMx) && curMx > 0;
+        if (!curOk || sessionPeakMaxHr > curMx) {
+          const { error: mxErr } = await supabase
+            .from('athletes')
+            .update({ max_hr: Math.round(sessionPeakMaxHr), max_hr_source: 'terra_live' })
+            .eq('id', athlete.id);
+          if (mxErr) console.error('[terra-webhook] max_hr update', mxErr);
+        }
+      }
+    } catch (e) {
+      console.warn('[terra-webhook] max_hr update skipped', e);
     }
 
     console.log(`[terra-webhook] Processed: inserted=${inserted}, skipped=${skipped}`);

@@ -1,8 +1,11 @@
 import { useCallback, useEffect, useRef, useState, type ChangeEvent, type ComponentType } from 'react';
+import { Info } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import { AppShell } from '@/components/app/AppShell';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import {
   AppleLogo,
   CorosLogo,
@@ -21,7 +24,7 @@ import { fetchRecentWorkouts, requestHealthKitPermissions } from '@/services/des
 import { supabase } from '@/services/supabase';
 
 const ATHLETE_COLUMNS =
-  'id,username,display_name,country,avatar_url,total_score,selected_leagues,wearables,user_id';
+  'id,username,display_name,country,avatar_url,total_score,selected_leagues,wearables,user_id,max_hr,max_hr_source';
 
 interface AthleteRow {
   id: string;
@@ -33,6 +36,8 @@ interface AthleteRow {
   selected_leagues: string[] | null;
   wearables: string[] | null;
   user_id: string | null;
+  max_hr: number | string | null;
+  max_hr_source: string | null;
 }
 
 interface TerraConnectionRow {
@@ -85,6 +90,26 @@ function isDespiaWebView(): boolean {
   return typeof window !== 'undefined' && (window as Window & { despia?: unknown }).despia != null;
 }
 
+function labelForMaxHrSource(source: string | null | undefined): string {
+  switch (source) {
+    case 'manual':
+      return 'Set manually';
+    case 'whoop_historic':
+    case 'whoop_live':
+      return 'Detected from WHOOP';
+    case 'terra_live':
+      return 'Detected from your wearable';
+    default:
+      return source ? `Source: ${source}` : '';
+  }
+}
+
+function parseMaxHrDisplay(v: number | string | null | undefined): number | null {
+  if (v === null || v === undefined) return null;
+  const n = typeof v === 'number' ? v : Number(v);
+  return Number.isFinite(n) && n > 0 ? Math.round(n) : null;
+}
+
 function twoLetterAvatar(username: string | null, displayName: string | null): string {
   const u = (username ?? '').trim();
   if (u.length >= 2) return u.slice(0, 2).toUpperCase();
@@ -110,6 +135,9 @@ export default function ProfilePage() {
   const [disconnectingWhoop, setDisconnectingWhoop] = useState(false);
   const [hasAppleActivities, setHasAppleActivities] = useState(false);
   const [appleConnecting, setAppleConnecting] = useState(false);
+  const [maxHrEditing, setMaxHrEditing] = useState(false);
+  const [maxHrDraft, setMaxHrDraft] = useState('');
+  const [maxHrSaving, setMaxHrSaving] = useState(false);
 
   const loadProfile = useCallback(async () => {
     setLoading(true);
@@ -336,6 +364,33 @@ export default function ProfilePage() {
     }
   }
 
+  async function saveMaxHrManual() {
+    if (!athlete?.id) return;
+    const n = Number(maxHrDraft.trim());
+    if (!Number.isFinite(n) || n < 60 || n > 240) {
+      toast.error('Enter a max heart rate between 60 and 240 bpm.');
+      return;
+    }
+    setMaxHrSaving(true);
+    try {
+      const { error } = await supabase
+        .from('athletes')
+        .update({ max_hr: Math.round(n), max_hr_source: 'manual' })
+        .eq('id', athlete.id);
+      if (error) {
+        toast.error(error.message);
+        return;
+      }
+      setAthlete((prev) =>
+        prev ? { ...prev, max_hr: Math.round(n), max_hr_source: 'manual' } : prev,
+      );
+      setMaxHrEditing(false);
+      toast.success('Max HR updated.');
+    } finally {
+      setMaxHrSaving(false);
+    }
+  }
+
   async function handleWhoopDisconnect() {
     if (!athlete?.id || !whoopConnection) return;
     setDisconnectingWhoop(true);
@@ -372,6 +427,7 @@ export default function ProfilePage() {
 
   return (
     <AppShell>
+      <TooltipProvider delayDuration={200}>
       <section className="mx-auto max-w-lg space-y-6">
         <input
           ref={fileInputRef}
@@ -456,6 +512,94 @@ export default function ProfilePage() {
                 </p>
               </article>
             </div>
+
+            <article className="rounded-xl border border-border bg-card p-5 shadow-sm">
+              <div className="flex items-start justify-between gap-2">
+                <div className="flex items-center gap-2">
+                  <h2 className="text-lg font-semibold text-foreground">Max HR</h2>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <button
+                        type="button"
+                        className="rounded-full p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
+                        aria-label="About max heart rate"
+                      >
+                        <Info className="h-4 w-4" />
+                      </button>
+                    </TooltipTrigger>
+                    <TooltipContent className="max-w-xs text-left" side="top">
+                      Your max heart rate is used to calculate workout intensity and scores accurately
+                    </TooltipContent>
+                  </Tooltip>
+                </div>
+                {!maxHrEditing ? (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="shrink-0"
+                    onClick={() => {
+                      const cur = parseMaxHrDisplay(athlete.max_hr);
+                      setMaxHrDraft(cur != null ? String(cur) : '');
+                      setMaxHrEditing(true);
+                    }}
+                  >
+                    Edit
+                  </Button>
+                ) : null}
+              </div>
+              {!maxHrEditing ? (
+                <div className="mt-3 space-y-1">
+                  <p className="text-2xl font-semibold text-foreground tabular-nums">
+                    {parseMaxHrDisplay(athlete.max_hr) != null
+                      ? `${parseMaxHrDisplay(athlete.max_hr)} bpm`
+                      : 'Not set'}
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    {labelForMaxHrSource(athlete.max_hr_source) ||
+                      (parseMaxHrDisplay(athlete.max_hr) != null ? '—' : '')}
+                  </p>
+                </div>
+              ) : (
+                <div className="mt-3 flex flex-col gap-3 sm:flex-row sm:items-end">
+                  <div className="flex-1 space-y-1">
+                    <label htmlFor="max-hr-input" className="text-xs font-medium text-muted-foreground">
+                      Beats per minute (bpm)
+                    </label>
+                    <Input
+                      id="max-hr-input"
+                      type="number"
+                      inputMode="numeric"
+                      min={60}
+                      max={240}
+                      value={maxHrDraft}
+                      onChange={(e) => setMaxHrDraft(e.target.value)}
+                      className="max-w-[12rem]"
+                      placeholder="e.g. 185"
+                    />
+                  </div>
+                  <div className="flex gap-2">
+                    <Button
+                      type="button"
+                      size="sm"
+                      disabled={maxHrSaving}
+                      onClick={() => void saveMaxHrManual()}
+                    >
+                      {maxHrSaving ? 'Saving…' : 'Save'}
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      disabled={maxHrSaving}
+                      onClick={() => setMaxHrEditing(false)}
+                    >
+                      Cancel
+                    </Button>
+                  </div>
+                </div>
+              )}
+            </article>
 
             <article className="rounded-xl border border-border bg-card p-5 shadow-sm">
               <h2 className="text-lg font-semibold text-foreground">Connected Devices</h2>
@@ -604,6 +748,7 @@ export default function ProfilePage() {
           </>
         )}
       </section>
+      </TooltipProvider>
     </AppShell>
   );
 }

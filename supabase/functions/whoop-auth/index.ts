@@ -1,5 +1,5 @@
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import { createClient, type SupabaseClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -8,6 +8,75 @@ const corsHeaders = {
 
 const WHOOP_TOKEN_URL = 'https://api.prod.whoop.com/oauth/oauth2/token';
 const WHOOP_PROFILE_URL = 'https://api.prod.whoop.com/developer/v2/user/profile/basic';
+const WHOOP_WORKOUT_COLLECTION = 'https://api.prod.whoop.com/developer/v2/activity/workout';
+
+type WhoopWorkoutRecord = { score?: { max_heart_rate?: number } };
+type WhoopWorkoutListJson = {
+  records?: WhoopWorkoutRecord[];
+  next_token?: string;
+  nextToken?: string;
+};
+
+async function syncHistoricMaxHrFromWhoop(
+  supabase: SupabaseClient,
+  athleteId: string,
+  accessToken: string,
+): Promise<void> {
+  const startIso = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString();
+  let peak = 0;
+  let nextCursor: string | undefined;
+
+  for (let page = 0; page < 40; page++) {
+    const params = new URLSearchParams({ limit: '25', start: startIso });
+    if (nextCursor) params.set('nextToken', nextCursor);
+
+    const res = await fetch(`${WHOOP_WORKOUT_COLLECTION}?${params.toString()}`, {
+      headers: { Authorization: `Bearer ${accessToken}` },
+    });
+    if (!res.ok) {
+      console.warn('whoop-auth: workout collection fetch failed', res.status);
+      return;
+    }
+
+    const json = (await res.json()) as WhoopWorkoutListJson;
+    for (const r of json.records ?? []) {
+      const m = r.score?.max_heart_rate;
+      if (typeof m === 'number' && Number.isFinite(m) && m > peak) peak = m;
+    }
+
+    nextCursor =
+      typeof json.next_token === 'string' && json.next_token.trim() !== ''
+        ? json.next_token.trim()
+        : typeof json.nextToken === 'string' && json.nextToken.trim() !== ''
+          ? json.nextToken.trim()
+          : undefined;
+    if (!nextCursor) break;
+  }
+
+  if (peak <= 0) return;
+
+  const { data: row, error: readErr } = await supabase
+    .from('athletes')
+    .select('max_hr')
+    .eq('id', athleteId)
+    .maybeSingle();
+  if (readErr) {
+    console.error('whoop-auth: read max_hr', readErr);
+    return;
+  }
+
+  const raw = row?.max_hr as number | string | null | undefined;
+  const currentNum = typeof raw === 'number' ? raw : typeof raw === 'string' ? Number(raw) : NaN;
+  const currentOk = Number.isFinite(currentNum) && currentNum > 0;
+  if (currentOk && peak <= currentNum) return;
+
+  const rounded = Math.round(peak);
+  const { error: upErr } = await supabase
+    .from('athletes')
+    .update({ max_hr: rounded, max_hr_source: 'whoop_historic' })
+    .eq('id', athleteId);
+  if (upErr) console.error('whoop-auth: max_hr update', upErr);
+}
 
 const DEFAULT_CLIENT_ID = '35885b30-f053-4b61-813b-e63702f1c83a';
 const DEFAULT_REDIRECT_URI = 'https://rnkx.netlify.app/auth/whoop/callback';
@@ -165,6 +234,12 @@ serve(async (req) => {
       status: 500,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
+  }
+
+  try {
+    await syncHistoricMaxHrFromWhoop(supabase, athlete.id, accessToken);
+  } catch (e) {
+    console.warn('whoop-auth: historic max HR fetch skipped', e);
   }
 
   return new Response(JSON.stringify({ ok: true, wearables }), {
