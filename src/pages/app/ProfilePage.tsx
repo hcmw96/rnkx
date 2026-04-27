@@ -17,7 +17,7 @@ import {
 import { providerLabel } from '@/components/terra/TerraWearableProviders';
 import { getCountryByName } from '@/data/countries';
 import { buildSyncActivitiesAppleBody } from '@/lib/syncActivitiesApple';
-import { fetchRecentWorkouts, isDespia } from '@/services/despia';
+import { fetchRecentWorkouts, requestHealthKitPermissions } from '@/services/despia';
 import { supabase } from '@/services/supabase';
 
 const ATHLETE_COLUMNS =
@@ -81,6 +81,10 @@ function ConnectedBadge() {
   );
 }
 
+function isDespiaWebView(): boolean {
+  return typeof window !== 'undefined' && (window as Window & { despia?: unknown }).despia != null;
+}
+
 function twoLetterAvatar(username: string | null, displayName: string | null): string {
   const u = (username ?? '').trim();
   if (u.length >= 2) return u.slice(0, 2).toUpperCase();
@@ -104,6 +108,8 @@ export default function ProfilePage() {
   const [whoopConnection, setWhoopConnection] = useState<WhoopConnectionRow | null>(null);
   const [disconnectingId, setDisconnectingId] = useState<string | null>(null);
   const [disconnectingWhoop, setDisconnectingWhoop] = useState(false);
+  const [hasAppleActivities, setHasAppleActivities] = useState(false);
+  const [appleConnecting, setAppleConnecting] = useState(false);
 
   const loadProfile = useCallback(async () => {
     setLoading(true);
@@ -113,6 +119,7 @@ export default function ProfilePage() {
       setAthlete(null);
       setTerraConnections([]);
       setWhoopConnection(null);
+      setHasAppleActivities(false);
       setRank(null);
       setLoading(false);
       return;
@@ -133,11 +140,17 @@ export default function ProfilePage() {
       setAthlete(null);
       setTerraConnections([]);
       setWhoopConnection(null);
+      setHasAppleActivities(false);
     } else {
       setAthlete(athleteRow);
-      const [{ data: connRows, error: connErr }, whoopRes] = await Promise.all([
+      const [{ data: connRows, error: connErr }, whoopRes, appleActRes] = await Promise.all([
         supabase.from('terra_connections').select('id,terra_user_id,provider').eq('athlete_id', athleteRow.id),
         supabase.from('whoop_connections').select('id').eq('athlete_id', athleteRow.id).maybeSingle(),
+        supabase
+          .from('activities')
+          .select('id', { count: 'exact', head: true })
+          .eq('athlete_id', athleteRow.id)
+          .eq('source', 'apple'),
       ]);
       if (connErr) {
         toast.error(connErr.message);
@@ -150,6 +163,7 @@ export default function ProfilePage() {
       } else {
         setWhoopConnection((whoopRes.data as WhoopConnectionRow | null) ?? null);
       }
+      setHasAppleActivities(!appleActRes.error && (appleActRes.count ?? 0) > 0);
     }
 
     if (rankErr) {
@@ -305,6 +319,23 @@ export default function ProfilePage() {
     }
   }
 
+  async function handleConnectAppleWatch() {
+    setAppleConnecting(true);
+    try {
+      const ok = await requestHealthKitPermissions();
+      if (ok) {
+        toast.success('HealthKit access granted.');
+        await loadProfile();
+      } else {
+        toast.error('Could not connect Apple Watch.');
+      }
+    } catch {
+      toast.error('Could not connect Apple Watch.');
+    } finally {
+      setAppleConnecting(false);
+    }
+  }
+
   async function handleWhoopDisconnect() {
     if (!athlete?.id || !whoopConnection) return;
     setDisconnectingWhoop(true);
@@ -333,8 +364,11 @@ export default function ProfilePage() {
   const countryInfo = athlete?.country ? getCountryByName(athlete.country) : null;
   const score = athlete ? numScore(athlete.total_score) : 0;
   const initials = athlete ? twoLetterAvatar(athlete.username, athlete.display_name) : '??';
-  const inDespia = isDespia();
-  const hasAnyDevice = inDespia || whoopConnection != null || terraConnections.length > 0;
+  const inDespiaWebView = isDespiaWebView();
+  const wearsApple = (athlete?.wearables ?? []).some((w) => String(w).toLowerCase() === 'apple');
+  const appleConnected = wearsApple || hasAppleActivities;
+  const hasAnyDevice =
+    inDespiaWebView || appleConnected || whoopConnection != null || terraConnections.length > 0;
 
   return (
     <AppShell>
@@ -427,21 +461,38 @@ export default function ProfilePage() {
               <h2 className="text-lg font-semibold text-foreground">Connected Devices</h2>
 
               <div className="mt-4 space-y-3">
-                {inDespia ? (
+                {inDespiaWebView ? (
                   <div className="rounded-lg border border-border bg-muted/20 px-3 py-3">
-                    <div className="flex items-center gap-3">
-                      <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg bg-muted/50">
-                        <AppleLogo className="h-8 w-8" />
+                    <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-3">
+                      <div className="flex min-w-0 flex-1 items-center gap-3">
+                        <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg bg-muted/50">
+                          <AppleLogo className="h-8 w-8" />
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <p className="font-medium text-foreground">Apple Watch</p>
+                          <p className="text-xs text-muted-foreground">HealthKit</p>
+                        </div>
+                        {appleConnected ? <ConnectedBadge /> : null}
                       </div>
-                      <div className="min-w-0 flex-1">
-                        <p className="font-medium text-foreground">Apple Watch</p>
-                        <p className="text-xs text-muted-foreground">HealthKit</p>
-                      </div>
-                      <ConnectedBadge />
+                      {!appleConnected ? (
+                        <Button
+                          type="button"
+                          variant="secondary"
+                          size="sm"
+                          className="h-8 shrink-0 self-start text-xs font-semibold sm:self-center"
+                          disabled={appleConnecting}
+                          onClick={() => void handleConnectAppleWatch()}
+                        >
+                          {appleConnecting ? '…' : 'Connect Apple Watch'}
+                        </Button>
+                      ) : null}
                     </div>
-                    <p className="mt-2 text-xs text-muted-foreground">
-                      Manage in iOS Settings {'>'} Privacy {'>'} Health
-                    </p>
+                    {appleConnected ? (
+                      <p className="mt-2 text-xs text-muted-foreground">
+                        There is no in-app disconnect for Apple. To change access, use iOS Settings {'>'} Privacy {'>'}{' '}
+                        Health.
+                      </p>
+                    ) : null}
                   </div>
                 ) : null}
 
