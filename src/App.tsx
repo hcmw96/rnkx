@@ -7,6 +7,7 @@ import { Toaster } from 'sonner';
 import { ProfileGateContext } from '@/context/ProfileGateContext';
 import LeaderboardPage from './pages/app/LeaderboardPage';
 import ProfilePage from './pages/app/ProfilePage';
+import PremiumPage from './pages/app/PremiumPage';
 import Dashboard from './pages/app/Dashboard';
 import AthleteAuth from './pages/AthleteAuth';
 import WhoopCallback from './pages/auth/WhoopCallback';
@@ -138,6 +139,7 @@ function SessionRoutes() {
     <ProfileGateContext.Provider value={{ refetchProfile }}>
       <Routes>
         <Route path="/auth/whoop/callback" element={<WhoopCallback />} />
+        <Route path="/premium" element={<PremiumPage />} />
         <Route
           path="/auth"
           element={
