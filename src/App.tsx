@@ -9,6 +9,7 @@ import LeaderboardPage from './pages/app/LeaderboardPage';
 import ProfilePage from './pages/app/ProfilePage';
 import Dashboard from './pages/app/Dashboard';
 import AthleteAuth from './pages/AthleteAuth';
+import WhoopCallback from './pages/auth/WhoopCallback';
 import Onboarding from './pages/Onboarding';
 import { buildSyncActivitiesAppleBody } from './lib/syncActivitiesApple';
 import { fetchRecentWorkouts } from './services/despia';
@@ -115,6 +116,7 @@ function SessionRoutes() {
   return (
     <ProfileGateContext.Provider value={{ refetchProfile }}>
       <Routes>
+        <Route path="/auth/whoop/callback" element={<WhoopCallback />} />
         <Route
           path="/auth"
           element={

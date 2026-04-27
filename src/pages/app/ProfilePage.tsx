@@ -41,6 +41,18 @@ interface TerraConnectionRow {
   provider: string;
 }
 
+interface WhoopConnectionRow {
+  id: string;
+}
+
+/** WHOOP OAuth (production callback registered in WHOOP dashboard). */
+const WHOOP_OAUTH_AUTHORIZE_URL =
+  'https://api.prod.whoop.com/oauth/oauth2/auth?client_id=35885b30-f053-4b61-813b-e63702f1c83a' +
+  '&redirect_uri=https://rnkx.netlify.app/auth/whoop/callback' +
+  '&response_type=code' +
+  '&scope=' +
+  encodeURIComponent('read:workout read:recovery read:sleep read:profile read:body_measurement offline');
+
 function numScore(v: number | string | null | undefined): number {
   if (v === null || v === undefined) return 0;
   return typeof v === 'number' ? v : Number(v);
@@ -89,7 +101,9 @@ export default function ProfilePage() {
   const [syncing, setSyncing] = useState(false);
   const [terraConnecting, setTerraConnecting] = useState(false);
   const [terraConnections, setTerraConnections] = useState<TerraConnectionRow[]>([]);
+  const [whoopConnection, setWhoopConnection] = useState<WhoopConnectionRow | null>(null);
   const [disconnectingId, setDisconnectingId] = useState<string | null>(null);
+  const [disconnectingWhoop, setDisconnectingWhoop] = useState(false);
 
   const loadProfile = useCallback(async () => {
     setLoading(true);
@@ -98,6 +112,7 @@ export default function ProfilePage() {
       toast.error(authErr?.message ?? 'Not signed in.');
       setAthlete(null);
       setTerraConnections([]);
+      setWhoopConnection(null);
       setRank(null);
       setLoading(false);
       return;
@@ -117,17 +132,23 @@ export default function ProfilePage() {
       if (err) toast.error(err.message);
       setAthlete(null);
       setTerraConnections([]);
+      setWhoopConnection(null);
     } else {
       setAthlete(athleteRow);
-      const { data: connRows, error: connErr } = await supabase
-        .from('terra_connections')
-        .select('id,terra_user_id,provider')
-        .eq('athlete_id', athleteRow.id);
+      const [{ data: connRows, error: connErr }, whoopRes] = await Promise.all([
+        supabase.from('terra_connections').select('id,terra_user_id,provider').eq('athlete_id', athleteRow.id),
+        supabase.from('whoop_connections').select('id').eq('athlete_id', athleteRow.id).maybeSingle(),
+      ]);
       if (connErr) {
         toast.error(connErr.message);
         setTerraConnections([]);
       } else {
         setTerraConnections((connRows ?? []) as TerraConnectionRow[]);
+      }
+      if (whoopRes.error) {
+        setWhoopConnection(null);
+      } else {
+        setWhoopConnection((whoopRes.data as WhoopConnectionRow | null) ?? null);
       }
     }
 
@@ -284,11 +305,36 @@ export default function ProfilePage() {
     }
   }
 
+  async function handleWhoopDisconnect() {
+    if (!athlete?.id || !whoopConnection) return;
+    setDisconnectingWhoop(true);
+    try {
+      const { error } = await supabase.from('whoop_connections').delete().eq('id', whoopConnection.id);
+      if (error) {
+        toast.error(error.message);
+        return;
+      }
+      const wearables = [...new Set(terraConnections.map((r) => String(r.provider).toUpperCase()))];
+      const { error: upErr } = await supabase.from('athletes').update({ wearables }).eq('id', athlete.id);
+      if (upErr) {
+        toast.error(upErr.message);
+        return;
+      }
+      setWhoopConnection(null);
+      setAthlete((prev) => (prev ? { ...prev, wearables } : prev));
+      toast.success('WHOOP disconnected.');
+    } catch {
+      toast.error('Disconnect failed.');
+    } finally {
+      setDisconnectingWhoop(false);
+    }
+  }
+
   const countryInfo = athlete?.country ? getCountryByName(athlete.country) : null;
   const score = athlete ? numScore(athlete.total_score) : 0;
   const initials = athlete ? twoLetterAvatar(athlete.username, athlete.display_name) : '??';
   const inDespia = isDespia();
-  const hasAnyDevice = inDespia || terraConnections.length > 0;
+  const hasAnyDevice = inDespia || whoopConnection != null || terraConnections.length > 0;
 
   return (
     <AppShell>
@@ -398,6 +444,45 @@ export default function ProfilePage() {
                     </p>
                   </div>
                 ) : null}
+
+                <div className="rounded-lg border border-border bg-muted/20 px-3 py-3">
+                  <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-3">
+                    <div className="flex min-w-0 flex-1 items-center gap-3">
+                      <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg bg-muted/50">
+                        <WhoopLogo className="h-8 max-w-[3rem]" />
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <p className="font-medium text-foreground">WHOOP</p>
+                        <p className="text-xs text-muted-foreground">Direct connection</p>
+                      </div>
+                      {whoopConnection ? <ConnectedBadge /> : null}
+                    </div>
+                    {whoopConnection ? (
+                      <Button
+                        type="button"
+                        variant="destructive"
+                        size="sm"
+                        className="h-8 shrink-0 self-start text-xs sm:self-center"
+                        disabled={disconnectingWhoop}
+                        onClick={() => void handleWhoopDisconnect()}
+                      >
+                        {disconnectingWhoop ? '…' : 'Disconnect'}
+                      </Button>
+                    ) : (
+                      <Button
+                        type="button"
+                        variant="secondary"
+                        size="sm"
+                        className="h-8 shrink-0 self-start text-xs font-semibold sm:self-center"
+                        onClick={() => {
+                          window.location.href = WHOOP_OAUTH_AUTHORIZE_URL;
+                        }}
+                      >
+                        Connect WHOOP
+                      </Button>
+                    )}
+                  </div>
+                </div>
 
                 {terraConnections.map((row) => {
                   const Logo = wearableLogoForCode(row.provider);
