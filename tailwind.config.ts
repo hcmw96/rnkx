@@ -18,6 +18,10 @@ export default {
       },
     },
     extend: {
+      fontFamily: {
+        display: ["Anton", "sans-serif"],
+        sans: ["Inter", "sans-serif"],
+      },
       colors: {
         border: "hsl(var(--border))",
         input: "hsl(var(--input))",
@@ -67,10 +71,6 @@ export default {
         "electric-cyan": "hsl(var(--electric-cyan))",
         "dark-grey": "hsl(var(--dark-grey))",
         surface: "hsl(var(--surface))",
-      },
-      fontFamily: {
-        sans: ["Inter", "sans-serif"],
-        display: ["Anton", "sans-serif"],
       },
       borderRadius: {
         lg: "var(--radius)",

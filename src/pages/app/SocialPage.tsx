@@ -1,15 +1,17 @@
 import { useCallback, useEffect, useState } from 'react';
+import type { LucideIcon } from 'lucide-react';
+import { Heart, Shield, UserRound } from 'lucide-react';
 import { NavLink, Outlet } from 'react-router-dom';
 import { AppShell } from '@/components/app/AppShell';
 import { PremiumGate } from '@/components/PremiumGate';
 import { supabase } from '@/services/supabase';
 import { cn } from '@/lib/utils';
 
-const TABS = [
-  { to: '/app/social/friends', label: 'Friends' },
-  { to: '/app/social/leagues', label: 'Leagues' },
-  { to: '/app/social/recovery', label: 'Recovery' },
-] as const;
+const TABS: readonly { to: string; label: string; Icon: LucideIcon }[] = [
+  { to: '/app/social/friends', label: 'Friends', Icon: UserRound },
+  { to: '/app/social/leagues', label: 'Leagues', Icon: Shield },
+  { to: '/app/social/recovery', label: 'Recovery', Icon: Heart },
+];
 
 export default function SocialPage() {
   const [athleteId, setAthleteId] = useState<string | undefined>();
@@ -36,21 +38,25 @@ export default function SocialPage() {
     <AppShell>
       <PremiumGate athleteId={athleteId}>
         <div className="mx-auto max-w-lg space-y-4">
-          <nav className="flex gap-3 border-b border-border" aria-label="Social sections">
-            {TABS.map(({ to, label }) => (
+          <nav
+            className="grid grid-cols-3 border-b border-border"
+            aria-label="Social sections"
+          >
+            {TABS.map(({ to, label, Icon }) => (
               <NavLink
                 key={to}
                 to={to}
                 className={({ isActive }) =>
                   cn(
-                    '-mb-px border-b-2 pb-2 text-sm font-medium transition-colors',
+                    'flex min-w-0 flex-col items-center justify-center gap-1 border-b-2 py-3 text-xs font-medium transition-colors -mb-px',
                     isActive
-                      ? 'border-secondary text-foreground'
-                      : 'border-transparent text-muted-foreground hover:text-foreground',
+                      ? 'border-primary text-primary'
+                      : 'border-transparent text-muted-foreground',
                   )
                 }
               >
-                {label}
+                <Icon className="h-5 w-5 shrink-0" aria-hidden />
+                <span>{label}</span>
               </NavLink>
             ))}
           </nav>
