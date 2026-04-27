@@ -8,6 +8,78 @@ serve(async (req) => {
 
     const { type, user, data } = body;
 
+    const supabaseUrl = Deno.env.get('SUPABASE_URL');
+    const serviceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
+    if (!supabaseUrl || !serviceKey) {
+      return new Response(JSON.stringify({ error: 'Server misconfiguration' }), { status: 500 });
+    }
+    const supabase = createClient(supabaseUrl, serviceKey);
+
+    // Handle reauth - user reconnected with new terra user_id
+    if ((body as { new_user?: unknown; old_user?: unknown }).new_user && (body as { new_user?: unknown; old_user?: unknown }).old_user) {
+      const newUser = (body as { new_user: { user_id?: string; reference_id?: string; provider?: string } }).new_user;
+      const oldUser = (body as { old_user: { user_id?: string } }).old_user;
+      const terraUserId = newUser.user_id;
+      const referenceId = newUser.reference_id;
+      const provider = newUser.provider;
+
+      if (!terraUserId || !referenceId) {
+        return new Response(JSON.stringify({ error: 'Missing fields' }), { status: 400 });
+      }
+
+      // Delete old connection if exists
+      await supabase
+        .from('terra_connections')
+        .delete()
+        .eq('terra_user_id', oldUser.user_id ?? '');
+
+      // Save new connection
+      const { error } = await supabase
+        .from('terra_connections')
+        .upsert({
+          athlete_id: referenceId,
+          terra_user_id: terraUserId,
+          provider: provider ?? 'unknown',
+          connected_at: new Date().toISOString(),
+        }, { onConflict: 'terra_user_id' });
+
+      if (error) {
+        console.error('[terra-webhook] reauth upsert error:', error);
+        return new Response(JSON.stringify({ error: error.message }), { status: 500 });
+      }
+
+      console.log('[terra-webhook] User reauthed:', terraUserId, provider, referenceId);
+      return new Response(JSON.stringify({ status: 'reauthed' }), { status: 200 });
+    }
+
+    if (type === 'user_auth') {
+      const terraUserId = user?.user_id;
+      const provider = user?.provider ?? (body as { provider?: string }).provider;
+      const referenceId = user?.reference_id;
+
+      if (!terraUserId || !referenceId) {
+        return new Response(JSON.stringify({ error: 'Missing user_id or reference_id' }), { status: 400 });
+      }
+
+      const { error } = await supabase.from('terra_connections').upsert(
+        {
+          athlete_id: referenceId,
+          terra_user_id: terraUserId,
+          provider: provider ?? 'unknown',
+          connected_at: new Date().toISOString(),
+        },
+        { onConflict: 'terra_user_id' },
+      );
+
+      if (error) {
+        console.error('[terra-webhook] user_auth upsert error:', error);
+        return new Response(JSON.stringify({ error: error.message }), { status: 500 });
+      }
+
+      console.log('[terra-webhook] User connected:', terraUserId, provider, referenceId);
+      return new Response(JSON.stringify({ status: 'connected' }), { status: 200 });
+    }
+
     // Only process activity/workout data
     if (type !== 'activity' && type !== 'workouts') {
       return new Response(JSON.stringify({ status: 'ignored', type }), { status: 200 });
@@ -17,11 +89,6 @@ serve(async (req) => {
     if (!terraUserId) {
       return new Response(JSON.stringify({ error: 'No user_id' }), { status: 400 });
     }
-
-    const supabase = createClient(
-      Deno.env.get('SUPABASE_URL')!,
-      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
-    );
 
     // Find athlete from terra_connections
     const { data: connection } = await supabase
@@ -60,8 +127,18 @@ serve(async (req) => {
       const durationMin = Math.round((workout.active_durations_data?.duration_in_seconds ?? 0) / 60);
       if (durationMin < 15) { skipped++; continue; }
 
-      const activityDate = workout.metadata?.start_time?.split('T')[0];
-      if (!activityDate) { skipped++; continue; }
+      const startTimeRaw = workout.metadata?.start_time;
+      if (!startTimeRaw || typeof startTimeRaw !== 'string') {
+        skipped++;
+        continue;
+      }
+      const startMs = Date.parse(startTimeRaw);
+      if (!Number.isFinite(startMs)) {
+        skipped++;
+        continue;
+      }
+      const workoutStartTime = new Date(startMs).toISOString();
+      const activityDate = startTimeRaw.split('T')[0] ?? workoutStartTime.slice(0, 10);
 
       // Heart rate
       const summary = workout.heart_rate_data?.summary as
@@ -103,23 +180,32 @@ serve(async (req) => {
 
       const sourceId = `terra_${connection.provider}_${workout.metadata?.workout_id ?? activityDate + '_' + durationMin}`;
 
-      const { error } = await supabase.from('activities').insert({
-        athlete_id: athlete.id,
-        season_id: season?.id ?? null,
-        league_type: leagueType,
-        activity_type: isRun ? 'outdoor_run' : 'engine',
-        duration_minutes: Math.min(durationMin, 120),
-        avg_pace_seconds: avgPaceSeconds,
-        avg_hr_percent: avgHrPercent,
-        activity_date: activityDate,
-        source: connection.provider,
-        source_id: sourceId,
-      });
+      const { data: upserted, error } = await supabase
+        .from('activities')
+        .upsert(
+          {
+            athlete_id: athlete.id,
+            season_id: season?.id ?? null,
+            league_type: leagueType,
+            activity_type: isRun ? 'outdoor_run' : 'engine',
+            duration_minutes: Math.min(durationMin, 120),
+            avg_pace_seconds: avgPaceSeconds,
+            avg_hr_percent: avgHrPercent,
+            activity_date: activityDate,
+            source: connection.provider,
+            source_id: sourceId,
+            workout_start_time: workoutStartTime,
+          },
+          { onConflict: 'athlete_id,workout_start_time', ignoreDuplicates: true },
+        )
+        .select('id');
 
-      if (error && error.code !== '23505') {
-        console.error('[terra-webhook] Insert error:', error);
-      } else if (!error) {
+      if (error) {
+        console.error('[terra-webhook] Upsert error:', error);
+      } else if (upserted && upserted.length > 0) {
         inserted++;
+      } else {
+        skipped++;
       }
     }
 
