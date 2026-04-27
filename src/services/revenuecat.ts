@@ -7,15 +7,31 @@ export async function checkPremium(_athleteId: string): Promise<boolean> {
   const {
     data: { session },
   } = await supabase.auth.getSession();
-  if (!session?.access_token) return false;
 
-  const { data, error } = await supabase.functions.invoke('check-entitlement', {
-    body: {},
-    headers: { Authorization: `Bearer ${session.access_token}` },
-  });
+  if (session?.access_token) {
+    const { data, error } = await supabase.functions.invoke('check-entitlement', {
+      body: {},
+      headers: { Authorization: `Bearer ${session.access_token}` },
+    });
+    if (!error && Boolean((data as { isPremium?: boolean } | null)?.isPremium)) {
+      return true;
+    }
+  }
 
-  if (error) return false;
-  return Boolean((data as { isPremium?: boolean } | null)?.isPremium);
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user?.id) return false;
+
+  const { data: athlete } = await supabase
+    .from('athletes')
+    .select('is_premium')
+    .eq('user_id', user.id)
+    .single();
+
+  if (athlete?.is_premium) return true;
+
+  return false;
 }
 
 export function presentPaywall(): void {
