@@ -136,7 +136,6 @@ export default function ProfilePage() {
   const [whoopConnection, setWhoopConnection] = useState<WhoopConnectionRow | null>(null);
   const [disconnectingId, setDisconnectingId] = useState<string | null>(null);
   const [disconnectingWhoop, setDisconnectingWhoop] = useState(false);
-  const [hasAppleActivities, setHasAppleActivities] = useState(false);
   const [appleConnecting, setAppleConnecting] = useState(false);
   const [healthKitGranted, setHealthKitGranted] = useState(false);
   const [maxHrEditing, setMaxHrEditing] = useState(false);
@@ -151,7 +150,7 @@ export default function ProfilePage() {
       setAthlete(null);
       setTerraConnections([]);
       setWhoopConnection(null);
-      setHasAppleActivities(false);
+      setHealthKitGranted(false);
       setRank(null);
       setLoading(false);
       return;
@@ -166,7 +165,7 @@ export default function ProfilePage() {
       supabase.from('athletes').select(ATHLETE_COLUMNS).eq('id', uid).maybeSingle(),
       inDespia ? fetchRecentWorkouts() : Promise.resolve({ workouts: [], rawPayload: null, error: 'Not in Despia runtime' }),
     ]);
-    setHealthKitGranted(inDespia && !healthKitCheck.error);
+    const liveHealthKitGranted = inDespia && !healthKitCheck.error;
 
     const athleteRow = (byUserId.data as AthleteRow | null) ?? (byId.data as AthleteRow | null);
     if (!athleteRow) {
@@ -175,17 +174,14 @@ export default function ProfilePage() {
       setAthlete(null);
       setTerraConnections([]);
       setWhoopConnection(null);
-      setHasAppleActivities(false);
+      setHealthKitGranted(liveHealthKitGranted);
     } else {
       setAthlete(athleteRow);
-      const [{ data: connRows, error: connErr }, whoopRes, appleActRes] = await Promise.all([
+      const wearsApple = (athleteRow.wearables ?? []).some((w) => String(w).toLowerCase() === 'apple');
+      setHealthKitGranted(wearsApple || liveHealthKitGranted);
+      const [{ data: connRows, error: connErr }, whoopRes] = await Promise.all([
         supabase.from('terra_connections').select('id,terra_user_id,provider').eq('athlete_id', athleteRow.id),
         supabase.from('whoop_connections').select('id').eq('athlete_id', athleteRow.id).maybeSingle(),
-        supabase
-          .from('activities')
-          .select('id', { count: 'exact', head: true })
-          .eq('athlete_id', athleteRow.id)
-          .eq('source', 'apple'),
       ]);
       if (connErr) {
         toast.error(connErr.message);
@@ -198,7 +194,6 @@ export default function ProfilePage() {
       } else {
         setWhoopConnection((whoopRes.data as WhoopConnectionRow | null) ?? null);
       }
-      setHasAppleActivities(!appleActRes.error && (appleActRes.count ?? 0) > 0);
     }
 
     if (rankErr) {
@@ -355,18 +350,52 @@ export default function ProfilePage() {
   }
 
   async function handleConnectAppleWatch() {
+    if (!athlete?.id) return;
     setAppleConnecting(true);
     try {
       const ok = await requestHealthKitPermissions();
       if (ok) {
-        toast.success('HealthKit access granted.');
+        const current = athlete.wearables ?? [];
+        const nextWearables = Array.from(new Set([...current, 'apple']));
+        const { error } = await supabase
+          .from('athletes')
+          .update({ wearables: nextWearables })
+          .eq('id', athlete.id);
+        if (error) {
+          toast.error(error.message);
+          return;
+        }
+        setAthlete((prev) => (prev ? { ...prev, wearables: nextWearables } : prev));
         setHealthKitGranted(true);
-        await loadProfile();
+        toast.success('Apple Watch connected!');
       } else {
         toast.error('Could not connect Apple Watch.');
       }
     } catch {
       toast.error('Could not connect Apple Watch.');
+    } finally {
+      setAppleConnecting(false);
+    }
+  }
+
+  async function handleDisconnectAppleWatch() {
+    if (!athlete?.id) return;
+    setAppleConnecting(true);
+    try {
+      const nextWearables = (athlete.wearables ?? []).filter((w) => String(w).toLowerCase() !== 'apple');
+      const { error } = await supabase
+        .from('athletes')
+        .update({ wearables: nextWearables })
+        .eq('id', athlete.id);
+      if (error) {
+        toast.error(error.message);
+        return;
+      }
+      setAthlete((prev) => (prev ? { ...prev, wearables: nextWearables } : prev));
+      setHealthKitGranted(false);
+      toast.success('Apple Watch disconnected');
+    } catch {
+      toast.error('Disconnect failed.');
     } finally {
       setAppleConnecting(false);
     }
@@ -429,7 +458,7 @@ export default function ProfilePage() {
   const initials = athlete ? twoLetterAvatar(athlete.username, athlete.display_name) : '??';
   const inDespiaWebView = isDespiaWebView();
   const wearsApple = (athlete?.wearables ?? []).some((w) => String(w).toLowerCase() === 'apple');
-  const appleConnected = inDespiaWebView ? healthKitGranted : wearsApple || hasAppleActivities;
+  const appleConnected = wearsApple || healthKitGranted;
   const hasAnyDevice =
     inDespiaWebView || appleConnected || whoopConnection != null || terraConnections.length > 0;
 
@@ -637,12 +666,22 @@ export default function ProfilePage() {
                         >
                           {appleConnecting ? '…' : 'Connect Apple Watch'}
                         </Button>
-                      ) : null}
+                      ) : (
+                        <Button
+                          type="button"
+                          variant="destructive"
+                          size="sm"
+                          className="h-8 shrink-0 self-start text-xs sm:self-center"
+                          disabled={appleConnecting}
+                          onClick={() => void handleDisconnectAppleWatch()}
+                        >
+                          {appleConnecting ? '…' : 'Disconnect'}
+                        </Button>
+                      )}
                     </div>
                     {appleConnected ? (
                       <p className="mt-2 text-xs text-muted-foreground">
-                        There is no in-app disconnect for Apple. To change access, use iOS Settings {'>'} Privacy {'>'}{' '}
-                        Health.
+                        To fully disconnect, go to iOS Settings {'>'} Health {'>'} Data Access
                       </p>
                     ) : null}
                   </div>

@@ -7,3 +7,18 @@
   for = "/.well-known/assetlinks.json"
   [headers.values]
     Content-Type = "application/json"
+
+[[headers]]
+  for = "/assets/*"
+  [headers.values]
+    Cache-Control = "no-cache, no-store, must-revalidate"
+
+[[headers]]
+  for = "/*.js"
+  [headers.values]
+    Cache-Control = "no-cache, no-store, must-revalidate"
+
+[[headers]]
+  for = "/index.html"
+  [headers.values]
+    Cache-Control = "no-cache, no-store, must-revalidate"
