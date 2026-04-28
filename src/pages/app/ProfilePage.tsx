@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState, type ChangeEvent, type ComponentType } from 'react';
+import despia from 'despia-native';
 import { Info } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
@@ -20,7 +21,7 @@ import {
 import { providerLabel } from '@/components/terra/TerraWearableProviders';
 import { getCountryByName } from '@/data/countries';
 import { buildSyncActivitiesAppleBody } from '@/lib/syncActivitiesApple';
-import { fetchRecentWorkouts, requestHealthKitPermissions } from '@/services/despia';
+import { fetchRecentWorkouts } from '@/services/despia';
 import { supabase } from '@/services/supabase';
 
 const ATHLETE_COLUMNS =
@@ -138,6 +139,7 @@ export default function ProfilePage() {
   const [disconnectingWhoop, setDisconnectingWhoop] = useState(false);
   const [appleConnecting, setAppleConnecting] = useState(false);
   const [healthKitGranted, setHealthKitGranted] = useState(false);
+  const [appleError, setAppleError] = useState<string | null>(null);
   const [maxHrEditing, setMaxHrEditing] = useState(false);
   const [maxHrDraft, setMaxHrDraft] = useState('');
   const [maxHrSaving, setMaxHrSaving] = useState(false);
@@ -157,8 +159,6 @@ export default function ProfilePage() {
     }
 
     const uid = auth.user.id;
-    const inDespia = isDespiaWebView();
-
     const [{ data: rankRow, error: rankErr }, byUserId, byId] = await Promise.all([
       supabase.from('leaderboard').select('rank').eq('id', uid).maybeSingle(),
       supabase.from('athletes').select(ATHLETE_COLUMNS).eq('user_id', uid).maybeSingle(),
@@ -173,9 +173,13 @@ export default function ProfilePage() {
       setTerraConnections([]);
       setWhoopConnection(null);
       setHealthKitGranted(false);
+      setAppleError(null);
     } else {
       setAthlete(athleteRow);
-      const wearsApple = (athleteRow.wearables ?? []).some((w) => String(w).toLowerCase() === 'apple');
+      const wearsApple = (athleteRow.wearables ?? []).some((w) => {
+        const v = String(w).toLowerCase();
+        return v === 'apple_watch' || v === 'apple';
+      });
       const [{ data: connRows, error: connErr }, whoopRes] = await Promise.all([
         supabase.from('terra_connections').select('id,terra_user_id,provider').eq('athlete_id', athleteRow.id),
         supabase.from('whoop_connections').select('id').eq('athlete_id', athleteRow.id).maybeSingle(),
@@ -191,20 +195,8 @@ export default function ProfilePage() {
       } else {
         setWhoopConnection((whoopRes.data as WhoopConnectionRow | null) ?? null);
       }
-
-      const terraCount = (connRows ?? []).length;
-      const hasWhoop = !whoopRes.error && !!whoopRes.data;
-      const hasAnyWearable = (athleteRow.wearables ?? []).length > 0;
-      const hasNoConnectedDevices = !hasAnyWearable && terraCount === 0 && !hasWhoop;
-
-      // Only do live HealthKit permission check for users with no connected devices.
-      let liveHealthKitGranted = false;
-      if (inDespia && hasNoConnectedDevices) {
-        const healthKitCheck = await fetchRecentWorkouts();
-        liveHealthKitGranted = !healthKitCheck.error;
-      }
-
-      setHealthKitGranted(wearsApple || liveHealthKitGranted);
+      setHealthKitGranted(wearsApple);
+      setAppleError(null);
     }
 
     if (rankErr) {
@@ -363,27 +355,28 @@ export default function ProfilePage() {
   async function handleConnectAppleWatch() {
     if (!athlete?.id) return;
     setAppleConnecting(true);
+    setAppleError(null);
     try {
-      const ok = await requestHealthKitPermissions();
-      if (ok) {
-        const current = athlete.wearables ?? [];
-        const nextWearables = Array.from(new Set([...current, 'apple']));
-        const { error } = await supabase
-          .from('athletes')
-          .update({ wearables: nextWearables })
-          .eq('id', athlete.id);
-        if (error) {
-          toast.error(error.message);
-          return;
-        }
-        setAthlete((prev) => (prev ? { ...prev, wearables: nextWearables } : prev));
-        setHealthKitGranted(true);
-        toast.success('Apple Watch connected!');
-      } else {
-        toast.error('Could not connect Apple Watch.');
+      await despia('readhealthkit://HKWorkoutTypeIdentifier?days=30', ['healthkitResponse']);
+
+      const current = athlete.wearables ?? [];
+      const nextWearables = Array.from(new Set([...current, 'apple_watch']));
+      const { error } = await supabase
+        .from('athletes')
+        .update({ wearables: nextWearables })
+        .eq('id', athlete.id);
+      if (error) {
+        toast.error(error.message);
+        setAppleError(error.message);
+        return;
       }
-    } catch {
-      toast.error('Could not connect Apple Watch.');
+      setAthlete((prev) => (prev ? { ...prev, wearables: nextWearables } : prev));
+      setHealthKitGranted(true);
+      toast.success('Apple Watch connected!');
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Could not connect Apple Watch.';
+      setAppleError(message);
+      toast.error(message);
     } finally {
       setAppleConnecting(false);
     }
@@ -393,7 +386,10 @@ export default function ProfilePage() {
     if (!athlete?.id) return;
     setAppleConnecting(true);
     try {
-      const nextWearables = (athlete.wearables ?? []).filter((w) => String(w).toLowerCase() !== 'apple');
+      const nextWearables = (athlete.wearables ?? []).filter((w) => {
+        const v = String(w).toLowerCase();
+        return v !== 'apple' && v !== 'apple_watch';
+      });
       const { error } = await supabase
         .from('athletes')
         .update({ wearables: nextWearables })
@@ -468,7 +464,10 @@ export default function ProfilePage() {
   const score = athlete ? numScore(athlete.total_score) : 0;
   const initials = athlete ? twoLetterAvatar(athlete.username, athlete.display_name) : '??';
   const inDespiaWebView = isDespiaWebView();
-  const wearsApple = (athlete?.wearables ?? []).some((w) => String(w).toLowerCase() === 'apple');
+  const wearsApple = (athlete?.wearables ?? []).some((w) => {
+    const v = String(w).toLowerCase();
+    return v === 'apple_watch' || v === 'apple';
+  });
   const appleConnected = wearsApple || healthKitGranted;
   const hasAnyDevice =
     inDespiaWebView || appleConnected || whoopConnection != null || terraConnections.length > 0;
@@ -653,8 +652,7 @@ export default function ProfilePage() {
               <h2 className="text-lg font-semibold text-foreground">Connected Devices</h2>
 
               <div className="mt-4 space-y-3">
-                {inDespiaWebView ? (
-                  <div className="rounded-lg border border-border bg-muted/20 px-3 py-3">
+                <div className="rounded-lg border border-border bg-muted/20 px-3 py-3">
                     <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-3">
                       <div className="flex min-w-0 flex-1 items-center gap-3">
                         <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg bg-muted/50">
@@ -695,8 +693,10 @@ export default function ProfilePage() {
                         To fully disconnect, go to iOS Settings {'>'} Health {'>'} Data Access
                       </p>
                     ) : null}
-                  </div>
-                ) : null}
+                    {appleError ? (
+                      <p className="mt-2 text-xs text-destructive">{appleError}</p>
+                    ) : null}
+                </div>
 
                 <div className="rounded-lg border border-border bg-muted/20 px-3 py-3">
                   <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-3">
