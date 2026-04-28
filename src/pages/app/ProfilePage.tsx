@@ -135,6 +135,7 @@ export default function ProfilePage() {
   const [disconnectingWhoop, setDisconnectingWhoop] = useState(false);
   const [hasAppleActivities, setHasAppleActivities] = useState(false);
   const [appleConnecting, setAppleConnecting] = useState(false);
+  const [healthKitGranted, setHealthKitGranted] = useState(false);
   const [maxHrEditing, setMaxHrEditing] = useState(false);
   const [maxHrDraft, setMaxHrDraft] = useState('');
   const [maxHrSaving, setMaxHrSaving] = useState(false);
@@ -154,12 +155,15 @@ export default function ProfilePage() {
     }
 
     const uid = auth.user.id;
+    const inDespia = isDespiaWebView();
 
-    const [{ data: rankRow, error: rankErr }, byUserId, byId] = await Promise.all([
+    const [{ data: rankRow, error: rankErr }, byUserId, byId, healthKitCheck] = await Promise.all([
       supabase.from('leaderboard').select('rank').eq('id', uid).maybeSingle(),
       supabase.from('athletes').select(ATHLETE_COLUMNS).eq('user_id', uid).maybeSingle(),
       supabase.from('athletes').select(ATHLETE_COLUMNS).eq('id', uid).maybeSingle(),
+      inDespia ? fetchRecentWorkouts() : Promise.resolve({ workouts: [], rawPayload: null, error: 'Not in Despia runtime' }),
     ]);
+    setHealthKitGranted(inDespia && !healthKitCheck.error);
 
     const athleteRow = (byUserId.data as AthleteRow | null) ?? (byId.data as AthleteRow | null);
     if (!athleteRow) {
@@ -353,6 +357,7 @@ export default function ProfilePage() {
       const ok = await requestHealthKitPermissions();
       if (ok) {
         toast.success('HealthKit access granted.');
+        setHealthKitGranted(true);
         await loadProfile();
       } else {
         toast.error('Could not connect Apple Watch.');
@@ -421,7 +426,7 @@ export default function ProfilePage() {
   const initials = athlete ? twoLetterAvatar(athlete.username, athlete.display_name) : '??';
   const inDespiaWebView = isDespiaWebView();
   const wearsApple = (athlete?.wearables ?? []).some((w) => String(w).toLowerCase() === 'apple');
-  const appleConnected = wearsApple || hasAppleActivities;
+  const appleConnected = inDespiaWebView ? healthKitGranted : wearsApple || hasAppleActivities;
   const hasAnyDevice =
     inDespiaWebView || appleConnected || whoopConnection != null || terraConnections.length > 0;
 

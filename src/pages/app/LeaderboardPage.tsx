@@ -24,10 +24,10 @@ interface AthleteExtra {
 
 interface AthleteStatExtra {
   athlete_id: string;
-  engine_score: number | string | null;
-  run_score: number | string | null;
-  engine_rank: number | null;
-  run_rank: number | null;
+  season_id: string;
+  category: 'engine' | 'run';
+  score: number | string | null;
+  rank: number | null;
 }
 
 interface MergedAthlete {
@@ -131,9 +131,11 @@ function LeaderboardSkeleton() {
 /** PostgREST may show commas as %2C in request URLs; the client still sends plain comma-separated columns. */
 const LEADERBOARD_COLUMNS = 'id,display_name,total_score,rank';
 const ATHLETE_ENRICH_COLUMNS = 'id,username,country,avatar_url';
-const ATHLETE_STATS_COLUMNS = 'athlete_id,engine_score,run_score,engine_rank,run_rank';
+const ATHLETE_STATS_COLUMNS = 'athlete_id,season_id,category,score,rank';
 
-async function fetchMergedLeaderboard(): Promise<{ merged: MergedAthlete[]; error: string | null }> {
+async function fetchMergedLeaderboard(
+  activeSeasonId: string | null,
+): Promise<{ merged: MergedAthlete[]; error: string | null }> {
   const lb = await supabase.from('leaderboard').select(LEADERBOARD_COLUMNS).order('rank', { ascending: true });
 
   if (lb.error) {
@@ -144,19 +146,42 @@ async function fetchMergedLeaderboard(): Promise<{ merged: MergedAthlete[]; erro
   const ids = base.map((r) => r.id).filter(Boolean);
 
   const athleteMap = new Map<string, AthleteExtra>();
-  const statsMap = new Map<string, AthleteStatExtra>();
+  const statsMap = new Map<string, { engine_score: number; run_score: number; engine_rank: number | null; run_rank: number | null }>();
 
   if (ids.length) {
     const [athRes, statRes] = await Promise.all([
       supabase.from('athletes').select(ATHLETE_ENRICH_COLUMNS).in('id', ids),
-      supabase.from('athlete_stats').select(ATHLETE_STATS_COLUMNS).in('athlete_id', ids),
+      activeSeasonId
+        ? supabase
+            .from('athlete_stats')
+            .select(ATHLETE_STATS_COLUMNS)
+            .eq('season_id', activeSeasonId)
+            .in('athlete_id', ids)
+            .in('category', ['engine', 'run'])
+        : Promise.resolve({ data: [], error: null }),
     ]);
 
     if (!athRes.error && athRes.data) {
       (athRes.data as AthleteExtra[]).forEach((a) => athleteMap.set(a.id, a));
     }
     if (!statRes.error && statRes.data) {
-      (statRes.data as AthleteStatExtra[]).forEach((s) => statsMap.set(s.athlete_id, s));
+      (statRes.data as AthleteStatExtra[]).forEach((s) => {
+        const existing = statsMap.get(s.athlete_id) ?? {
+          engine_score: 0,
+          run_score: 0,
+          engine_rank: null,
+          run_rank: null,
+        };
+        const score = num(s.score);
+        if (s.category === 'engine') {
+          existing.engine_score = score;
+          existing.engine_rank = s.rank ?? null;
+        } else if (s.category === 'run') {
+          existing.run_score = score;
+          existing.run_rank = s.rank ?? null;
+        }
+        statsMap.set(s.athlete_id, existing);
+      });
     }
   }
 
@@ -164,8 +189,6 @@ async function fetchMergedLeaderboard(): Promise<{ merged: MergedAthlete[]; erro
     const a = athleteMap.get(row.id);
     const s = statsMap.get(row.id);
     const total = num(row.total_score);
-    const engineScore = s?.engine_score != null ? num(s.engine_score) : null;
-    const runScore = s?.run_score != null ? num(s.run_score) : null;
     return {
       id: row.id,
       display_name: row.display_name,
@@ -173,8 +196,8 @@ async function fetchMergedLeaderboard(): Promise<{ merged: MergedAthlete[]; erro
       username: a?.username?.trim() || null,
       country: a?.country ?? null,
       avatar_url: a?.avatar_url ?? null,
-      engine_score: engineScore ?? total,
-      run_score: runScore ?? total,
+      engine_score: s?.engine_score ?? 0,
+      run_score: s?.run_score ?? 0,
       engine_rank: s?.engine_rank ?? null,
       run_rank: s?.run_rank ?? null,
     };
@@ -195,10 +218,9 @@ export default function LeaderboardPage() {
     setLoading(true);
     setError(null);
 
-    const [{ data: auth }, { data: seasonRow, error: seasonErr }, pack] = await Promise.all([
+    const [{ data: auth }, { data: seasonRow, error: seasonErr }] = await Promise.all([
       supabase.auth.getUser(),
-      supabase.from('seasons').select('name').eq('is_active', true).maybeSingle(),
-      fetchMergedLeaderboard(),
+      supabase.from('seasons').select('id,name').eq('is_active', true).maybeSingle(),
     ]);
 
     setCurrentUserId(auth.user?.id ?? null);
@@ -209,6 +231,7 @@ export default function LeaderboardPage() {
       setSeasonName(null);
     }
 
+    const pack = await fetchMergedLeaderboard((seasonRow as { id?: string } | null)?.id ?? null);
     if (pack.error) {
       setError(pack.error);
       setMerged([]);
