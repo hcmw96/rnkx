@@ -672,6 +672,7 @@ export default function ProfilePage() {
                         onClick={() => {
                           const state = Math.random().toString(36).substring(2);
                           sessionStorage.setItem('whoop_oauth_state', state);
+                          localStorage.setItem('whoop_oauth_state', state);
                           window.location.href = `${WHOOP_OAUTH_AUTHORIZE_BASE}&state=${state}`;
                         }}
                       >

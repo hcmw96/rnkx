@@ -18,11 +18,13 @@ export default function WhoopCallback() {
     void (async () => {
       try {
         const returnedState = searchParams.get('state');
-        const savedState = sessionStorage.getItem('whoop_oauth_state');
+        const savedState =
+          sessionStorage.getItem('whoop_oauth_state') || localStorage.getItem('whoop_oauth_state');
         if (returnedState !== savedState) {
           throw new Error('Invalid state');
         }
         sessionStorage.removeItem('whoop_oauth_state');
+        localStorage.removeItem('whoop_oauth_state');
 
         const code = searchParams.get('code');
         if (!code) {
