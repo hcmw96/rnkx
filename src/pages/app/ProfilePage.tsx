@@ -159,13 +159,11 @@ export default function ProfilePage() {
     const uid = auth.user.id;
     const inDespia = isDespiaWebView();
 
-    const [{ data: rankRow, error: rankErr }, byUserId, byId, healthKitCheck] = await Promise.all([
+    const [{ data: rankRow, error: rankErr }, byUserId, byId] = await Promise.all([
       supabase.from('leaderboard').select('rank').eq('id', uid).maybeSingle(),
       supabase.from('athletes').select(ATHLETE_COLUMNS).eq('user_id', uid).maybeSingle(),
       supabase.from('athletes').select(ATHLETE_COLUMNS).eq('id', uid).maybeSingle(),
-      inDespia ? fetchRecentWorkouts() : Promise.resolve({ workouts: [], rawPayload: null, error: 'Not in Despia runtime' }),
     ]);
-    const liveHealthKitGranted = inDespia && !healthKitCheck.error;
 
     const athleteRow = (byUserId.data as AthleteRow | null) ?? (byId.data as AthleteRow | null);
     if (!athleteRow) {
@@ -174,11 +172,10 @@ export default function ProfilePage() {
       setAthlete(null);
       setTerraConnections([]);
       setWhoopConnection(null);
-      setHealthKitGranted(liveHealthKitGranted);
+      setHealthKitGranted(false);
     } else {
       setAthlete(athleteRow);
       const wearsApple = (athleteRow.wearables ?? []).some((w) => String(w).toLowerCase() === 'apple');
-      setHealthKitGranted(wearsApple || liveHealthKitGranted);
       const [{ data: connRows, error: connErr }, whoopRes] = await Promise.all([
         supabase.from('terra_connections').select('id,terra_user_id,provider').eq('athlete_id', athleteRow.id),
         supabase.from('whoop_connections').select('id').eq('athlete_id', athleteRow.id).maybeSingle(),
@@ -194,6 +191,20 @@ export default function ProfilePage() {
       } else {
         setWhoopConnection((whoopRes.data as WhoopConnectionRow | null) ?? null);
       }
+
+      const terraCount = (connRows ?? []).length;
+      const hasWhoop = !whoopRes.error && !!whoopRes.data;
+      const hasAnyWearable = (athleteRow.wearables ?? []).length > 0;
+      const hasNoConnectedDevices = !hasAnyWearable && terraCount === 0 && !hasWhoop;
+
+      // Only do live HealthKit permission check for users with no connected devices.
+      let liveHealthKitGranted = false;
+      if (inDespia && hasNoConnectedDevices) {
+        const healthKitCheck = await fetchRecentWorkouts();
+        liveHealthKitGranted = !healthKitCheck.error;
+      }
+
+      setHealthKitGranted(wearsApple || liveHealthKitGranted);
     }
 
     if (rankErr) {
