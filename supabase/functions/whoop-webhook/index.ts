@@ -14,20 +14,12 @@ type WhoopWorkout = {
   id?: string;
   start?: string;
   end?: string;
-  sport_id?: number;
   score?: {
     average_heart_rate?: number;
     max_heart_rate?: number;
     kilojoule?: number;
   };
 };
-
-function mapSportId(sportId: number): { league_type: 'run' | 'engine'; activity_type: string } {
-  if (sportId === 0) return { league_type: 'run', activity_type: 'outdoor_run' };
-  if (sportId === 71) return { league_type: 'run', activity_type: 'outdoor_run' };
-  if (sportId === 1) return { league_type: 'engine', activity_type: 'engine' };
-  return { league_type: 'engine', activity_type: 'engine' };
-}
 
 async function refreshWhoopTokens(
   clientId: string,
@@ -206,9 +198,6 @@ serve(async (req) => {
     const endMs = new Date(endIso).getTime();
     const durationMinutes = Math.min(120, Math.max(0, Math.round((endMs - startMs) / 60_000)));
 
-    const sportId = typeof workout.sport_id === 'number' ? workout.sport_id : -1;
-    const { league_type, activity_type } = mapSportId(sportId);
-
     const { data: season } = await supabase.from('seasons').select('id').eq('is_active', true).maybeSingle();
 
     const { data: dup } = await supabase
@@ -230,8 +219,8 @@ serve(async (req) => {
     const { error: insErr } = await supabase.from('activities').insert({
       athlete_id: conn.athlete_id,
       season_id: season?.id ?? null,
-      league_type,
-      activity_type,
+      league_type: 'engine',
+      activity_type: 'engine',
       duration_minutes: durationMinutes,
       avg_pace_seconds: null,
       avg_hr_percent: avgHrPercent,
