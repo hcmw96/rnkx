@@ -24,7 +24,7 @@ interface WearableCardConfig {
 const dedicatedCards: WearableCardConfig[] = [
   { name: 'Strava', provider: 'strava', Logo: StravaLogo, leagueSupport: 'run' },
   { name: 'WHOOP', provider: 'whoop', Logo: WhoopLogo, leagueSupport: 'engine' },
-  { name: 'Apple Health', provider: 'apple', Logo: AppleLogo, leagueSupport: 'both' },
+  { name: 'Apple Watch', provider: 'apple', Logo: AppleLogo, leagueSupport: 'both' },
 ];
 
 // Terra provider logos for the consolidated card
@@ -39,7 +39,7 @@ const terraLogos = [
 
 // Export helpers for LeagueSelect compatibility
 const nameMap: Record<WearableProvider, string> = {
-  strava: 'Strava', whoop: 'WHOOP', apple: 'Apple Health', garmin: 'Garmin',
+  strava: 'Strava', whoop: 'WHOOP', apple: 'Apple Watch', garmin: 'Garmin',
   polar: 'Polar', coros: 'COROS', fitbit: 'Fitbit', oura: 'Oura',
   samsung: 'Samsung', myzone: 'Myzone',
 };
