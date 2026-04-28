@@ -87,7 +87,10 @@ function ConnectedBadge() {
 }
 
 function isDespiaWebView(): boolean {
-  return typeof window !== 'undefined' && (window as Window & { despia?: unknown }).despia != null;
+  if (typeof window === 'undefined') return false;
+  const hasDespiaBridge = (window as Window & { despia?: unknown }).despia != null;
+  const isIosUa = /iPhone|iPad|iPod/.test(navigator.userAgent);
+  return hasDespiaBridge || isIosUa;
 }
 
 function labelForMaxHrSource(source: string | null | undefined): string {
