@@ -18,12 +18,10 @@ export default function WhoopCallback() {
     void (async () => {
       try {
         const returnedState = searchParams.get('state');
-        const savedState =
-          sessionStorage.getItem('whoop_oauth_state') || localStorage.getItem('whoop_oauth_state');
+        const savedState = localStorage.getItem('whoop_oauth_state');
         if (returnedState !== savedState) {
           throw new Error('Invalid state');
         }
-        sessionStorage.removeItem('whoop_oauth_state');
         localStorage.removeItem('whoop_oauth_state');
 
         const code = searchParams.get('code');
@@ -64,7 +62,10 @@ export default function WhoopCallback() {
           return;
         }
 
-        navigate('/app/profile', { replace: true });
+        window.location.href = 'rnkx://app/profile';
+        setTimeout(() => {
+          if (!cancelled) navigate('/app/profile', { replace: true });
+        }, 1200);
       } catch (e) {
         if (!cancelled) {
           setMessage(e instanceof Error ? e.message : 'Invalid state');

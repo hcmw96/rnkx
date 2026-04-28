@@ -444,7 +444,7 @@ export default function ProfilePage() {
         toast.error(error.message);
         return;
       }
-      const wearables = [...new Set(terraConnections.map((r) => String(r.provider).toUpperCase()))];
+      const wearables = (athlete.wearables ?? []).filter((w) => String(w).toLowerCase() !== 'whoop');
       const { error: upErr } = await supabase.from('athletes').update({ wearables }).eq('id', athlete.id);
       if (upErr) {
         toast.error(upErr.message);
@@ -653,6 +653,47 @@ export default function ProfilePage() {
 
               <div className="mt-4 space-y-3">
                 <div className="rounded-lg border border-border bg-muted/20 px-3 py-3">
+                  <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-3">
+                    <div className="flex min-w-0 flex-1 items-center gap-3">
+                      <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg bg-muted/50">
+                        <WhoopLogo className="h-8 max-w-[3rem]" />
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <p className="font-medium text-foreground">WHOOP</p>
+                        <p className="text-xs text-muted-foreground">Direct connection</p>
+                      </div>
+                      {whoopConnection ? <ConnectedBadge /> : null}
+                    </div>
+                    {whoopConnection ? (
+                      <Button
+                        type="button"
+                        variant="destructive"
+                        size="sm"
+                        className="h-8 shrink-0 self-start text-xs sm:self-center"
+                        disabled={disconnectingWhoop}
+                        onClick={() => void handleWhoopDisconnect()}
+                      >
+                        {disconnectingWhoop ? '…' : 'Disconnect'}
+                      </Button>
+                    ) : (
+                      <Button
+                        type="button"
+                        variant="secondary"
+                        size="sm"
+                        className="h-8 shrink-0 self-start text-xs font-semibold sm:self-center"
+                        onClick={() => {
+                          const state = Math.random().toString(36).substring(2);
+                          localStorage.setItem('whoop_oauth_state', state);
+                          window.location.href = `${WHOOP_OAUTH_AUTHORIZE_BASE}&state=${state}`;
+                        }}
+                      >
+                        Connect WHOOP
+                      </Button>
+                    )}
+                  </div>
+                </div>
+
+                <div className="rounded-lg border border-border bg-muted/20 px-3 py-3">
                     <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-3">
                       <div className="flex min-w-0 flex-1 items-center gap-3">
                         <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg bg-muted/50">
@@ -696,48 +737,6 @@ export default function ProfilePage() {
                     {appleError ? (
                       <p className="mt-2 text-xs text-destructive">{appleError}</p>
                     ) : null}
-                </div>
-
-                <div className="rounded-lg border border-border bg-muted/20 px-3 py-3">
-                  <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-3">
-                    <div className="flex min-w-0 flex-1 items-center gap-3">
-                      <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg bg-muted/50">
-                        <WhoopLogo className="h-8 max-w-[3rem]" />
-                      </div>
-                      <div className="min-w-0 flex-1">
-                        <p className="font-medium text-foreground">WHOOP</p>
-                        <p className="text-xs text-muted-foreground">Direct connection</p>
-                      </div>
-                      {whoopConnection ? <ConnectedBadge /> : null}
-                    </div>
-                    {whoopConnection ? (
-                      <Button
-                        type="button"
-                        variant="destructive"
-                        size="sm"
-                        className="h-8 shrink-0 self-start text-xs sm:self-center"
-                        disabled={disconnectingWhoop}
-                        onClick={() => void handleWhoopDisconnect()}
-                      >
-                        {disconnectingWhoop ? '…' : 'Disconnect'}
-                      </Button>
-                    ) : (
-                      <Button
-                        type="button"
-                        variant="secondary"
-                        size="sm"
-                        className="h-8 shrink-0 self-start text-xs font-semibold sm:self-center"
-                        onClick={() => {
-                          const state = Math.random().toString(36).substring(2);
-                          sessionStorage.setItem('whoop_oauth_state', state);
-                          localStorage.setItem('whoop_oauth_state', state);
-                          window.location.href = `${WHOOP_OAUTH_AUTHORIZE_BASE}&state=${state}`;
-                        }}
-                      >
-                        Connect WHOOP
-                      </Button>
-                    )}
-                  </div>
                 </div>
 
                 {terraConnections.map((row) => {
