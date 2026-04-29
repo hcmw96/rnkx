@@ -3,6 +3,7 @@ import { AppShell } from '@/components/app/AppShell';
 import { MomentumBlock } from '@/components/dashboard/MomentumBlock';
 import { SeasonCard } from '@/components/dashboard/SeasonCard';
 import { usePullToRefresh } from '@/hooks/usePullToRefresh';
+import { activitySessionScore } from '@/lib/activitySessionScore';
 import { supabase } from '@/services/supabase';
 
 interface ActiveSeason {
@@ -27,11 +28,30 @@ interface AthleteStats {
   selected_leagues: string[] | null;
 }
 
+interface RecentActivity {
+  id: string;
+  activity_type: string | null;
+  league_type: 'engine' | 'run' | string;
+  activity_date: string;
+  duration_minutes: number | null;
+  avg_hr_percent: number | null;
+  avg_pace_seconds: number | null;
+}
+
+function activityLabel(activityType: string | null, leagueType: string): string {
+  const value = String(activityType ?? '').toLowerCase();
+  if (value.includes('run')) return 'Running';
+  if (value.includes('strength')) return 'Strength';
+  if (leagueType === 'run') return 'Running';
+  return 'Engine';
+}
+
 export default function Dashboard() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [season, setSeason] = useState<ActiveSeason | null>(null);
   const [stats, setStats] = useState<AthleteStats | null>(null);
+  const [recentActivities, setRecentActivities] = useState<RecentActivity[]>([]);
 
   const loadDashboard = useCallback(async () => {
     setLoading(true);
@@ -84,6 +104,22 @@ export default function Dashboard() {
         setError(statsError.message);
       } else {
         setStats((statsData as AthleteStats | null) ?? null);
+      }
+
+      const { data: activityRows, error: activitiesError } = await supabase
+        .from('activities')
+        .select('id,activity_type,league_type,activity_date,duration_minutes,avg_hr_percent,avg_pace_seconds')
+        .eq('athlete_id', userId)
+        .eq('status', 'scored')
+        .order('workout_start_time', { ascending: false, nullsFirst: false })
+        .order('activity_date', { ascending: false })
+        .limit(10);
+
+      if (activitiesError) {
+        setError((prev) => prev ?? activitiesError.message);
+        setRecentActivities([]);
+      } else {
+        setRecentActivities((activityRows as RecentActivity[] | null) ?? []);
       }
 
     setLoading(false);
@@ -158,6 +194,50 @@ export default function Dashboard() {
           <p className="mt-1 text-2xl font-semibold text-foreground">
             {(stats?.total_score ?? 0).toLocaleString(undefined, { maximumFractionDigits: 1 })}
           </p>
+        </div>
+
+        <div className="rounded-lg border border-border bg-card p-4">
+          <h3 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">Recent workouts</h3>
+          {!recentActivities.length ? (
+            <p className="mt-3 text-sm text-muted-foreground">No scored workouts yet.</p>
+          ) : (
+            <div className="mt-3 space-y-2">
+              {recentActivities.map((activity) => {
+                const leagueType = activity.league_type === 'run' ? 'run' : 'engine';
+                const duration = Math.max(0, Number(activity.duration_minutes ?? 0));
+                const score = activitySessionScore(
+                  leagueType,
+                  duration,
+                  activity.avg_hr_percent != null ? Number(activity.avg_hr_percent) : null,
+                  activity.avg_pace_seconds != null ? Number(activity.avg_pace_seconds) : null,
+                );
+                return (
+                  <div key={activity.id} className="flex items-center justify-between rounded-md border border-border/60 p-3">
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-medium text-foreground">
+                        {activityLabel(activity.activity_type, leagueType)}
+                      </p>
+                      <p className="text-xs text-muted-foreground">
+                        {new Date(`${activity.activity_date}T12:00:00`).toLocaleDateString()} · {duration} min
+                      </p>
+                    </div>
+                    <div className="ml-3 text-right">
+                      <span
+                        className={`inline-flex rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${
+                          leagueType === 'run'
+                            ? 'bg-cyan-500/15 text-cyan-300'
+                            : 'bg-orange-500/15 text-orange-300'
+                        }`}
+                      >
+                        {leagueType === 'run' ? 'Run' : 'Engine'}
+                      </span>
+                      <p className="mt-1 text-sm font-semibold text-foreground">{score.toLocaleString()} pts</p>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
         </div>
       </section>
     </AppShell>
