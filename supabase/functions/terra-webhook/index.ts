@@ -259,7 +259,7 @@ serve(async (req) => {
       return new Response(JSON.stringify({ status: 'reauthed', ...backfill }), { status: 200 });
     }
 
-    if (type === 'user_auth') {
+    if (type === 'user_auth' || type === 'auth') {
       const terraUserId = user?.user_id as string | undefined;
       const provider = (user?.provider as string | undefined) ?? (body as { provider?: string }).provider;
       const referenceId = user?.reference_id as string | undefined;
@@ -303,7 +303,8 @@ serve(async (req) => {
       return new Response(JSON.stringify({ status: 'connected', ...backfill }), { status: 200 });
     }
 
-    if (type !== 'activity' && type !== 'workouts') {
+    const isUntypedArrayPayload = (type == null || type === '') && Array.isArray(data) && data.length > 0;
+    if (!isUntypedArrayPayload && type !== 'activity' && type !== 'workouts') {
       return new Response(JSON.stringify({ status: 'ignored', type }), { status: 200 });
     }
 

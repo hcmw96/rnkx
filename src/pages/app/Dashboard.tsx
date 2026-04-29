@@ -1,7 +1,8 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { AppShell } from '@/components/app/AppShell';
 import { MomentumBlock } from '@/components/dashboard/MomentumBlock';
 import { SeasonCard } from '@/components/dashboard/SeasonCard';
+import { usePullToRefresh } from '@/hooks/usePullToRefresh';
 import { supabase } from '@/services/supabase';
 
 interface ActiveSeason {
@@ -32,10 +33,9 @@ export default function Dashboard() {
   const [season, setSeason] = useState<ActiveSeason | null>(null);
   const [stats, setStats] = useState<AthleteStats | null>(null);
 
-  useEffect(() => {
-    const loadDashboard = async () => {
-      setLoading(true);
-      setError(null);
+  const loadDashboard = useCallback(async () => {
+    setLoading(true);
+    setError(null);
 
       const [{ data: userData, error: userError }, { data: seasonResult, error: seasonError }] =
         await Promise.all([
@@ -86,11 +86,14 @@ export default function Dashboard() {
         setStats((statsData as AthleteStats | null) ?? null);
       }
 
-      setLoading(false);
-    };
-
-    void loadDashboard();
+    setLoading(false);
   }, []);
+
+  useEffect(() => {
+    void loadDashboard();
+  }, [loadDashboard]);
+
+  const { isRefreshing, pullDistance, pullHandlers } = usePullToRefresh(loadDashboard);
 
   const daysRemaining = useMemo(() => {
     if (!season?.ends_at) return undefined;
@@ -111,7 +114,12 @@ export default function Dashboard() {
 
   return (
     <AppShell>
-      <section className="space-y-4">
+      <section className="space-y-4" {...pullHandlers}>
+        {(isRefreshing || pullDistance > 0) && (
+          <p className="text-center text-xs text-muted-foreground">
+            {isRefreshing ? 'Refreshing dashboard...' : pullDistance > 72 ? 'Release to refresh' : 'Pull to refresh'}
+          </p>
+        )}
         {error && !/auth session missing/i.test(error) && (
           <p className="rounded-md bg-destructive/10 p-3 text-sm text-destructive">{error}</p>
         )}

@@ -31,8 +31,8 @@ serve(async (req) => {
         reference_id,
         providers: "GARMIN,POLAR,COROS,FITBIT,OURA,SAMSUNG,STRAVA,WHOOP",
         language: "en",
-        auth_success_redirect_url: "https://rnkx.netlify.app/app/profile",
-        auth_failure_redirect_url: "https://rnkx.netlify.app/app/profile",
+        auth_success_redirect_url: "rnkx://app/profile",
+        auth_failure_redirect_url: "rnkx://app/profile",
       }),
     });
 

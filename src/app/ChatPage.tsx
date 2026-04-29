@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { AppShell } from "@/components/app/AppShell";
 import { supabase } from "@/integrations/supabase/client";
@@ -8,6 +8,7 @@ import { Link } from "react-router-dom";
 import { formatDistanceToNow } from "date-fns";
 import { Button } from "@/components/ui/button";
 import { NewMessageModal } from "@/components/chat/NewMessageModal";
+import { usePullToRefresh } from "@/hooks/usePullToRefresh";
 
 interface ChatItem {
   id: string;
@@ -27,11 +28,7 @@ export default function ChatPage() {
   const [newMsgOpen, setNewMsgOpen] = useState(false);
   const navigate = useNavigate();
 
-  useEffect(() => {
-    loadAll();
-  }, []);
-
-  async function loadAll() {
+  const loadAll = useCallback(async () => {
     try {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
@@ -59,7 +56,13 @@ export default function ChatPage() {
     } finally {
       setLoading(false);
     }
-  }
+  }, []);
+
+  useEffect(() => {
+    void loadAll();
+  }, [loadAll]);
+
+  const { isRefreshing, pullDistance, pullHandlers } = usePullToRefresh(loadAll);
 
   async function loadDMs(athleteId: string): Promise<ChatItem[]> {
     const { data: messages } = await supabase
@@ -168,7 +171,12 @@ export default function ChatPage() {
 
   return (
     <AppShell showSettings>
-      <div className="space-y-2">
+      <div className="space-y-2" {...pullHandlers}>
+        {(isRefreshing || pullDistance > 0) && (
+          <p className="text-center text-xs text-muted-foreground">
+            {isRefreshing ? "Refreshing chats..." : pullDistance > 72 ? "Release to refresh" : "Pull to refresh"}
+          </p>
+        )}
         <div className="flex items-center justify-end mb-2">
           <Button
             variant="ghost"

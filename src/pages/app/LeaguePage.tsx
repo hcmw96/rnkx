@@ -12,6 +12,7 @@ import { EditLeagueModal } from '@/components/leagues/EditLeagueModal';
 import { supabase } from '@/services/supabase';
 import { toast } from 'sonner';
 import { shareLeagueInvite } from '@/lib/shareLeagueInvite';
+import { usePullToRefresh } from '@/hooks/usePullToRefresh';
 import type { RealtimeChannel } from '@supabase/supabase-js';
 
 type League = {
@@ -161,6 +162,8 @@ export default function LeaguePage() {
     void loadLeague();
   }, [loadLeague]);
 
+  const { isRefreshing, pullDistance, pullHandlers } = usePullToRefresh(loadLeague);
+
   useEffect(() => {
     const cid = league?.conversation_id;
     if (!cid) return;
@@ -243,7 +246,12 @@ export default function LeaguePage() {
   return (
     <AppShell>
       <PremiumGate athleteId={athleteId}>
-        <section className="mx-auto max-w-lg space-y-4">
+        <section className="mx-auto max-w-lg space-y-4" {...pullHandlers}>
+          {(isRefreshing || pullDistance > 0) && (
+            <p className="text-center text-xs text-muted-foreground">
+              {isRefreshing ? 'Refreshing league...' : pullDistance > 72 ? 'Release to refresh' : 'Pull to refresh'}
+            </p>
+          )}
           <div className="flex items-center gap-2">
             <Button variant="ghost" size="sm" asChild className="-ml-2 gap-1 px-2">
               <Link to="/app/social/leagues">

@@ -3,6 +3,7 @@ import { AppShell } from '@/components/app/AppShell';
 import { LeagueToggle } from '@/components/leaderboard/LeagueToggle';
 import { Skeleton } from '@/components/ui/skeleton';
 import { getCountryByName } from '@/data/countries';
+import { usePullToRefresh } from '@/hooks/usePullToRefresh';
 import { cn } from '@/lib/utils';
 import { supabase } from '@/services/supabase';
 
@@ -246,11 +247,21 @@ export default function LeaderboardPage() {
     void loadAll();
   }, [loadAll]);
 
+  const { isRefreshing, pullDistance, pullHandlers } = usePullToRefresh(loadAll);
   const rows = useMemo(() => buildRowsForLeague(merged, activeLeague), [merged, activeLeague]);
 
   return (
     <AppShell>
-      <section className="space-y-4">
+      <section className="space-y-4" {...pullHandlers}>
+        {(isRefreshing || pullDistance > 0) && (
+          <p className="text-center text-xs text-muted-foreground">
+            {isRefreshing
+              ? 'Refreshing leaderboard...'
+              : pullDistance > 72
+                ? 'Release to refresh'
+                : 'Pull to refresh'}
+          </p>
+        )}
         <div className="space-y-1">
           <h2 className="font-display text-xl text-foreground">Leaderboard</h2>
           {seasonName ? (
