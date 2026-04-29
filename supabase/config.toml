@@ -386,6 +386,45 @@ verify_jwt = false
 [functions.whoop-webhook]
 verify_jwt = false
 
+[functions.check-entitlement]
+verify_jwt = false
+
+[functions.notify-friend-request]
+verify_jwt = false
+
+[functions.notify-group-message]
+verify_jwt = false
+
+[functions.notify-league-invite]
+verify_jwt = false
+
+[functions.notify-new-message]
+verify_jwt = false
+
+[functions.notify-rank-change]
+verify_jwt = false
+
+[functions.notify-workout-scored]
+verify_jwt = false
+
+[functions.send-notification]
+verify_jwt = false
+
+[functions.sync-activities]
+verify_jwt = false
+
+[functions.terra-disconnect]
+verify_jwt = false
+
+[functions.terra-widget-session]
+verify_jwt = false
+
+[functions.whoop-auth]
+verify_jwt = false
+
+[functions.whoop-sync-manual]
+verify_jwt = false
+
 [analytics]
 enabled = true
 port = 54327
