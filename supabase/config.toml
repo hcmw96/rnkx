@@ -382,6 +382,10 @@ deno_version = 2
 [functions.terra-webhook]
 verify_jwt = false
 
+# WHOOP sends server-to-server webhooks (no Supabase JWT on the request).
+[functions.whoop-webhook]
+verify_jwt = false
+
 [analytics]
 enabled = true
 port = 54327

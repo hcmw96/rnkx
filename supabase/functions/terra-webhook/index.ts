@@ -43,11 +43,21 @@ async function processTerraWorkouts(params: {
 
   for (const raw of workouts) {
     const workout = raw as Record<string, any>;
-    const durationSeconds = workout.active_durations_data?.duration_in_seconds
-      ?? (workout.metadata?.end_time && workout.metadata?.start_time
+    const rawDuration = workout.active_durations_data?.duration_in_seconds;
+    const durationSeconds = (rawDuration && rawDuration > 0)
+      ? rawDuration
+      : (workout.metadata?.end_time && workout.metadata?.start_time
         ? (new Date(workout.metadata.end_time).getTime() - new Date(workout.metadata.start_time).getTime()) / 1000
         : 0);
     const durationMin = Math.round((Number(durationSeconds) || 0) / 60);
+    console.log('[terra-webhook] Duration check:', JSON.stringify({
+      name: workout.metadata?.name,
+      type: workout.metadata?.type,
+      rawDuration,
+      durationSeconds,
+      durationMin,
+      leagues: athlete.selected_leagues,
+    }));
     if (durationMin < 15) { skipped++; continue; }
 
     const startTimeRaw = workout.metadata?.start_time as string | undefined;
@@ -80,7 +90,20 @@ async function processTerraWorkouts(params: {
     const avgSpeedMps = workout.movement_data?.avg_speed_meters_per_second ?? null;
     const avgPaceSeconds = avgSpeedMps && avgSpeedMps > 0 ? Math.round(1000 / avgSpeedMps) : null;
 
-    const activityType = String(workout.metadata?.type ?? '').toLowerCase();
+    const rawActivityType = workout.metadata?.type;
+    const numericActivityType = Number(rawActivityType);
+    const activityType =
+      Number.isFinite(numericActivityType)
+        ? numericActivityType === 8 || numericActivityType === 58
+          ? 'running'
+          : numericActivityType === 80
+            ? 'strength_training'
+            : numericActivityType === 1
+              ? 'cycling'
+              : numericActivityType === 7
+                ? 'walking'
+                : 'other'
+        : String(rawActivityType ?? '').toLowerCase();
     const isRun = ['running', 'jogging', 'trail_running', 'outdoor_running', 'indoor_running'].includes(activityType);
     const leagues = athlete.selected_leagues ?? [];
 
@@ -96,6 +119,17 @@ async function processTerraWorkouts(params: {
       leagueType = 'engine';
     }
 
+    console.log('[terra-webhook] Workout:', JSON.stringify({
+      name: workout.metadata?.name,
+      type: workout.metadata?.type,
+      activityType,
+      durationMin,
+      avgHrBpm,
+      avgHrPercent,
+      isRun,
+      leagueType,
+      leagues: athlete.selected_leagues
+    }));
     if (!leagueType) { skipped++; continue; }
 
     const sourceId = `terra_${provider}_${workout.metadata?.workout_id ?? activityDate + '_' + durationMin}`;
