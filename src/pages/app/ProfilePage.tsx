@@ -682,8 +682,7 @@ export default function ProfilePage() {
                         size="sm"
                         className="h-8 shrink-0 self-start text-xs font-semibold sm:self-center"
                         onClick={() => {
-                          const state = Math.random().toString(36).substring(2);
-                          localStorage.setItem('whoop_oauth_state', state);
+                          const state = 'rnkx_whoop_auth';
                           window.location.href = `${WHOOP_OAUTH_AUTHORIZE_BASE}&state=${state}`;
                         }}
                       >
