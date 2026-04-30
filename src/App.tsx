@@ -59,20 +59,36 @@ function SessionRoutes() {
     let cancelled = false;
 
     async function applySession(s: Session | null) {
-      setSession(s);
-      if (s?.user) {
-        const ok = await fetchAthleteProfileComplete(s.user.id);
-        if (!cancelled) setProfileComplete(ok);
-      } else if (!cancelled) {
-        setProfileComplete(false);
+      try {
+        setSession(s);
+        if (s?.user) {
+          const ok = await fetchAthleteProfileComplete(s.user.id);
+          if (!cancelled) setProfileComplete(ok);
+        } else if (!cancelled) {
+          setProfileComplete(false);
+        }
+      } catch (error) {
+        console.error('applySession error:', error);
+        if (!cancelled) {
+          setSession(s ?? null);
+          setProfileComplete(false);
+        }
       }
-      if (!cancelled) setInitialized(true);
     }
 
-    void supabase.auth.getSession().then(({ data }) => {
-      if (cancelled) return;
-      void applySession(data.session);
-    });
+    void (async () => {
+      try {
+        const {
+          data: { session: s },
+        } = await supabase.auth.getSession();
+        if (cancelled) return;
+        await applySession(s);
+      } catch (error) {
+        console.error('Session init error:', error);
+      } finally {
+        if (!cancelled) setInitialized(true);
+      }
+    })();
 
     const {
       data: { subscription },
