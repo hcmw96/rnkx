@@ -146,6 +146,8 @@ function SessionRoutes() {
     <ProfileGateContext.Provider value={{ refetchProfile }}>
       <Routes>
         <Route path="/auth/whoop/callback" element={<WhoopCallback />} />
+        <Route path="/whoop-callback" element={<WhoopCallback />} />
+        <Route path="/app/whoop-callback" element={<WhoopCallback />} />
         <Route path="/join/:code" element={<JoinLeaguePage />} />
         <Route path="/premium" element={<PremiumPage />} />
         <Route
