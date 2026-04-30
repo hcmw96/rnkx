@@ -17,10 +17,14 @@ export default function WhoopCallback() {
     let cancelled = false;
 
     async function waitForSession(timeoutMs: number) {
+      console.log('[WhoopCallback] waitForSession start', { timeoutMs });
       const {
         data: { session: initialSession },
       } = await supabase.auth.getSession();
       if (initialSession?.access_token && initialSession.user) {
+        console.log('[WhoopCallback] waitForSession immediate session found', {
+          userId: initialSession.user.id,
+        });
         return initialSession;
       }
 
@@ -30,12 +34,18 @@ export default function WhoopCallback() {
           if (settled) return;
           settled = true;
           subscription.unsubscribe();
+          console.log('[WhoopCallback] waitForSession timed out');
           resolve(null);
         }, timeoutMs);
 
         const {
           data: { subscription },
         } = supabase.auth.onAuthStateChange((_event, newSession) => {
+          console.log('[WhoopCallback] onAuthStateChange event', {
+            eventHasSession: !!newSession,
+            hasAccessToken: !!newSession?.access_token,
+            userId: newSession?.user?.id ?? null,
+          });
           if (settled) return;
           if (!newSession?.access_token || !newSession.user) return;
           settled = true;
@@ -54,6 +64,7 @@ export default function WhoopCallback() {
           code,
           state: searchParams.get('state'),
         });
+        setMessage('Checking WHOOP callback parameters...');
         if (!code) {
           setMessage('Missing authorization code. Return to the app and try connecting WHOOP again.');
           setPhase('error');
@@ -72,6 +83,7 @@ export default function WhoopCallback() {
           throw new Error('Invalid state');
         }
 
+        setMessage('Waiting for session restore...');
         const session = await waitForSession(5000);
         console.log('[WhoopCallback] waitForSession result', {
           hasSession: !!session,
@@ -80,11 +92,12 @@ export default function WhoopCallback() {
         });
         if (!session?.access_token || !session.user) {
           if (!cancelled) {
-            setMessage('Session not found - please sign in first');
+            setMessage('Session not found - please sign in first (timed out after 5s waiting for auth restore).');
             setPhase('error');
           }
           return;
         }
+        setMessage('Session found. Preparing WHOOP connection...');
 
         const uid = session.user.id;
         const [byUserId, byId] = await Promise.all([
@@ -105,9 +118,18 @@ export default function WhoopCallback() {
           return;
         }
 
-        const { data, error } = await supabase.functions.invoke('whoop-auth', {
+        const authHeader = `Bearer ${session.access_token}`;
+        const whoopAuthRequest = {
+          fn: 'whoop-auth',
           body: { code, athlete_id: athleteId },
-          headers: { Authorization: `Bearer ${session.access_token}` },
+          headers: { Authorization: authHeader },
+          hasValidAuthorizationToken: session.access_token.split('.').length === 3,
+        };
+        console.log('[WhoopCallback] whoop-auth request', whoopAuthRequest);
+        setMessage('Session found. Calling whoop-auth...');
+        const { data, error } = await supabase.functions.invoke('whoop-auth', {
+          body: whoopAuthRequest.body,
+          headers: whoopAuthRequest.headers,
         });
         console.log('[WhoopCallback] whoop-auth result', {
           data,
@@ -117,14 +139,22 @@ export default function WhoopCallback() {
         if (cancelled) return;
 
         if (error) {
-          setMessage(error.message || 'Could not complete WHOOP connection.');
+          const fullError = {
+            message: error.message ?? null,
+            name: error.name ?? null,
+            details: (error as { details?: unknown }).details ?? null,
+            hint: (error as { hint?: unknown }).hint ?? null,
+            code: (error as { code?: unknown }).code ?? null,
+            data,
+          };
+          setMessage(`whoop-auth failed: ${JSON.stringify(fullError)}`);
           setPhase('error');
           return;
         }
 
         const errText = (data as { error?: string } | null)?.error;
         if (errText) {
-          setMessage(typeof errText === 'string' ? errText : 'Could not complete WHOOP connection.');
+          setMessage(`whoop-auth returned error payload: ${JSON.stringify(data)}`);
           setPhase('error');
           return;
         }
@@ -137,7 +167,8 @@ export default function WhoopCallback() {
         }, 1200);
       } catch (e) {
         if (!cancelled) {
-          setMessage(e instanceof Error ? e.message : 'Invalid state');
+          const formatted = e instanceof Error ? `${e.name}: ${e.message}` : JSON.stringify(e);
+          setMessage(`WHOOP callback error: ${formatted}`);
           setPhase('error');
         }
       }
@@ -153,7 +184,7 @@ export default function WhoopCallback() {
       {phase === 'loading' ? (
         <>
           <Loader2 className="h-10 w-10 animate-spin text-primary" aria-label="Connecting WHOOP" />
-          <p className="max-w-sm text-sm text-muted-foreground">Connecting your WHOOP account…</p>
+          <p className="max-w-sm text-sm text-muted-foreground">{message || 'Connecting your WHOOP account…'}</p>
         </>
       ) : phase === 'success' ? (
         <p className="max-w-md text-sm text-foreground">{message}</p>
