@@ -212,6 +212,37 @@ export default function ProfilePage() {
     void loadProfile();
   }, [loadProfile]);
 
+  const refreshWhoopConnection = useCallback(async () => {
+    if (!athlete?.id) return;
+    const { data, error } = await supabase
+      .from('whoop_connections')
+      .select('id')
+      .eq('athlete_id', athlete.id)
+      .maybeSingle();
+    if (error) {
+      setWhoopConnection(null);
+      return;
+    }
+    setWhoopConnection((data as WhoopConnectionRow | null) ?? null);
+  }, [athlete?.id]);
+
+  useEffect(() => {
+    if (!athlete?.id) return;
+
+    void refreshWhoopConnection();
+
+    const onVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        void refreshWhoopConnection();
+      }
+    };
+
+    document.addEventListener('visibilitychange', onVisibilityChange);
+    return () => {
+      document.removeEventListener('visibilitychange', onVisibilityChange);
+    };
+  }, [athlete?.id, refreshWhoopConnection]);
+
   const openAvatarPicker = () => {
     fileInputRef.current?.click();
   };
