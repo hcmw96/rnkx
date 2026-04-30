@@ -16,9 +16,44 @@ export default function WhoopCallback() {
   useEffect(() => {
     let cancelled = false;
 
+    async function waitForSession(timeoutMs: number) {
+      const {
+        data: { session: initialSession },
+      } = await supabase.auth.getSession();
+      if (initialSession?.access_token && initialSession.user) {
+        return initialSession;
+      }
+
+      return await new Promise<Awaited<ReturnType<typeof supabase.auth.getSession>>['data']['session']>((resolve) => {
+        let settled = false;
+        const timeoutId = window.setTimeout(() => {
+          if (settled) return;
+          settled = true;
+          subscription.unsubscribe();
+          resolve(null);
+        }, timeoutMs);
+
+        const {
+          data: { subscription },
+        } = supabase.auth.onAuthStateChange((_event, newSession) => {
+          if (settled) return;
+          if (!newSession?.access_token || !newSession.user) return;
+          settled = true;
+          window.clearTimeout(timeoutId);
+          subscription.unsubscribe();
+          resolve(newSession);
+        });
+      });
+    }
+
     void (async () => {
       try {
         const code = searchParams.get('code');
+        console.log('[WhoopCallback] mounted', {
+          pathname: location.pathname,
+          code,
+          state: searchParams.get('state'),
+        });
         if (!code) {
           setMessage('Missing authorization code. Return to the app and try connecting WHOOP again.');
           setPhase('error');
@@ -37,12 +72,15 @@ export default function WhoopCallback() {
           throw new Error('Invalid state');
         }
 
-        const {
-          data: { session },
-        } = await supabase.auth.getSession();
+        const session = await waitForSession(5000);
+        console.log('[WhoopCallback] waitForSession result', {
+          hasSession: !!session,
+          userId: session?.user?.id ?? null,
+          hasAccessToken: !!session?.access_token,
+        });
         if (!session?.access_token || !session.user) {
           if (!cancelled) {
-            setMessage('You need to be signed in to finish connecting WHOOP. Sign in, then use Connect WHOOP from your profile.');
+            setMessage('Session not found - please sign in first');
             setPhase('error');
           }
           return;
@@ -54,6 +92,11 @@ export default function WhoopCallback() {
           supabase.from('athletes').select('id').eq('id', uid).maybeSingle(),
         ]);
         const athleteId = (byUserId.data?.id ?? byId.data?.id) as string | undefined;
+        console.log('[WhoopCallback] athlete lookup result', {
+          userIdMatch: byUserId.data?.id ?? null,
+          idMatch: byId.data?.id ?? null,
+          athleteId: athleteId ?? null,
+        });
         if (!athleteId) {
           if (!cancelled) {
             setMessage('Could not find your athlete profile. Please try again from your profile page.');
@@ -65,6 +108,10 @@ export default function WhoopCallback() {
         const { data, error } = await supabase.functions.invoke('whoop-auth', {
           body: { code, athlete_id: athleteId },
           headers: { Authorization: `Bearer ${session.access_token}` },
+        });
+        console.log('[WhoopCallback] whoop-auth result', {
+          data,
+          error,
         });
 
         if (cancelled) return;
