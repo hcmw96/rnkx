@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Link, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { isDespia } from '@/services/despia';
 import { supabase } from '@/services/supabase';
 
 type Phase = 'loading' | 'success' | 'error';
@@ -72,8 +73,8 @@ export default function WhoopCallback() {
         }
         const returnedState = searchParams.get('state');
 
-        // Browser OAuth callback should immediately hand off to the app.
-        if (location.pathname === '/auth/whoop/callback') {
+        // OAuth callback should hand off to app only when running inside Despia runtime.
+        if (location.pathname === '/auth/whoop/callback' && isDespia()) {
           const params = new URLSearchParams({ code, state: returnedState ?? '' });
           window.location.href = `rnkx://app/whoop-callback?${params.toString()}`;
           return;
