@@ -4,7 +4,7 @@ import { Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { supabase } from '@/services/supabase';
 
-type Phase = 'loading' | 'error';
+type Phase = 'loading' | 'success' | 'error';
 
 export default function WhoopCallback() {
   const [searchParams] = useSearchParams();
@@ -40,7 +40,7 @@ export default function WhoopCallback() {
         const {
           data: { session },
         } = await supabase.auth.getSession();
-        if (!session?.access_token) {
+        if (!session?.access_token || !session.user) {
           if (!cancelled) {
             setMessage('You need to be signed in to finish connecting WHOOP. Sign in, then use Connect WHOOP from your profile.');
             setPhase('error');
@@ -48,8 +48,22 @@ export default function WhoopCallback() {
           return;
         }
 
+        const uid = session.user.id;
+        const [byUserId, byId] = await Promise.all([
+          supabase.from('athletes').select('id').eq('user_id', uid).maybeSingle(),
+          supabase.from('athletes').select('id').eq('id', uid).maybeSingle(),
+        ]);
+        const athleteId = (byUserId.data?.id ?? byId.data?.id) as string | undefined;
+        if (!athleteId) {
+          if (!cancelled) {
+            setMessage('Could not find your athlete profile. Please try again from your profile page.');
+            setPhase('error');
+          }
+          return;
+        }
+
         const { data, error } = await supabase.functions.invoke('whoop-auth', {
-          body: { code },
+          body: { code, athlete_id: athleteId },
           headers: { Authorization: `Bearer ${session.access_token}` },
         });
 
@@ -68,6 +82,8 @@ export default function WhoopCallback() {
           return;
         }
 
+        setMessage('WHOOP connected. Redirecting to your profile...');
+        setPhase('success');
         window.location.href = 'rnkx://app/profile';
         setTimeout(() => {
           if (!cancelled) navigate('/app/profile', { replace: true });
@@ -92,6 +108,8 @@ export default function WhoopCallback() {
           <Loader2 className="h-10 w-10 animate-spin text-primary" aria-label="Connecting WHOOP" />
           <p className="max-w-sm text-sm text-muted-foreground">Connecting your WHOOP account…</p>
         </>
+      ) : phase === 'success' ? (
+        <p className="max-w-md text-sm text-foreground">{message}</p>
       ) : (
         <>
           <p className="max-w-md text-sm text-destructive">{message}</p>
