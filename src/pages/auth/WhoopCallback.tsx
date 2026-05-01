@@ -17,36 +17,6 @@ export default function WhoopCallback() {
   useEffect(() => {
     let cancelled = false;
 
-    async function waitForSession(timeoutMs: number) {
-      const {
-        data: { session: initialSession },
-      } = await supabase.auth.getSession();
-      if (initialSession?.access_token && initialSession.user) {
-        return initialSession;
-      }
-
-      return await new Promise<Awaited<ReturnType<typeof supabase.auth.getSession>>['data']['session']>((resolve) => {
-        let settled = false;
-        const timeoutId = window.setTimeout(() => {
-          if (settled) return;
-          settled = true;
-          subscription.unsubscribe();
-          resolve(null);
-        }, timeoutMs);
-
-        const {
-          data: { subscription },
-        } = supabase.auth.onAuthStateChange((_event, newSession) => {
-          if (settled) return;
-          if (!newSession?.access_token || !newSession.user) return;
-          settled = true;
-          window.clearTimeout(timeoutId);
-          subscription.unsubscribe();
-          resolve(newSession);
-        });
-      });
-    }
-
     void (async () => {
       try {
         const code = searchParams.get('code');
@@ -64,12 +34,25 @@ export default function WhoopCallback() {
           return;
         }
 
-        if (returnedState !== 'rnkx_whoop_auth') {
+        if (!returnedState) {
           throw new Error('Invalid state');
         }
 
-        const session = await waitForSession(5000);
-        if (!session?.access_token || !session.user) {
+        let decoded: { nonce?: string; token?: string };
+        try {
+          const base64 = returnedState.replace(/-/g, '+').replace(/_/g, '/');
+          const padded = base64 + '='.repeat((4 - (base64.length % 4)) % 4);
+          decoded = JSON.parse(atob(padded)) as { nonce?: string; token?: string };
+        } catch {
+          throw new Error('Invalid state');
+        }
+        if (decoded.nonce !== 'rnkx_whoop_auth' || !decoded.token) {
+          throw new Error('Invalid state');
+        }
+        const accessToken = decoded.token;
+
+        const { data: userData, error: userErr } = await supabase.auth.getUser(accessToken);
+        if (userErr || !userData.user) {
           if (!cancelled) {
             setMessage('Session not found - please sign in first');
             setPhase('error');
@@ -77,7 +60,7 @@ export default function WhoopCallback() {
           return;
         }
 
-        const uid = session.user.id;
+        const uid = userData.user.id;
         const [byUserId, byId] = await Promise.all([
           supabase.from('athletes').select('id').eq('user_id', uid).maybeSingle(),
           supabase.from('athletes').select('id').eq('id', uid).maybeSingle(),
@@ -93,7 +76,7 @@ export default function WhoopCallback() {
 
         const { data, error } = await supabase.functions.invoke('whoop-auth', {
           body: { code, athlete_id: athleteId },
-          headers: { Authorization: `Bearer ${session.access_token}` },
+          headers: { Authorization: `Bearer ${accessToken}` },
         });
 
         if (cancelled) return;

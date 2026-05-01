@@ -712,9 +712,24 @@ export default function ProfilePage() {
                         variant="secondary"
                         size="sm"
                         className="h-8 shrink-0 self-start text-xs font-semibold sm:self-center"
-                        onClick={() => {
-                          const state = 'rnkx_whoop_auth';
-                          window.location.href = `${WHOOP_OAUTH_AUTHORIZE_BASE}&state=${state}`;
+                        onClick={async () => {
+                          const {
+                            data: { session },
+                          } = await supabase.auth.getSession();
+                          if (!session?.access_token) {
+                            toast.error('Missing auth session.');
+                            return;
+                          }
+                          const statePayload = btoa(
+                            JSON.stringify({
+                              nonce: 'rnkx_whoop_auth',
+                              token: session.access_token,
+                            }),
+                          )
+                            .replace(/\+/g, '-')
+                            .replace(/\//g, '_')
+                            .replace(/=/g, '');
+                          window.location.href = `${WHOOP_OAUTH_AUTHORIZE_BASE}&state=${encodeURIComponent(statePayload)}`;
                         }}
                       >
                         Connect WHOOP
