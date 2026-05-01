@@ -1,11 +1,62 @@
 import { useEffect, useState } from 'react';
+import type { Session } from '@supabase/supabase-js';
 import { Link, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { isDespia } from '@/services/despia';
 import { supabase } from '@/services/supabase';
 
-type Phase = 'loading' | 'success' | 'error';
+type Phase = 'loading' | 'success' | 'error' | 'guided';
+
+const GUIDED_PROFILE_MESSAGE =
+  'WHOOP connected successfully! Please go back to your profile to see your connection.';
+
+function tryDecodeWhoopState(returnedState: string | null): { token: string } | null {
+  if (!returnedState?.trim()) return null;
+  try {
+    const base64 = returnedState.replace(/-/g, '+').replace(/_/g, '/');
+    const padded = base64 + '='.repeat((4 - (base64.length % 4)) % 4);
+    const decoded = JSON.parse(atob(padded)) as { nonce?: string; token?: string };
+    if (decoded.nonce !== 'rnkx_whoop_auth') return null;
+    const raw = decoded.token;
+    const token = typeof raw === 'string' ? raw.trim() : '';
+    if (!token) return null;
+    return { token };
+  } catch {
+    return null;
+  }
+}
+
+/** First getSession, then subscribe for up to timeoutMs — used when OAuth state/token is unavailable. */
+async function waitForSession(timeoutMs: number): Promise<Session | null> {
+  const {
+    data: { session: initialSession },
+  } = await supabase.auth.getSession();
+  if (initialSession?.access_token && initialSession.user) {
+    return initialSession;
+  }
+
+  return await new Promise((resolve) => {
+    let settled = false;
+    const timeoutId = window.setTimeout(() => {
+      if (settled) return;
+      settled = true;
+      subscription.unsubscribe();
+      resolve(null);
+    }, timeoutMs);
+
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, newSession) => {
+      if (settled) return;
+      if (!newSession?.access_token || !newSession.user) return;
+      settled = true;
+      window.clearTimeout(timeoutId);
+      subscription.unsubscribe();
+      resolve(newSession);
+    });
+  });
+}
 
 export default function WhoopCallback() {
   const [searchParams] = useSearchParams();
@@ -34,33 +85,41 @@ export default function WhoopCallback() {
           return;
         }
 
-        if (!returnedState) {
-          throw new Error('Invalid state');
-        }
+        const fromState = tryDecodeWhoopState(returnedState);
+        let accessToken: string | null = null;
+        let uid: string | null = null;
 
-        let decoded: { nonce?: string; token?: string };
-        try {
-          const base64 = returnedState.replace(/-/g, '+').replace(/_/g, '/');
-          const padded = base64 + '='.repeat((4 - (base64.length % 4)) % 4);
-          decoded = JSON.parse(atob(padded)) as { nonce?: string; token?: string };
-        } catch {
-          throw new Error('Invalid state');
-        }
-        if (decoded.nonce !== 'rnkx_whoop_auth' || !decoded.token) {
-          throw new Error('Invalid state');
-        }
-        const accessToken = decoded.token;
-
-        const { data: userData, error: userErr } = await supabase.auth.getUser(accessToken);
-        if (userErr || !userData.user) {
-          if (!cancelled) {
-            setMessage('Session not found - please sign in first');
-            setPhase('error');
+        if (fromState) {
+          const { data: userData, error: userErr } = await supabase.auth.getUser(fromState.token);
+          if (!userErr && userData.user) {
+            accessToken = fromState.token;
+            uid = userData.user.id;
           }
-          return;
         }
 
-        const uid = userData.user.id;
+        const stateWasUnusable = fromState === null;
+
+        if (!accessToken || !uid) {
+          if (stateWasUnusable) {
+            const waited = await waitForSession(3000);
+            if (waited?.access_token && waited.user && !cancelled) {
+              accessToken = waited.access_token;
+              uid = waited.user.id;
+            } else if (!cancelled) {
+              setMessage(GUIDED_PROFILE_MESSAGE);
+              setPhase('guided');
+              return;
+            }
+          } else {
+            if (!cancelled) {
+              setMessage('Session not found - please sign in first');
+              setPhase('error');
+            }
+            return;
+          }
+        }
+
+        if (!accessToken || !uid) return;
         const [byUserId, byId] = await Promise.all([
           supabase.from('athletes').select('id').eq('user_id', uid).maybeSingle(),
           supabase.from('athletes').select('id').eq('id', uid).maybeSingle(),
@@ -122,6 +181,13 @@ export default function WhoopCallback() {
         </>
       ) : phase === 'success' ? (
         <p className="max-w-md text-sm text-foreground">{message}</p>
+      ) : phase === 'guided' ? (
+        <>
+          <p className="max-w-md text-sm text-foreground">{message}</p>
+          <Button type="button" onClick={() => navigate('/app/profile', { replace: true })}>
+            Go to Profile
+          </Button>
+        </>
       ) : (
         <>
           <p className="max-w-md text-sm text-destructive">{message}</p>
