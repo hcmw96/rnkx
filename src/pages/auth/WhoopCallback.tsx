@@ -65,6 +65,10 @@ export default function WhoopCallback() {
   const [phase, setPhase] = useState<Phase>('loading');
   const [message, setMessage] = useState('');
 
+  const rawStateParam = searchParams.get('state') ?? '';
+  const statePreviewFirst50 =
+    location.pathname === '/app/whoop-callback' ? rawStateParam.slice(0, 50) : null;
+
   useEffect(() => {
     let cancelled = false;
 
@@ -174,6 +178,14 @@ export default function WhoopCallback() {
 
   return (
     <div className="flex min-h-screen flex-col items-center justify-center gap-6 bg-background px-4 text-center">
+      {statePreviewFirst50 != null ? (
+        <div className="w-full max-w-lg rounded-md border border-border bg-muted/30 px-3 py-2 text-left">
+          <p className="text-xs font-medium text-muted-foreground">Raw state query (first 50 chars)</p>
+          <p className="mt-1 break-all font-mono text-xs text-foreground">
+            {rawStateParam.length > 0 ? statePreviewFirst50 : '(empty)'}
+          </p>
+        </div>
+      ) : null}
       {phase === 'loading' ? (
         <>
           <Loader2 className="h-10 w-10 animate-spin text-primary" aria-label="Connecting WHOOP" />

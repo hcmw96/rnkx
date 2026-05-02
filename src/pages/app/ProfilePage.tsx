@@ -388,7 +388,7 @@ export default function ProfilePage() {
     setAppleConnecting(true);
     setAppleError(null);
     try {
-      await despia('readhealthkit://HKWorkoutTypeIdentifier?days=30', ['healthkitResponse']);
+      await despia('readhealthkit://HKWorkoutTypeIdentifier,HKQuantityTypeIdentifierHeartRate?days=30', ['healthkitResponse']);
 
       const current = athlete.wearables ?? [];
       const nextWearables = Array.from(new Set([...current, 'apple_watch']));
