@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import type { Session } from '@supabase/supabase-js';
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
@@ -18,8 +18,6 @@ import JoinLeaguePage from './pages/JoinLeaguePage';
 import AthleteAuth from './pages/AthleteAuth';
 import WhoopCallback from './pages/auth/WhoopCallback';
 import Onboarding from './pages/Onboarding';
-import { buildSyncActivitiesAppleBody } from './lib/syncActivitiesApple';
-import { fetchRecentWorkouts } from './services/despia';
 import { setOneSignalExternalId } from './services/onesignal';
 import { supabase } from './services/supabase';
 
@@ -41,7 +39,6 @@ function SessionRoutes() {
   const [initialized, setInitialized] = useState(false);
   const [session, setSession] = useState<Session | null>(null);
   const [profileComplete, setProfileComplete] = useState(false);
-  const backgroundAppleSyncForUser = useRef<string | null>(null);
 
   const refetchProfile = useCallback(async () => {
     const {
@@ -102,32 +99,6 @@ function SessionRoutes() {
       subscription.unsubscribe();
     };
   }, []);
-
-  useEffect(() => {
-    if (!session?.user) {
-      backgroundAppleSyncForUser.current = null;
-      return;
-    }
-    if (!profileComplete) return;
-
-    const uid = session.user.id;
-    if (backgroundAppleSyncForUser.current === uid) return;
-    backgroundAppleSyncForUser.current = uid;
-
-    void (async () => {
-      const syncData = await fetchRecentWorkouts();
-      if (syncData.error || syncData.workouts.length === 0) return;
-
-      const { data: s } = await supabase.auth.getSession();
-      const token = s.session?.access_token;
-      if (!token) return;
-
-      await supabase.functions.invoke('sync-activities', {
-        body: buildSyncActivitiesAppleBody(syncData.workouts),
-        headers: { Authorization: `Bearer ${token}` },
-      });
-    })();
-  }, [session?.user?.id, profileComplete]);
 
   useEffect(() => {
     if (!session?.user || !profileComplete) return;

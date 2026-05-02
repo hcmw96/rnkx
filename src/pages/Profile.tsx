@@ -1,8 +1,5 @@
-import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAthleteProfile } from '../hooks/useAthleteProfile';
-import { buildSyncActivitiesAppleBody } from '../lib/syncActivitiesApple';
-import { fetchRecentWorkouts, requestHealthKitPermissions } from '../services/despia';
 import { supabase } from '../services/supabase';
 
 interface ProfileProps {
@@ -11,51 +8,7 @@ interface ProfileProps {
 
 export default function Profile({ userId }: ProfileProps) {
   const navigate = useNavigate();
-  const { profile, rank, workouts, loading, error, refresh } = useAthleteProfile(userId);
-  const [syncing, setSyncing] = useState(false);
-  const [syncMessage, setSyncMessage] = useState<string | null>(null);
-
-  const handleSync = async () => {
-    setSyncing(true);
-    setSyncMessage(null);
-
-    const granted = await requestHealthKitPermissions();
-    if (!granted) {
-      setSyncMessage('Health permissions were not granted.');
-      setSyncing(false);
-      return;
-    }
-
-    const syncData = await fetchRecentWorkouts();
-    if (syncData.error) {
-      setSyncMessage(syncData.error);
-      setSyncing(false);
-      return;
-    }
-
-    const session = await supabase.auth.getSession();
-    const token = session.data.session?.access_token;
-
-    if (!token) {
-      setSyncMessage('Missing auth session.');
-      setSyncing(false);
-      return;
-    }
-
-    const { data, error: invokeError } = await supabase.functions.invoke('sync-activities', {
-      body: buildSyncActivitiesAppleBody(syncData.workouts),
-      headers: { Authorization: `Bearer ${token}` },
-    });
-
-    if (invokeError) {
-      setSyncMessage(invokeError.message);
-    } else {
-      setSyncMessage(`Synced ${data?.processed ?? 0} workouts`);
-      await refresh();
-    }
-
-    setSyncing(false);
-  };
+  const { profile, rank, workouts, loading, error } = useAthleteProfile(userId);
 
   return (
     <main className="mx-auto max-w-3xl space-y-6 p-6">
@@ -100,17 +53,6 @@ export default function Profile({ userId }: ProfileProps) {
           </div>
         </section>
       )}
-
-      <section className="space-y-3">
-        <button
-          onClick={() => void handleSync()}
-          disabled={syncing}
-          className="rounded-md bg-cyan-500 px-4 py-2 text-sm font-semibold text-slate-950 disabled:opacity-60"
-        >
-          {syncing ? 'Syncing...' : 'Sync Workouts'}
-        </button>
-        {syncMessage && <p className="text-sm text-slate-200">{syncMessage}</p>}
-      </section>
 
       <section className="space-y-3">
         <h2 className="text-lg font-semibold text-white">Recent workouts</h2>
