@@ -1,4 +1,9 @@
 import { useCallback, useEffect, useRef, useState, type ChangeEvent, type ComponentType } from 'react';
+import {
+  FunctionsFetchError,
+  FunctionsHttpError,
+  FunctionsRelayError,
+} from '@supabase/supabase-js';
 import despia from 'despia-native';
 import { Info } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
@@ -122,6 +127,63 @@ function twoLetterAvatar(username: string | null, displayName: string | null): s
   if (d.length >= 2) return d.slice(0, 2).toUpperCase();
   if (d.length === 1) return `${d}?`.toUpperCase();
   return '??';
+}
+
+const SYNC_ERROR_BODY_MAX = 500;
+
+function trimSyncErrorBody(text: string): string {
+  const t = text.trim();
+  if (t.length <= SYNC_ERROR_BODY_MAX) return t;
+  return `${t.slice(0, SYNC_ERROR_BODY_MAX)}…`;
+}
+
+/** Maps sync-activities invoke errors to user-facing toast text (see Supabase FunctionsClient error types). */
+async function formatSyncActivitiesInvokeError(err: unknown): Promise<string> {
+  if (err instanceof FunctionsHttpError || err instanceof FunctionsRelayError) {
+    const res = err.context as Response;
+    const status = res.status;
+    let bodyText = '';
+    try {
+      bodyText = await res.text();
+    } catch {
+      bodyText = '(could not read response body)';
+    }
+    const trimmed = trimSyncErrorBody(bodyText);
+
+    if (status === 401 || status === 403) {
+      return `Sync failed: ${status} - ${trimmed || '(empty)'}`;
+    }
+
+    try {
+      const parsed = JSON.parse(bodyText) as { error?: unknown };
+      if (typeof parsed.error === 'string' && parsed.error.trim() !== '') {
+        return `Sync failed: ${parsed.error.trim()}`;
+      }
+    } catch {
+      /* body is not JSON */
+    }
+
+    return `Sync failed: ${status} - ${trimmed || '(empty)'}`;
+  }
+
+  if (err instanceof FunctionsFetchError) {
+    const ctx = err.context;
+    const body =
+      ctx instanceof Error
+        ? ctx.message
+        : typeof ctx === 'object' &&
+            ctx !== null &&
+            'message' in ctx &&
+            typeof (ctx as { message: unknown }).message === 'string'
+          ? (ctx as { message: string }).message
+          : err.message;
+    return `Sync failed: — - ${body}`;
+  }
+
+  if (err instanceof Error) {
+    return `Sync failed: — - ${err.message}`;
+  }
+  return `Sync failed: — - ${String(err)}`;
 }
 
 export default function ProfilePage() {
@@ -291,10 +353,18 @@ export default function ProfilePage() {
     setSyncing(true);
     const syncData = await fetchRecentWorkouts();
     if (syncData.error) {
-      toast.error(syncData.error);
+      toast.error('fetchRecentWorkouts failed', { description: syncData.error });
       setSyncing(false);
       return;
     }
+
+    const workoutCount = syncData.workouts.length;
+    const hasWorkoutData = workoutCount > 0;
+    toast.message(hasWorkoutData ? 'Workouts found' : 'No workout data', {
+      description: hasWorkoutData
+        ? `fetchRecentWorkouts returned ${workoutCount} workout${workoutCount === 1 ? '' : 's'}.`
+        : 'fetchRecentWorkouts returned 0 workouts.',
+    });
 
     const { data: sessionData } = await supabase.auth.getSession();
     const token = sessionData.session?.access_token;
@@ -310,7 +380,7 @@ export default function ProfilePage() {
     });
 
     if (invokeError) {
-      toast.error(invokeError.message);
+      toast.error(await formatSyncActivitiesInvokeError(invokeError));
     } else {
       toast.success(`Synced ${(data as { processed?: number } | null)?.processed ?? 0} workout(s).`);
       await loadProfile();
@@ -724,6 +794,7 @@ export default function ProfilePage() {
                             JSON.stringify({
                               nonce: 'rnkx_whoop_auth',
                               token: session.access_token,
+                              athlete_id: athlete.id,
                             }),
                           )
                             .replace(/\+/g, '-')

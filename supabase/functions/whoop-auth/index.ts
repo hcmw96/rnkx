@@ -97,20 +97,7 @@ serve(async (req) => {
     Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,
   );
 
-  const authHeader = req.headers.get('Authorization');
-  const token = authHeader?.replace(/^Bearer\s+/i, '') ?? '';
-  const {
-    data: { user },
-    error: authError,
-  } = await supabase.auth.getUser(token);
-  if (authError || !user) {
-    return new Response(JSON.stringify({ error: 'Unauthorized' }), {
-      status: 401,
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-    });
-  }
-
-  let body: { code?: string };
+  let body: { code?: string; athlete_id?: string };
   try {
     body = await req.json();
   } catch {
@@ -140,14 +127,50 @@ serve(async (req) => {
 
   const redirectUri = Deno.env.get('WHOOP_REDIRECT_URI')?.trim() || DEFAULT_REDIRECT_URI;
 
-  const byUser = await supabase.from('athletes').select('id, wearables').eq('user_id', user.id).maybeSingle();
-  const byId = await supabase.from('athletes').select('id, wearables').eq('id', user.id).maybeSingle();
-  const athlete = byUser.data ?? byId.data;
-  if (!athlete) {
-    return new Response(JSON.stringify({ error: 'Athlete not found' }), {
-      status: 404,
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-    });
+  const authHeader = req.headers.get('Authorization');
+  const bearer = authHeader?.replace(/^Bearer\s+/i, '')?.trim() ?? '';
+
+  let athlete: { id: string; wearables: unknown } | null = null;
+
+  let jwtUser: { id: string } | null = null;
+  if (bearer) {
+    const {
+      data: { user },
+      error: jwtError,
+    } = await supabase.auth.getUser(bearer);
+    if (!jwtError && user) jwtUser = user;
+  }
+
+  if (jwtUser) {
+    const byUser = await supabase.from('athletes').select('id, wearables').eq('user_id', jwtUser.id).maybeSingle();
+    const byId = await supabase.from('athletes').select('id, wearables').eq('id', jwtUser.id).maybeSingle();
+    athlete = (byUser.data ?? byId.data) as { id: string; wearables: unknown } | null;
+    if (!athlete) {
+      return new Response(JSON.stringify({ error: 'Athlete not found' }), {
+        status: 404,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+  } else {
+    const athleteIdParam = typeof body.athlete_id === 'string' ? body.athlete_id.trim() : '';
+    if (!athleteIdParam) {
+      return new Response(JSON.stringify({ error: 'athlete_id required when not authenticated' }), {
+        status: 400,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+    const { data: row, error: rowErr } = await supabase
+      .from('athletes')
+      .select('id, wearables')
+      .eq('id', athleteIdParam)
+      .maybeSingle();
+    if (rowErr || !row) {
+      return new Response(JSON.stringify({ error: 'Athlete not found' }), {
+        status: 404,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+    athlete = row as { id: string; wearables: unknown };
   }
 
   const form = new URLSearchParams({

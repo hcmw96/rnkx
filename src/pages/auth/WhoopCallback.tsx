@@ -11,17 +11,20 @@ type Phase = 'loading' | 'success' | 'error' | 'guided';
 const GUIDED_PROFILE_MESSAGE =
   'WHOOP connected successfully! Please go back to your profile to see your connection.';
 
-function tryDecodeWhoopState(returnedState: string | null): { token: string } | null {
+function tryDecodeWhoopState(returnedState: string | null): {
+  token: string | null;
+  athlete_id: string | null;
+} | null {
   if (!returnedState?.trim()) return null;
   try {
     const base64 = returnedState.replace(/-/g, '+').replace(/_/g, '/');
     const padded = base64 + '='.repeat((4 - (base64.length % 4)) % 4);
-    const decoded = JSON.parse(atob(padded)) as { nonce?: string; token?: string };
+    const decoded = JSON.parse(atob(padded)) as { nonce?: string; token?: string; athlete_id?: string };
     if (decoded.nonce !== 'rnkx_whoop_auth') return null;
-    const raw = decoded.token;
-    const token = typeof raw === 'string' ? raw.trim() : '';
-    if (!token) return null;
-    return { token };
+    const token = typeof decoded.token === 'string' ? decoded.token.trim() : '';
+    const athlete_id = typeof decoded.athlete_id === 'string' ? decoded.athlete_id.trim() : '';
+    if (!token && !athlete_id) return null;
+    return { token: token || null, athlete_id: athlete_id || null };
   } catch {
     return null;
   }
@@ -38,13 +41,6 @@ async function waitForSession(timeoutMs: number): Promise<Session | null> {
 
   return await new Promise((resolve) => {
     let settled = false;
-    const timeoutId = window.setTimeout(() => {
-      if (settled) return;
-      settled = true;
-      subscription.unsubscribe();
-      resolve(null);
-    }, timeoutMs);
-
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((_event, newSession) => {
@@ -55,6 +51,13 @@ async function waitForSession(timeoutMs: number): Promise<Session | null> {
       subscription.unsubscribe();
       resolve(newSession);
     });
+
+    const timeoutId = window.setTimeout(() => {
+      if (settled) return;
+      settled = true;
+      subscription.unsubscribe();
+      resolve(null);
+    }, timeoutMs);
   });
 }
 
@@ -93,7 +96,7 @@ export default function WhoopCallback() {
         let accessToken: string | null = null;
         let uid: string | null = null;
 
-        if (fromState) {
+        if (fromState?.token) {
           const { data: userData, error: userErr } = await supabase.auth.getUser(fromState.token);
           if (!userErr && userData.user) {
             accessToken = fromState.token;
@@ -101,46 +104,49 @@ export default function WhoopCallback() {
           }
         }
 
-        const stateWasUnusable = fromState === null;
-
         if (!accessToken || !uid) {
-          if (stateWasUnusable) {
-            const waited = await waitForSession(3000);
-            if (waited?.access_token && waited.user && !cancelled) {
-              accessToken = waited.access_token;
-              uid = waited.user.id;
-            } else if (!cancelled) {
-              setMessage(GUIDED_PROFILE_MESSAGE);
-              setPhase('guided');
-              return;
-            }
-          } else {
-            if (!cancelled) {
-              setMessage('Session not found - please sign in first');
-              setPhase('error');
-            }
+          const waited = await waitForSession(3000);
+          if (waited?.access_token && waited.user && !cancelled) {
+            accessToken = waited.access_token;
+            uid = waited.user.id;
+          } else if (fromState === null && !cancelled) {
+            setMessage(GUIDED_PROFILE_MESSAGE);
+            setPhase('guided');
             return;
           }
         }
 
-        if (!accessToken || !uid) return;
-        const [byUserId, byId] = await Promise.all([
-          supabase.from('athletes').select('id').eq('user_id', uid).maybeSingle(),
-          supabase.from('athletes').select('id').eq('id', uid).maybeSingle(),
-        ]);
-        const athleteId = (byUserId.data?.id ?? byId.data?.id) as string | undefined;
+        let athleteId =
+          (fromState?.athlete_id && fromState.athlete_id.trim() !== '' ? fromState.athlete_id : null) ?? null;
+
+        if (!athleteId && uid) {
+          const [byUserId, byId] = await Promise.all([
+            supabase.from('athletes').select('id').eq('user_id', uid).maybeSingle(),
+            supabase.from('athletes').select('id').eq('id', uid).maybeSingle(),
+          ]);
+          athleteId = ((byUserId.data?.id ?? byId.data?.id) as string | undefined) ?? null;
+        }
+
         if (!athleteId) {
           if (!cancelled) {
-            setMessage('Could not find your athlete profile. Please try again from your profile page.');
+            setMessage(
+              fromState?.token && !accessToken
+                ? 'Session not found - please sign in first'
+                : 'Could not find your athlete profile. Please try again from your profile page.',
+            );
             setPhase('error');
           }
           return;
         }
 
-        const { data, error } = await supabase.functions.invoke('whoop-auth', {
+        const invokePayload: { body: { code: string; athlete_id: string }; headers?: { Authorization: string } } = {
           body: { code, athlete_id: athleteId },
-          headers: { Authorization: `Bearer ${accessToken}` },
-        });
+        };
+        if (accessToken) {
+          invokePayload.headers = { Authorization: `Bearer ${accessToken}` };
+        }
+
+        const { data, error } = await supabase.functions.invoke('whoop-auth', invokePayload);
 
         if (cancelled) return;
 
