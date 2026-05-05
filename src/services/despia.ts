@@ -55,7 +55,9 @@ export async function fetchRecentWorkouts(): Promise<DespiaSyncResult> {
     const raw = Array.isArray((hkResponse as Record<string, unknown>)?.HKWorkoutTypeIdentifier)
       ? (hkResponse as Record<string, unknown>).HKWorkoutTypeIdentifier
       : hkResponse;
+    toast.message('normalise input', { description: JSON.stringify(raw).slice(0, 200) });
     const workouts = normaliseWorkouts(raw);
+    toast.message('normalise output', { description: `count: ${workouts.length} first: ${JSON.stringify(workouts[0]).slice(0, 150)}` });
 
     return { workouts, rawPayload: result, error: null };
   } catch (err) {
