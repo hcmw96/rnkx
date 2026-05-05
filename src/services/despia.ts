@@ -51,7 +51,10 @@ export async function fetchRecentWorkouts(): Promise<DespiaSyncResult> {
 
     console.log('[Despia] Raw response:', JSON.stringify(result, null, 2));
 
-    const raw = (result as Record<string, unknown> | null)?.healthkitResponse;
+    const hkResponse = (result as Record<string, unknown> | null)?.healthkitResponse;
+    const raw = Array.isArray((hkResponse as Record<string, unknown>)?.HKWorkoutTypeIdentifier)
+      ? (hkResponse as Record<string, unknown>).HKWorkoutTypeIdentifier
+      : hkResponse;
     const workouts = normaliseWorkouts(raw);
 
     return { workouts, rawPayload: result, error: null };
