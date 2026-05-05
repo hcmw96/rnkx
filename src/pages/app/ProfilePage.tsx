@@ -124,19 +124,6 @@ function healthKitWorkoutItemsFromRaw(raw: unknown): unknown[] {
   return [];
 }
 
-async function removeAppleWearablesSilent(athleteId: string, wearables: string[] | null): Promise<string[]> {
-  const next = (wearables ?? []).filter((w) => {
-    const v = String(w).toLowerCase();
-    return v !== 'apple' && v !== 'apple_watch';
-  });
-  const { error } = await supabase.from('athletes').update({ wearables: next }).eq('id', athleteId);
-  if (error) {
-    console.error('[Profile] Could not strip apple_watch from wearables:', error.message);
-    return wearables ?? [];
-  }
-  return next;
-}
-
 function labelForMaxHrSource(source: string | null | undefined): string {
   switch (source) {
     case 'manual':
