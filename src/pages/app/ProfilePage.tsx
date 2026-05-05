@@ -353,7 +353,14 @@ export default function ProfilePage() {
 
   const handleSync = async () => {
     setSyncing(true);
-    const syncData = await fetchRecentWorkouts();
+    let syncData: Awaited<ReturnType<typeof fetchRecentWorkouts>>;
+    try {
+      syncData = await fetchRecentWorkouts();
+    } catch (err) {
+      toast.error('fetchRecentWorkouts threw: ' + String(err));
+      setSyncing(false);
+      return;
+    }
     if (syncData.error) {
       toast.error('fetchRecentWorkouts failed', { description: syncData.error });
       setSyncing(false);
@@ -386,7 +393,11 @@ export default function ProfilePage() {
       }
       const data = await response.json();
       toast.success(`Synced ${(data as { processed?: number } | null)?.processed ?? 0} workout(s).`);
-      await loadProfile();
+      try {
+        await loadProfile();
+      } catch (profileErr) {
+        toast.error('loadProfile failed: ' + String(profileErr));
+      }
     } catch (err) {
       toast.error(err instanceof Error ? err.message : String(err));
     }
