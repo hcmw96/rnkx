@@ -28,7 +28,7 @@ import {
 } from '@/components/BrandLogos';
 import { providerLabel } from '@/components/terra/TerraWearableProviders';
 import { getCountryByName } from '@/data/countries';
-import { fetchRecentWorkouts, isDespia } from '@/services/despia';
+import { attachHrFromSamples, fetchRecentWorkouts, isDespia } from '@/services/despia';
 import { supabase } from '@/services/supabase';
 
 const ATHLETE_COLUMNS =
@@ -170,6 +170,7 @@ export default function ProfilePage() {
   const [appleConnecting, setAppleConnecting] = useState(false);
   /** Despia iPhone HealthKit probe: null until resolved; irrelevant when DB has no apple wearable. */
   const [appleHkLiveOk, setAppleHkLiveOk] = useState<boolean | null>(null);
+  const [cachedHrSamples, setCachedHrSamples] = useState<unknown[]>([]);
   const [appleError, setAppleError] = useState<string | null>(null);
   const [maxHrEditing, setMaxHrEditing] = useState(false);
   const [maxHrDraft, setMaxHrDraft] = useState('');
@@ -184,6 +185,7 @@ export default function ProfilePage() {
       setTerraConnections([]);
       setWhoopConnection(null);
       setAppleHkLiveOk(null);
+      setCachedHrSamples([]);
       setRank(null);
       setLoading(false);
       return;
@@ -204,6 +206,7 @@ export default function ProfilePage() {
       setTerraConnections([]);
       setWhoopConnection(null);
       setAppleHkLiveOk(null);
+      setCachedHrSamples([]);
       setAppleError(null);
     } else {
       setAthlete(athleteRow);
@@ -280,6 +283,7 @@ export default function ProfilePage() {
     const wearablesSnapshot = athlete.wearables;
 
     if (!athleteWearsApple(wearablesSnapshot) || !isDespiaIphoneUa()) {
+      setCachedHrSamples([]);
       return;
     }
 
@@ -291,6 +295,16 @@ export default function ProfilePage() {
         if (cancelled) return;
         const raw = (result as Record<string, unknown> | null)?.healthkitResponse;
         const items = healthKitWorkoutItemsFromRaw(raw);
+        if (cancelled) return;
+        const hrResult = await despia('readhealthkit://HKQuantityTypeIdentifierHeartRate?days=14', [
+          'healthkitResponse',
+        ]);
+        if (cancelled) return;
+        const hrHk = (hrResult as Record<string, unknown> | null)?.healthkitResponse as
+          | Record<string, unknown>
+          | undefined;
+        const hrArr = hrHk?.HKQuantityTypeIdentifierHeartRate;
+        setCachedHrSamples(Array.isArray(hrArr) ? hrArr : []);
         if (items.length >= 1) {
           setAppleHkLiveOk(true);
         } else {
@@ -299,6 +313,7 @@ export default function ProfilePage() {
       } catch {
         if (cancelled) return;
         setAppleHkLiveOk(false);
+        setCachedHrSamples([]);
       }
     })();
 
@@ -373,18 +388,20 @@ export default function ProfilePage() {
       return;
     }
 
+    const workoutsWithHr = attachHrFromSamples(syncData.workouts, cachedHrSamples);
+
     try {
-      const debugBody = { appleWorkouts: syncData.workouts, source: 'apple', athlete_id: athlete?.id };
+      const debugBody = { appleWorkouts: workoutsWithHr, source: 'apple', athlete_id: athlete?.id };
       const debugBodyStr = JSON.stringify(debugBody);
       toast.message('DEBUG pre-POST', {
-        description: `workouts: ${syncData.workouts.length} | bodyLen: ${debugBodyStr.length} | first: ${JSON.stringify(syncData.workouts[0]).slice(0, 100)}`,
+        description: `workouts: ${workoutsWithHr.length} | bodyLen: ${debugBodyStr.length} | first: ${JSON.stringify(workoutsWithHr[0]).slice(0, 100)}`,
       });
       const response = await fetch(
         `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/sync-activities`,
         {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ appleWorkouts: syncData.workouts, source: 'apple', athlete_id: athlete.id }),
+          body: JSON.stringify({ appleWorkouts: workoutsWithHr, source: 'apple', athlete_id: athlete.id }),
         }
       );
       if (!response.ok) {

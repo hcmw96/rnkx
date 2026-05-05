@@ -1,5 +1,4 @@
 import despia from 'despia-native';
-import { toast } from 'sonner';
 
 export interface WorkoutObject {
   sourceId: string;
@@ -44,13 +43,8 @@ export async function fetchRecentWorkouts(): Promise<DespiaSyncResult> {
 
   try {
     const workoutResult = await despia('readhealthkit://HKWorkoutTypeIdentifier?days=14', ['healthkitResponse']);
-    const hrResult = await despia('readhealthkit://HKQuantityTypeIdentifierHeartRate?days=14', ['healthkitResponse']);
-    toast.message('HR raw', { description: JSON.stringify(hrResult).slice(0, 200) });
 
-    console.log(
-      '[Despia] Raw response:',
-      JSON.stringify({ workoutResult, hrResult }, null, 2),
-    );
+    console.log('[Despia] Raw response:', JSON.stringify(workoutResult, null, 2));
 
     const workoutHk = (workoutResult as Record<string, unknown> | null)?.healthkitResponse as
       | Record<string, unknown>
@@ -58,32 +52,22 @@ export async function fetchRecentWorkouts(): Promise<DespiaSyncResult> {
     const rawWorkouts = workoutHk?.HKWorkoutTypeIdentifier;
     const raw = Array.isArray(rawWorkouts) ? rawWorkouts : [];
 
-    const hrHk = (hrResult as Record<string, unknown> | null)?.healthkitResponse as
-      | Record<string, unknown>
-      | undefined;
-    const hrRaw = hrHk?.HKQuantityTypeIdentifierHeartRate;
-    toast.message('HR samples', {
-      description: `rawHr type: ${typeof hrRaw} isArray: ${Array.isArray(hrRaw)} len: ${Array.isArray(hrRaw) ? hrRaw.length : 'n/a'}`,
-    });
-    const hrSamples = parseHeartRateSamples(hrRaw);
+    const workouts = normaliseWorkouts(raw);
 
-    const workouts = attachHrFromSamples(normaliseWorkouts(raw), hrSamples);
-    toast.message('first workout avgHr', { description: String(workouts[0]?.avgHr) });
-
-    return { workouts, rawPayload: { workoutResult, hrResult }, error: null };
+    return { workouts, rawPayload: workoutResult, error: null };
   } catch (err) {
     console.error('[Despia] fetchRecentWorkouts failed:', err);
     return { workouts: [], rawPayload: null, error: String(err) };
   }
 }
 
-interface HrSamplePoint {
+export interface HrSamplePoint {
   time: number;
   bpm: number;
 }
 
 /** Parse Despia HealthKit HR quantity samples (expects `sample.date`; falls back to common field names). */
-function parseHeartRateSamples(raw: unknown): HrSamplePoint[] {
+export function parseHeartRateSamples(raw: unknown): HrSamplePoint[] {
   if (!Array.isArray(raw)) return [];
   const out: HrSamplePoint[] = [];
   for (const item of raw) {
@@ -109,7 +93,8 @@ function parseHeartRateSamples(raw: unknown): HrSamplePoint[] {
   return out;
 }
 
-function attachHrFromSamples(workouts: WorkoutObject[], hrSamples: HrSamplePoint[]): WorkoutObject[] {
+export function attachHrFromSamples(workouts: WorkoutObject[], hrRaw: unknown): WorkoutObject[] {
+  const hrSamples = parseHeartRateSamples(Array.isArray(hrRaw) ? hrRaw : []);
   return workouts.map((w) => {
     const workoutStartMs = Date.parse(w.startedAt);
     if (!Number.isFinite(workoutStartMs)) return w;
@@ -140,7 +125,12 @@ function normaliseWorkouts(raw: unknown): WorkoutObject[] {
     }
 
     return {
-      sourceId: String(w.uuid ?? w.id ?? w.sourceId ?? Math.random()),
+      sourceId: String(
+        w.uuid ??
+          w.id ??
+          w.sourceId ??
+          `apple_${w.date ?? w.startDate ?? w.startedAt}_${w.activityType ?? 'unknown'}_${Math.round(typeof w.duration === 'number' ? w.duration : 0)}`,
+      ),
       startedAt: String(w.date ?? w.startDate ?? w.startedAt ?? new Date().toISOString()),
       durationMin:
         typeof w.duration === 'number'
