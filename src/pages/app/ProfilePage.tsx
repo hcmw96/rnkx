@@ -7,11 +7,6 @@ import {
   type ChangeEvent,
   type ComponentType,
 } from 'react';
-import {
-  FunctionsFetchError,
-  FunctionsHttpError,
-  FunctionsRelayError,
-} from '@supabase/supabase-js';
 import despia from 'despia-native';
 import { Info } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
@@ -170,14 +165,6 @@ function twoLetterAvatar(username: string | null, displayName: string | null): s
   if (d.length >= 2) return d.slice(0, 2).toUpperCase();
   if (d.length === 1) return `${d}?`.toUpperCase();
   return '??';
-}
-
-const SYNC_ERROR_BODY_MAX = 500;
-
-function trimSyncErrorBody(text: string): string {
-  const t = text.trim();
-  if (t.length <= SYNC_ERROR_BODY_MAX) return t;
-  return `${t.slice(0, SYNC_ERROR_BODY_MAX)}…`;
 }
 
 export default function ProfilePage() {
