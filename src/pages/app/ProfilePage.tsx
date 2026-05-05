@@ -28,7 +28,7 @@ import {
 } from '@/components/BrandLogos';
 import { providerLabel } from '@/components/terra/TerraWearableProviders';
 import { getCountryByName } from '@/data/countries';
-import { attachHrFromSamples, fetchRecentWorkouts, isDespia } from '@/services/despia';
+import { attachHrFromSamples, fetchRecentWorkouts } from '@/services/despia';
 import { supabase } from '@/services/supabase';
 
 const ATHLETE_COLUMNS =
@@ -391,11 +391,6 @@ export default function ProfilePage() {
     const workoutsWithHr = attachHrFromSamples(syncData.workouts, cachedHrSamples);
 
     try {
-      const debugBody = { appleWorkouts: workoutsWithHr, source: 'apple', athlete_id: athlete?.id };
-      const debugBodyStr = JSON.stringify(debugBody);
-      toast.message('DEBUG pre-POST', {
-        description: `workouts: ${workoutsWithHr.length} | bodyLen: ${debugBodyStr.length} | first: ${JSON.stringify(workoutsWithHr[0]).slice(0, 100)}`,
-      });
       const response = await fetch(
         `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/sync-activities`,
         {
@@ -609,20 +604,11 @@ export default function ProfilePage() {
   const appleCardConnected = appleConnected;
   const hasAnyDevice =
     inDespiaWebView || appleConnected || whoopConnection != null || terraConnections.length > 0;
-  const ua = typeof navigator === 'undefined' ? '(no navigator)' : navigator.userAgent;
 
   return (
     <AppShell>
       <TooltipProvider delayDuration={200}>
       <section className="mx-auto max-w-lg space-y-6">
-        <div className="rounded-lg border border-border bg-muted/30 px-3 py-2 text-xs text-muted-foreground">
-          <p>userAgent: {ua}</p>
-          <p>isDespiaIphoneUa: {String(isDespiaIphoneUa())}</p>
-          <p>isDespia: {String(typeof navigator !== 'undefined' ? isDespia() : false)}</p>
-          <p>athlete.wearables: {JSON.stringify(athlete?.wearables ?? null)}</p>
-          <p>appleHkLiveOk: {String(appleHkLiveOk)}</p>
-          <p>appleConnected: {String(appleConnected)}</p>
-        </div>
         <input
           ref={fileInputRef}
           type="file"
