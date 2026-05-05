@@ -1,4 +1,12 @@
-import { useCallback, useEffect, useRef, useState, type ChangeEvent, type ComponentType } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ChangeEvent,
+  type ComponentType,
+} from 'react';
 import {
   FunctionsFetchError,
   FunctionsHttpError,
@@ -25,7 +33,6 @@ import {
 } from '@/components/BrandLogos';
 import { providerLabel } from '@/components/terra/TerraWearableProviders';
 import { getCountryByName } from '@/data/countries';
-import { buildSyncActivitiesAppleBody } from '@/lib/syncActivitiesApple';
 import { fetchRecentWorkouts } from '@/services/despia';
 import { supabase } from '@/services/supabase';
 
@@ -97,6 +104,42 @@ function isDespiaWebView(): boolean {
   const hasDespiaBridge = (window as Window & { despia?: unknown }).despia != null;
   const isIosUa = /iPhone|iPad|iPod/.test(navigator.userAgent);
   return hasDespiaBridge || isIosUa;
+}
+
+/** Despia iOS WebView — used to probe HealthKit access on Profile (see Apple Watch card). */
+function isDespiaIphoneUa(): boolean {
+  if (typeof navigator === 'undefined') return false;
+  const ua = navigator.userAgent.toLowerCase();
+  return ua.includes('despia') && ua.includes('iphone');
+}
+
+function athleteWearsApple(wearables: string[] | null | undefined): boolean {
+  return (wearables ?? []).some((w) => {
+    const v = String(w).toLowerCase();
+    return v === 'apple_watch' || v === 'apple';
+  });
+}
+
+/** Mirrors `normaliseWorkouts` input shape in `@/services/despia` for `healthkitResponse` payloads. */
+function healthKitWorkoutItemsFromRaw(raw: unknown): unknown[] {
+  if (Array.isArray(raw)) return raw;
+  if (raw && typeof raw === 'object' && Array.isArray((raw as Record<string, unknown>).workouts)) {
+    return (raw as Record<string, unknown>).workouts as unknown[];
+  }
+  return [];
+}
+
+async function removeAppleWearablesSilent(athleteId: string, wearables: string[] | null): Promise<string[]> {
+  const next = (wearables ?? []).filter((w) => {
+    const v = String(w).toLowerCase();
+    return v !== 'apple' && v !== 'apple_watch';
+  });
+  const { error } = await supabase.from('athletes').update({ wearables: next }).eq('id', athleteId);
+  if (error) {
+    console.error('[Profile] Could not strip apple_watch from wearables:', error.message);
+    return wearables ?? [];
+  }
+  return next;
 }
 
 function labelForMaxHrSource(source: string | null | undefined): string {
@@ -200,7 +243,8 @@ export default function ProfilePage() {
   const [disconnectingId, setDisconnectingId] = useState<string | null>(null);
   const [disconnectingWhoop, setDisconnectingWhoop] = useState(false);
   const [appleConnecting, setAppleConnecting] = useState(false);
-  const [healthKitGranted, setHealthKitGranted] = useState(false);
+  /** Despia iPhone HealthKit probe: null until resolved; irrelevant when DB has no apple wearable. */
+  const [appleHkLiveOk, setAppleHkLiveOk] = useState<boolean | null>(null);
   const [appleError, setAppleError] = useState<string | null>(null);
   const [maxHrEditing, setMaxHrEditing] = useState(false);
   const [maxHrDraft, setMaxHrDraft] = useState('');
@@ -214,7 +258,7 @@ export default function ProfilePage() {
       setAthlete(null);
       setTerraConnections([]);
       setWhoopConnection(null);
-      setHealthKitGranted(false);
+      setAppleHkLiveOk(null);
       setRank(null);
       setLoading(false);
       return;
@@ -234,14 +278,10 @@ export default function ProfilePage() {
       setAthlete(null);
       setTerraConnections([]);
       setWhoopConnection(null);
-      setHealthKitGranted(false);
+      setAppleHkLiveOk(null);
       setAppleError(null);
     } else {
       setAthlete(athleteRow);
-      const wearsApple = (athleteRow.wearables ?? []).some((w) => {
-        const v = String(w).toLowerCase();
-        return v === 'apple_watch' || v === 'apple';
-      });
       const [{ data: connRows, error: connErr }, whoopRes] = await Promise.all([
         supabase.from('terra_connections').select('id,terra_user_id,provider').eq('athlete_id', athleteRow.id),
         supabase.from('whoop_connections').select('id').eq('athlete_id', athleteRow.id).maybeSingle(),
@@ -257,7 +297,6 @@ export default function ProfilePage() {
       } else {
         setWhoopConnection((whoopRes.data as WhoopConnectionRow | null) ?? null);
       }
-      setHealthKitGranted(wearsApple);
       setAppleError(null);
     }
 
@@ -304,6 +343,53 @@ export default function ProfilePage() {
       document.removeEventListener('visibilitychange', onVisibilityChange);
     };
   }, [athlete?.id, refreshWhoopConnection]);
+
+  const athleteWearablesKey = useMemo(
+    () => JSON.stringify(athlete?.wearables ?? []),
+    [athlete?.wearables],
+  );
+
+  useEffect(() => {
+    if (!athlete?.id) return;
+
+    const athleteId = athlete.id;
+    const wearablesSnapshot = athlete.wearables;
+
+    if (!athleteWearsApple(wearablesSnapshot) || !isDespiaIphoneUa()) {
+      return;
+    }
+
+    let cancelled = false;
+
+    void (async () => {
+      try {
+        const result = await despia('readhealthkit://HKWorkoutTypeIdentifier?days=7', ['healthkitResponse']);
+        if (cancelled) return;
+        const raw = (result as Record<string, unknown> | null)?.healthkitResponse;
+        const items = healthKitWorkoutItemsFromRaw(raw);
+        if (items.length >= 1) {
+          setAppleHkLiveOk(true);
+        } else {
+          setAppleHkLiveOk(false);
+          const next = await removeAppleWearablesSilent(athleteId, wearablesSnapshot);
+          if (!cancelled) {
+            setAthlete((prev) => (prev && prev.id === athleteId ? { ...prev, wearables: next } : prev));
+          }
+        }
+      } catch {
+        if (cancelled) return;
+        setAppleHkLiveOk(false);
+        const next = await removeAppleWearablesSilent(athleteId, wearablesSnapshot);
+        if (!cancelled) {
+          setAthlete((prev) => (prev && prev.id === athleteId ? { ...prev, wearables: next } : prev));
+        }
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [athlete?.id, athleteWearablesKey]);
 
   const openAvatarPicker = () => {
     fileInputRef.current?.click();
@@ -366,17 +452,14 @@ export default function ProfilePage() {
         : 'fetchRecentWorkouts returned 0 workouts.',
     });
 
-    const { data: sessionData } = await supabase.auth.getSession();
-    const token = sessionData.session?.access_token;
-    if (!token) {
-      toast.error('Missing auth session.');
+    if (!athlete?.id) {
+      toast.error('Missing athlete profile.');
       setSyncing(false);
       return;
     }
 
     const { data, error: invokeError } = await supabase.functions.invoke('sync-activities', {
-      body: buildSyncActivitiesAppleBody(syncData.workouts),
-      headers: { Authorization: `Bearer ${token}` },
+      body: { appleWorkouts: syncData.workouts, source: 'apple', athlete_id: athlete.id },
     });
 
     if (invokeError) {
@@ -472,7 +555,7 @@ export default function ProfilePage() {
         return;
       }
       setAthlete((prev) => (prev ? { ...prev, wearables: nextWearables } : prev));
-      setHealthKitGranted(true);
+      setAppleHkLiveOk(true);
       toast.success('Apple Watch connected!');
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Could not connect Apple Watch.';
@@ -500,7 +583,7 @@ export default function ProfilePage() {
         return;
       }
       setAthlete((prev) => (prev ? { ...prev, wearables: nextWearables } : prev));
-      setHealthKitGranted(false);
+      setAppleHkLiveOk(null);
       toast.success('Apple Watch disconnected');
     } catch {
       toast.error('Disconnect failed.');
@@ -565,11 +648,9 @@ export default function ProfilePage() {
   const score = athlete ? numScore(athlete.total_score) : 0;
   const initials = athlete ? twoLetterAvatar(athlete.username, athlete.display_name) : '??';
   const inDespiaWebView = isDespiaWebView();
-  const wearsApple = (athlete?.wearables ?? []).some((w) => {
-    const v = String(w).toLowerCase();
-    return v === 'apple_watch' || v === 'apple';
-  });
-  const appleConnected = wearsApple || healthKitGranted;
+  const wearsApple = athleteWearsApple(athlete?.wearables ?? null);
+  const appleNeedsHkProbe = wearsApple && isDespiaIphoneUa();
+  const appleConnected = appleNeedsHkProbe ? appleHkLiveOk === true : wearsApple;
   const hasAnyDevice =
     inDespiaWebView || appleConnected || whoopConnection != null || terraConnections.length > 0;
 

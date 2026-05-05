@@ -9,16 +9,10 @@ serve(async (req) => {
     Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
   );
 
-  // Auth
-  const authHeader = req.headers.get('Authorization');
-  const { data: { user }, error: authError } = await supabase.auth.getUser(
-    authHeader?.replace('Bearer ', '') ?? ''
-  );
-  if (authError || !user) return new Response('Unauthorized', { status: 401 });
-
   const body = (await req.json()) as {
     appleWorkouts?: unknown;
     source?: string;
+    athlete_id?: string;
   };
 
   if (body.source !== 'apple') {
@@ -34,6 +28,13 @@ serve(async (req) => {
       headers: { 'Content-Type': 'application/json' },
     });
   }
+  
+  if (!body.athlete_id) {
+    return new Response(JSON.stringify({ error: 'Missing athlete_id' }), {
+      status: 400,
+      headers: { 'Content-Type': 'application/json' },
+    });
+  }
 
   const workouts: unknown[] = body.appleWorkouts;
 
@@ -41,7 +42,7 @@ serve(async (req) => {
   for (const workout of workouts) {
     const w = workout as Record<string, unknown>;
     const payload = {
-      athlete_id: user.id,
+      athlete_id: body.athlete_id,
       source_id: w.sourceId,
       started_at: w.startedAt,
       duration_min: w.durationMin,
