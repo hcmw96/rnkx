@@ -42,15 +42,17 @@ export async function fetchRecentWorkouts(): Promise<DespiaSyncResult> {
   }
 
   try {
-    const workoutResult = await despia('readhealthkit://HKWorkoutTypeIdentifier?days=14', ['healthkitResponse']);
-    const hrResult = await despia('readhealthkit://HKQuantityTypeIdentifierHeartRate?days=14', ['healthkitResponse']);
+    const result = await despia(
+      'readhealthkit://HKWorkoutTypeIdentifier,HKQuantityTypeIdentifierHeartRate?days=14',
+      ['healthkitResponse']
+    );
 
-    console.log('[Despia] Raw response:', JSON.stringify({ workoutResult, hrResult }, null, 2));
+    console.log('[Despia] Raw response:', JSON.stringify(result, null, 2));
 
-    const raw = (workoutResult as Record<string, unknown> | null)?.healthkitResponse;
+    const raw = (result as Record<string, unknown> | null)?.healthkitResponse;
     const workouts = normaliseWorkouts(raw);
 
-    return { workouts, rawPayload: { workoutResult, hrResult }, error: null };
+    return { workouts, rawPayload: result, error: null };
   } catch (err) {
     console.error('[Despia] fetchRecentWorkouts failed:', err);
     return { workouts: [], rawPayload: null, error: String(err) };

@@ -608,7 +608,7 @@ export default function ProfilePage() {
   const inDespiaWebView = isDespiaWebView();
   const wearsApple = athleteWearsApple(athlete?.wearables ?? null);
   const appleNeedsHkProbe = wearsApple && isDespiaIphoneUa();
-  const appleConnected = appleNeedsHkProbe ? appleHkLiveOk === true : wearsApple;
+  const appleConnected = appleHkLiveOk === true || (appleNeedsHkProbe ? false : wearsApple);
   const appleCardConnected = appleConnected;
   const hasAnyDevice =
     inDespiaWebView || appleConnected || whoopConnection != null || terraConnections.length > 0;
