@@ -376,6 +376,10 @@ export default function ProfilePage() {
   const handleSync = async () => {
     setSyncing(true);
     const syncData = await fetchRecentWorkouts();
+    console.log('[Profile.handleSync] fetchRecentWorkouts returned', {
+      workoutsLength: syncData.workouts.length,
+      error: syncData.error,
+    });
     if (syncData.error) {
       toast.error('fetchRecentWorkouts failed', { description: syncData.error });
       setSyncing(false);
@@ -397,6 +401,12 @@ export default function ProfilePage() {
     }
 
     try {
+      console.log('[Profile.handleSync] sync-activities payload', {
+        athlete_id: athlete.id,
+        source: 'apple',
+        workoutsLength: syncData.workouts.length,
+      });
+      console.log('[Profile.handleSync] About to POST to sync-activities');
       const response = await fetch(
         `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/sync-activities`,
         {
@@ -413,6 +423,7 @@ export default function ProfilePage() {
       toast.success(`Synced ${(data as { processed?: number } | null)?.processed ?? 0} workout(s).`);
       await loadProfile();
     } catch (err) {
+      console.log('[Profile.handleSync] sync-activities error:', err);
       toast.error(err instanceof Error ? err.message : String(err));
     }
 
@@ -598,6 +609,7 @@ export default function ProfilePage() {
   const wearsApple = athleteWearsApple(athlete?.wearables ?? null);
   const appleNeedsHkProbe = wearsApple && isDespiaIphoneUa();
   const appleConnected = appleNeedsHkProbe ? appleHkLiveOk === true : wearsApple;
+  const appleCardConnected = appleConnected;
   const hasAnyDevice =
     inDespiaWebView || appleConnected || whoopConnection != null || terraConnections.length > 0;
 
@@ -847,9 +859,9 @@ export default function ProfilePage() {
                           <p className="font-medium text-foreground">Apple Watch</p>
                           <p className="text-xs text-muted-foreground">HealthKit</p>
                         </div>
-                        {appleConnected ? <ConnectedBadge /> : null}
+                        {appleCardConnected ? <ConnectedBadge /> : null}
                       </div>
-                      {!appleConnected ? (
+                      {!appleCardConnected ? (
                         <Button
                           type="button"
                           variant="secondary"
@@ -873,7 +885,7 @@ export default function ProfilePage() {
                         </Button>
                       )}
                     </div>
-                    {appleConnected ? (
+                    {appleCardConnected ? (
                       <p className="mt-2 text-xs text-muted-foreground">
                         To fully disconnect, go to iOS Settings {'>'} Health {'>'} Data Access
                       </p>
