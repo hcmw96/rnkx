@@ -1,4 +1,5 @@
 import despia from 'despia-native';
+import { toast } from 'sonner';
 
 export interface WorkoutObject {
   sourceId: string;
@@ -46,6 +47,7 @@ export async function fetchRecentWorkouts(): Promise<DespiaSyncResult> {
       'readhealthkit://HKWorkoutTypeIdentifier?days=14',
       ['healthkitResponse']
     );
+    toast.message('HK raw', { description: JSON.stringify(result).slice(0, 200) });
 
     console.log('[Despia] Raw response:', JSON.stringify(result, null, 2));
 
