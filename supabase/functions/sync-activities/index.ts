@@ -68,6 +68,8 @@ serve(async (req) => {
     results.push({ sourceId: w.sourceId, result: data, error: error?.message });
   }
 
+  console.log('sync-activities results:', JSON.stringify(results));
+
   return new Response(JSON.stringify({ processed: results.length, results }), {
     headers: { 'Content-Type': 'application/json' },
   });

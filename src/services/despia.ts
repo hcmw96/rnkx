@@ -42,24 +42,78 @@ export async function fetchRecentWorkouts(): Promise<DespiaSyncResult> {
   }
 
   try {
-    const result = await despia(
-      'readhealthkit://HKWorkoutTypeIdentifier?days=14',
-      ['healthkitResponse']
+    const workoutResult = await despia('readhealthkit://HKWorkoutTypeIdentifier?days=14', ['healthkitResponse']);
+    const hrResult = await despia('readhealthkit://HKQuantityTypeIdentifierHeartRate?days=14', ['healthkitResponse']);
+
+    console.log(
+      '[Despia] Raw response:',
+      JSON.stringify({ workoutResult, hrResult }, null, 2),
     );
 
-    console.log('[Despia] Raw response:', JSON.stringify(result, null, 2));
+    const workoutHk = (workoutResult as Record<string, unknown> | null)?.healthkitResponse as
+      | Record<string, unknown>
+      | undefined;
+    const rawWorkouts = workoutHk?.HKWorkoutTypeIdentifier;
+    const raw = Array.isArray(rawWorkouts) ? rawWorkouts : [];
 
-    const hkResponse = (result as Record<string, unknown> | null)?.healthkitResponse;
-    const raw = Array.isArray((hkResponse as Record<string, unknown>)?.HKWorkoutTypeIdentifier)
-      ? (hkResponse as Record<string, unknown>).HKWorkoutTypeIdentifier
-      : hkResponse;
-    const workouts = normaliseWorkouts(raw);
+    const hrHk = (hrResult as Record<string, unknown> | null)?.healthkitResponse as
+      | Record<string, unknown>
+      | undefined;
+    const hrRaw = hrHk?.HKQuantityTypeIdentifierHeartRate;
+    const hrSamples = parseHeartRateSamples(hrRaw);
 
-    return { workouts, rawPayload: result, error: null };
+    const workouts = attachHrFromSamples(normaliseWorkouts(raw), hrSamples);
+
+    return { workouts, rawPayload: { workoutResult, hrResult }, error: null };
   } catch (err) {
     console.error('[Despia] fetchRecentWorkouts failed:', err);
     return { workouts: [], rawPayload: null, error: String(err) };
   }
+}
+
+interface HrSamplePoint {
+  time: number;
+  bpm: number;
+}
+
+/** Parse Despia HealthKit HR quantity samples (expects `sample.date`; falls back to common field names). */
+function parseHeartRateSamples(raw: unknown): HrSamplePoint[] {
+  if (!Array.isArray(raw)) return [];
+  const out: HrSamplePoint[] = [];
+  for (const item of raw) {
+    const s = item as Record<string, unknown>;
+    const dateVal = (s.date ?? s.startDate ?? s.endDate) as string | number | undefined;
+    let timeMs = NaN;
+    if (typeof dateVal === 'string') {
+      timeMs = Date.parse(dateVal);
+    } else if (typeof dateVal === 'number' && Number.isFinite(dateVal)) {
+      timeMs = dateVal > 1e12 ? dateVal : dateVal * 1000;
+    }
+    const qty =
+      typeof s.value === 'number'
+        ? s.value
+        : typeof s.quantity === 'number'
+          ? s.quantity
+          : typeof s.bpm === 'number'
+            ? s.bpm
+            : null;
+    if (!Number.isFinite(timeMs) || qty === null || !Number.isFinite(qty)) continue;
+    out.push({ time: timeMs, bpm: qty });
+  }
+  return out;
+}
+
+function attachHrFromSamples(workouts: WorkoutObject[], hrSamples: HrSamplePoint[]): WorkoutObject[] {
+  return workouts.map((w) => {
+    const workoutStartMs = Date.parse(w.startedAt);
+    if (!Number.isFinite(workoutStartMs)) return w;
+    const workoutEndMs = workoutStartMs + Math.max(0, w.durationMin) * 60 * 1000;
+    const inRange = hrSamples.filter((sample) => sample.time >= workoutStartMs && sample.time <= workoutEndMs);
+    if (inRange.length === 0) return w;
+    const sum = inRange.reduce((acc, sample) => acc + sample.bpm, 0);
+    const avg = sum / inRange.length;
+    return { ...w, avgHr: Math.round(avg * 10) / 10 };
+  });
 }
 
 function normaliseWorkouts(raw: unknown): WorkoutObject[] {
