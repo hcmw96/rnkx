@@ -62,6 +62,9 @@ export async function fetchRecentWorkouts(): Promise<DespiaSyncResult> {
       | Record<string, unknown>
       | undefined;
     const hrRaw = hrHk?.HKQuantityTypeIdentifierHeartRate;
+    toast.message('HR samples', {
+      description: `rawHr type: ${typeof hrRaw} isArray: ${Array.isArray(hrRaw)} len: ${Array.isArray(hrRaw) ? hrRaw.length : 'n/a'}`,
+    });
     const hrSamples = parseHeartRateSamples(hrRaw);
 
     const workouts = attachHrFromSamples(normaliseWorkouts(raw), hrSamples);
