@@ -290,7 +290,6 @@ export default function ProfilePage() {
   useEffect(() => {
     if (!athlete?.id) return;
 
-    const athleteId = athlete.id;
     const wearablesSnapshot = athlete.wearables;
 
     if (!athleteWearsApple(wearablesSnapshot) || !isDespiaIphoneUa()) {
@@ -308,19 +307,11 @@ export default function ProfilePage() {
         if (items.length >= 1) {
           setAppleHkLiveOk(true);
         } else {
-          setAppleHkLiveOk(false);
-          const next = await removeAppleWearablesSilent(athleteId, wearablesSnapshot);
-          if (!cancelled) {
-            setAthlete((prev) => (prev && prev.id === athleteId ? { ...prev, wearables: next } : prev));
-          }
+          setAppleHkLiveOk(null);
         }
       } catch {
         if (cancelled) return;
         setAppleHkLiveOk(false);
-        const next = await removeAppleWearablesSilent(athleteId, wearablesSnapshot);
-        if (!cancelled) {
-          setAthlete((prev) => (prev && prev.id === athleteId ? { ...prev, wearables: next } : prev));
-        }
       }
     })();
 
@@ -607,8 +598,12 @@ export default function ProfilePage() {
   const initials = athlete ? twoLetterAvatar(athlete.username, athlete.display_name) : '??';
   const inDespiaWebView = isDespiaWebView();
   const wearsApple = athleteWearsApple(athlete?.wearables ?? null);
-  const appleNeedsHkProbe = wearsApple && isDespiaIphoneUa();
-  const appleConnected = appleHkLiveOk === true || (appleNeedsHkProbe ? false : wearsApple);
+  const appleConnected =
+    appleHkLiveOk === true
+      ? true
+      : appleHkLiveOk === false
+        ? false
+        : wearsApple;
   const appleCardConnected = appleConnected;
   const hasAnyDevice =
     inDespiaWebView || appleConnected || whoopConnection != null || terraConnections.length > 0;
