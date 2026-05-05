@@ -458,15 +458,24 @@ export default function ProfilePage() {
       return;
     }
 
-    const { data, error: invokeError } = await supabase.functions.invoke('sync-activities', {
-      body: { appleWorkouts: syncData.workouts, source: 'apple', athlete_id: athlete.id },
-    });
-
-    if (invokeError) {
-      toast.error(await formatSyncActivitiesInvokeError(invokeError));
-    } else {
+    try {
+      const response = await fetch(
+        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/sync-activities`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ appleWorkouts: syncData.workouts, source: 'apple', athlete_id: athlete.id }),
+        }
+      );
+      if (!response.ok) {
+        const errText = await response.text();
+        throw new Error(`sync-activities ${response.status}: ${errText}`);
+      }
+      const data = await response.json();
       toast.success(`Synced ${(data as { processed?: number } | null)?.processed ?? 0} workout(s).`);
       await loadProfile();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : String(err));
     }
 
     setSyncing(false);
