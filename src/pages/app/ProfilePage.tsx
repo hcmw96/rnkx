@@ -354,23 +354,11 @@ export default function ProfilePage() {
   const handleSync = async () => {
     setSyncing(true);
     const syncData = await fetchRecentWorkouts();
-    console.log('[Profile.handleSync] fetchRecentWorkouts returned', {
-      workoutsLength: syncData.workouts.length,
-      error: syncData.error,
-    });
     if (syncData.error) {
       toast.error('fetchRecentWorkouts failed', { description: syncData.error });
       setSyncing(false);
       return;
     }
-
-    const workoutCount = syncData.workouts.length;
-    const hasWorkoutData = workoutCount > 0;
-    toast.message(hasWorkoutData ? 'Workouts found' : 'No workout data', {
-      description: hasWorkoutData
-        ? `fetchRecentWorkouts returned ${workoutCount} workout${workoutCount === 1 ? '' : 's'}.`
-        : 'fetchRecentWorkouts returned 0 workouts.',
-    });
 
     if (!athlete?.id) {
       toast.error('Missing athlete profile.');
@@ -379,12 +367,11 @@ export default function ProfilePage() {
     }
 
     try {
-      console.log('[Profile.handleSync] sync-activities payload', {
-        athlete_id: athlete.id,
-        source: 'apple',
-        workoutsLength: syncData.workouts.length,
+      const debugBody = { appleWorkouts: syncData.workouts, source: 'apple', athlete_id: athlete?.id };
+      const debugBodyStr = JSON.stringify(debugBody);
+      toast.message('DEBUG pre-POST', {
+        description: `workouts: ${syncData.workouts.length} | bodyLen: ${debugBodyStr.length} | first: ${JSON.stringify(syncData.workouts[0]).slice(0, 100)}`,
       });
-      console.log('[Profile.handleSync] About to POST to sync-activities');
       const response = await fetch(
         `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/sync-activities`,
         {
@@ -401,7 +388,6 @@ export default function ProfilePage() {
       toast.success(`Synced ${(data as { processed?: number } | null)?.processed ?? 0} workout(s).`);
       await loadProfile();
     } catch (err) {
-      console.log('[Profile.handleSync] sync-activities error:', err);
       toast.error(err instanceof Error ? err.message : String(err));
     }
 
