@@ -180,55 +180,6 @@ function trimSyncErrorBody(text: string): string {
   return `${t.slice(0, SYNC_ERROR_BODY_MAX)}…`;
 }
 
-/** Maps sync-activities invoke errors to user-facing toast text (see Supabase FunctionsClient error types). */
-async function formatSyncActivitiesInvokeError(err: unknown): Promise<string> {
-  if (err instanceof FunctionsHttpError || err instanceof FunctionsRelayError) {
-    const res = err.context as Response;
-    const status = res.status;
-    let bodyText = '';
-    try {
-      bodyText = await res.text();
-    } catch {
-      bodyText = '(could not read response body)';
-    }
-    const trimmed = trimSyncErrorBody(bodyText);
-
-    if (status === 401 || status === 403) {
-      return `Sync failed: ${status} - ${trimmed || '(empty)'}`;
-    }
-
-    try {
-      const parsed = JSON.parse(bodyText) as { error?: unknown };
-      if (typeof parsed.error === 'string' && parsed.error.trim() !== '') {
-        return `Sync failed: ${parsed.error.trim()}`;
-      }
-    } catch {
-      /* body is not JSON */
-    }
-
-    return `Sync failed: ${status} - ${trimmed || '(empty)'}`;
-  }
-
-  if (err instanceof FunctionsFetchError) {
-    const ctx = err.context;
-    const body =
-      ctx instanceof Error
-        ? ctx.message
-        : typeof ctx === 'object' &&
-            ctx !== null &&
-            'message' in ctx &&
-            typeof (ctx as { message: unknown }).message === 'string'
-          ? (ctx as { message: string }).message
-          : err.message;
-    return `Sync failed: — - ${body}`;
-  }
-
-  if (err instanceof Error) {
-    return `Sync failed: — - ${err.message}`;
-  }
-  return `Sync failed: — - ${String(err)}`;
-}
-
 export default function ProfilePage() {
   const navigate = useNavigate();
   const fileInputRef = useRef<HTMLInputElement>(null);
