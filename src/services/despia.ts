@@ -78,14 +78,14 @@ function normaliseWorkouts(raw: unknown): WorkoutObject[] {
 
     return {
       sourceId: String(w.uuid ?? w.id ?? w.sourceId ?? Math.random()),
-      startedAt: String(w.startDate ?? w.startedAt ?? new Date().toISOString()),
+      startedAt: String(w.date ?? w.startDate ?? w.startedAt ?? new Date().toISOString()),
       durationMin:
         typeof w.duration === 'number'
           ? w.duration / 60
           : typeof w.durationMin === 'number'
             ? w.durationMin
             : 0,
-      activityType: String(w.workoutActivityType ?? w.activityType ?? 'unknown'),
+      activityType: String(w.activityType ?? w.workoutActivityType ?? 'unknown'),
       avgHr:
         typeof w.avgHeartRate === 'number'
           ? w.avgHeartRate
