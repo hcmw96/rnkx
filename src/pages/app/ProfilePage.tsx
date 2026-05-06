@@ -291,19 +291,17 @@ export default function ProfilePage() {
 
     void (async () => {
       try {
-        const result = await despia(
-          'readhealthkit://HKWorkoutTypeIdentifier,HKQuantityTypeIdentifierHeartRate?days=7',
-          ['healthkitResponse']
-        );
+        const result = await despia('readhealthkit://HKQuantityTypeIdentifierHeartRate?days=14', [
+          'healthkitResponse',
+        ]);
         if (cancelled) return;
         const hkResponse = (result as Record<string, unknown> | null)?.healthkitResponse as
           | Record<string, unknown>
           | undefined;
-        const items = healthKitWorkoutItemsFromRaw(hkResponse?.HKWorkoutTypeIdentifier);
         const rawHr = hkResponse?.HKQuantityTypeIdentifierHeartRate;
         const hrSamples = parseHeartRateSamples(rawHr);
         setCachedHrSamples(hrSamples);
-        if (items.length >= 1) {
+        if (hrSamples.length >= 1) {
           setAppleHkLiveOk(true);
         } else {
           setAppleHkLiveOk(null);
