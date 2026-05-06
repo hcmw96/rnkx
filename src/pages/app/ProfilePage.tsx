@@ -303,9 +303,6 @@ export default function ProfilePage() {
         const rawHr = hkResponse?.HKQuantityTypeIdentifierHeartRate;
         const hrSamples = parseHeartRateSamples(rawHr);
         setCachedHrSamples(hrSamples);
-        toast.message('HR check', {
-          description: `hrSamples: ${hrSamples.length} firstHr: ${hrSamples[0]?.bpm}`,
-        });
         if (items.length >= 1) {
           setAppleHkLiveOk(true);
         } else {
@@ -313,8 +310,7 @@ export default function ProfilePage() {
         }
       } catch {
         if (cancelled) return;
-        setAppleHkLiveOk(false);
-        setCachedHrSamples([]);
+        setAppleHkLiveOk(null);
       }
     })();
 
