@@ -115,15 +115,6 @@ function athleteWearsApple(wearables: string[] | null | undefined): boolean {
   });
 }
 
-/** Mirrors `normaliseWorkouts` input shape in `@/services/despia` for `healthkitResponse` payloads. */
-function healthKitWorkoutItemsFromRaw(raw: unknown): unknown[] {
-  if (Array.isArray(raw)) return raw;
-  if (raw && typeof raw === 'object' && Array.isArray((raw as Record<string, unknown>).workouts)) {
-    return (raw as Record<string, unknown>).workouts as unknown[];
-  }
-  return [];
-}
-
 function labelForMaxHrSource(source: string | null | undefined): string {
   switch (source) {
     case 'manual':
