@@ -292,6 +292,7 @@ export default function ProfilePage() {
         const rawHr = hkResponse?.HKQuantityTypeIdentifierHeartRate;
         const hrSamples = parseHeartRateSamples(rawHr);
         setCachedHrSamples(hrSamples);
+        toast.message('HR probe', { description: `samples: ${hrSamples.length}` });
         if (hrSamples.length >= 1) {
           setAppleHkLiveOk(true);
         } else {
