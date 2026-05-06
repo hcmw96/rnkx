@@ -28,7 +28,7 @@ import {
 } from '@/components/BrandLogos';
 import { providerLabel } from '@/components/terra/TerraWearableProviders';
 import { getCountryByName } from '@/data/countries';
-import { attachHrFromSamples, fetchRecentWorkouts } from '@/services/despia';
+import { attachHrFromSamples, fetchRecentWorkouts, parseHeartRateSamples } from '@/services/despia';
 import { supabase } from '@/services/supabase';
 
 const ATHLETE_COLUMNS =
@@ -291,20 +291,21 @@ export default function ProfilePage() {
 
     void (async () => {
       try {
-        const result = await despia('readhealthkit://HKWorkoutTypeIdentifier?days=7', ['healthkitResponse']);
+        const result = await despia(
+          'readhealthkit://HKWorkoutTypeIdentifier,HKQuantityTypeIdentifierHeartRate?days=7',
+          ['healthkitResponse']
+        );
         if (cancelled) return;
-        const raw = (result as Record<string, unknown> | null)?.healthkitResponse;
-        const items = healthKitWorkoutItemsFromRaw(raw);
-        if (cancelled) return;
-        const hrResult = await despia('readhealthkit://HKQuantityTypeIdentifierHeartRate?days=14', [
-          'healthkitResponse',
-        ]);
-        if (cancelled) return;
-        const hrHk = (hrResult as Record<string, unknown> | null)?.healthkitResponse as
+        const hkResponse = (result as Record<string, unknown> | null)?.healthkitResponse as
           | Record<string, unknown>
           | undefined;
-        const hrArr = hrHk?.HKQuantityTypeIdentifierHeartRate;
-        setCachedHrSamples(Array.isArray(hrArr) ? hrArr : []);
+        const items = healthKitWorkoutItemsFromRaw(hkResponse?.HKWorkoutTypeIdentifier);
+        const rawHr = hkResponse?.HKQuantityTypeIdentifierHeartRate;
+        const hrSamples = parseHeartRateSamples(rawHr);
+        setCachedHrSamples(hrSamples);
+        toast.message('HR check', {
+          description: `hrSamples: ${hrSamples.length} firstHr: ${hrSamples[0]?.bpm}`,
+        });
         if (items.length >= 1) {
           setAppleHkLiveOk(true);
         } else {

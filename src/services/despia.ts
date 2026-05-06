@@ -42,19 +42,24 @@ export async function fetchRecentWorkouts(): Promise<DespiaSyncResult> {
   }
 
   try {
-    const workoutResult = await despia('readhealthkit://HKWorkoutTypeIdentifier?days=14', ['healthkitResponse']);
+    const result = await despia(
+      'readhealthkit://HKWorkoutTypeIdentifier,HKQuantityTypeIdentifierHeartRate?days=14',
+      ['healthkitResponse']
+    );
 
-    console.log('[Despia] Raw response:', JSON.stringify(workoutResult, null, 2));
+    console.log('[Despia] Raw response:', JSON.stringify(result, null, 2));
 
-    const workoutHk = (workoutResult as Record<string, unknown> | null)?.healthkitResponse as
+    const hkResponse = (result as Record<string, unknown> | null)?.healthkitResponse as
       | Record<string, unknown>
       | undefined;
-    const rawWorkouts = workoutHk?.HKWorkoutTypeIdentifier;
-    const raw = Array.isArray(rawWorkouts) ? rawWorkouts : [];
+    const rawWorkouts = Array.isArray(hkResponse?.HKWorkoutTypeIdentifier)
+      ? (hkResponse.HKWorkoutTypeIdentifier as unknown[])
+      : [];
+    const rawHr = hkResponse?.HKQuantityTypeIdentifierHeartRate;
+    const hrSamples = parseHeartRateSamples(rawHr);
+    const workouts = attachHrFromSamples(normaliseWorkouts(rawWorkouts), hrSamples);
 
-    const workouts = normaliseWorkouts(raw);
-
-    return { workouts, rawPayload: workoutResult, error: null };
+    return { workouts, rawPayload: result, error: null };
   } catch (err) {
     console.error('[Despia] fetchRecentWorkouts failed:', err);
     return { workouts: [], rawPayload: null, error: String(err) };
@@ -94,7 +99,14 @@ export function parseHeartRateSamples(raw: unknown): HrSamplePoint[] {
 }
 
 export function attachHrFromSamples(workouts: WorkoutObject[], hrRaw: unknown): WorkoutObject[] {
-  const hrSamples = parseHeartRateSamples(Array.isArray(hrRaw) ? hrRaw : []);
+  const hrSamples = Array.isArray(hrRaw)
+    ? hrRaw.every((sample) => {
+        const p = sample as Record<string, unknown>;
+        return typeof p.time === 'number' && typeof p.bpm === 'number';
+      })
+      ? (hrRaw as HrSamplePoint[])
+      : parseHeartRateSamples(hrRaw)
+    : parseHeartRateSamples(hrRaw);
   return workouts.map((w) => {
     const workoutStartMs = Date.parse(w.startedAt);
     if (!Number.isFinite(workoutStartMs)) return w;
