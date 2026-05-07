@@ -38,6 +38,7 @@ serve(async (req) => {
       headers: { 'Content-Type': 'application/json' },
     });
   }
+  console.log('first workout avg_hr:', JSON.stringify((body.appleWorkouts as any[])?.[0]?.avgHr));
   
   if (!body.athlete_id) {
     return new Response(JSON.stringify({ error: 'Missing athlete_id' }), {
