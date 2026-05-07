@@ -51,7 +51,8 @@ export async function fetchRecentWorkouts(): Promise<DespiaSyncResult> {
 
     const rawWorkouts = (result as any)?.healthkitResponse?.HKWorkoutTypeIdentifier ?? [];
     const rawHr = (result as any)?.healthkitResponse?.HKQuantityTypeIdentifierHeartRate ?? [];
-    const workouts = attachHrFromSamples(normaliseWorkouts(rawWorkouts), rawHr);
+    const hrSamples = parseHeartRateSamples(rawHr);
+    const workouts = attachHrFromSamples(normaliseWorkouts(rawWorkouts), hrSamples);
 
     return { workouts, rawPayload: result, error: null };
   } catch (err) {
