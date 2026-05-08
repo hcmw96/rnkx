@@ -43,7 +43,7 @@ async function processTerraWorkouts(params: {
 
   for (const raw of workouts) {
     const workout = raw as Record<string, any>;
-    const rawDuration = workout.active_durations_data?.duration_in_seconds;
+    const rawDuration = workout.active_durations_data?.activity_time ?? workout.active_durations_data?.duration_in_seconds;
     const durationSeconds = (rawDuration && rawDuration > 0)
       ? rawDuration
       : (workout.metadata?.end_time && workout.metadata?.start_time

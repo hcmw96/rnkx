@@ -278,14 +278,12 @@ export default function ProfilePage() {
 
     void (async () => {
       try {
-        const result = await despia('readhealthkit://HKWorkoutTypeIdentifier?days=7', [
-          'healthkitResponse',
-        ]);
+        const result = await despia(
+          'healthkit://workouts?days=7&included=HKQuantityTypeIdentifierHeartRateAverage',
+          ['healthkitWorkouts'],
+        );
         if (cancelled) return;
-        const hkResponse = (result as Record<string, unknown> | null)?.healthkitResponse as
-          | Record<string, unknown>
-          | undefined;
-        const rawWorkouts = hkResponse?.HKWorkoutTypeIdentifier;
+        const rawWorkouts = (result as Record<string, unknown> | null)?.healthkitWorkouts;
         if (Array.isArray(rawWorkouts) && rawWorkouts.length >= 1) {
           setAppleHkLiveOk(true);
         } else {
@@ -350,6 +348,13 @@ export default function ProfilePage() {
     setSyncing(true);
     let syncData: Awaited<ReturnType<typeof fetchRecentWorkouts>>;
     try {
+      // Only fetch from HealthKit if user has Apple Watch connected
+      if (!athleteWearsApple(athlete?.wearables ?? null) || !isDespiaIphoneUa()) {
+        toast.error('No Apple Watch connected.');
+        setSyncing(false);
+        return;
+      }
+
       syncData = await fetchRecentWorkouts();
     } catch (err) {
       toast.error('fetchRecentWorkouts threw: ' + String(err));
@@ -582,6 +587,8 @@ export default function ProfilePage() {
   const appleCardConnected = appleConnected;
   const hasAnyDevice =
     inDespiaWebView || appleConnected || whoopConnection != null || terraConnections.length > 0;
+  const hasConnectedSyncDevice =
+    athleteWearsApple(athlete?.wearables ?? null) || whoopConnection != null || terraConnections.length > 0;
 
   return (
     <AppShell>
@@ -922,8 +929,13 @@ export default function ProfilePage() {
             </article>
 
             <div className="flex flex-col gap-3 sm:flex-row">
-              <Button type="button" className="flex-1 font-semibold" disabled={syncing} onClick={() => void handleSync()}>
-                {syncing ? 'Syncing…' : 'Sync workouts'}
+              <Button
+                type="button"
+                className="flex-1 font-semibold"
+                disabled={syncing || !hasConnectedSyncDevice}
+                onClick={() => void handleSync()}
+              >
+                {!hasConnectedSyncDevice ? 'Connect a device to sync' : syncing ? 'Syncing…' : 'Sync workouts'}
               </Button>
               <Button type="button" variant="outline" className="flex-1" onClick={() => void handleSignOut()}>
                 Sign out

@@ -43,75 +43,22 @@ export async function fetchRecentWorkouts(): Promise<DespiaSyncResult> {
 
   try {
     const result = await despia(
-      'readhealthkit://HKWorkoutTypeIdentifier,HKQuantityTypeIdentifierHeartRate?days=14',
-      ['healthkitResponse']
+      'healthkit://workouts?days=14&included=HKQuantityTypeIdentifierHeartRateAverage,HKQuantityTypeIdentifierHeartRateMax',
+      ['healthkitWorkouts'],
     );
 
     console.log('[Despia] Raw response:', JSON.stringify(result, null, 2));
 
-    const rawWorkouts = (result as any)?.healthkitResponse?.HKWorkoutTypeIdentifier ?? [];
-    const rawHr = (result as any)?.healthkitResponse?.HKQuantityTypeIdentifierHeartRate ?? [];
-    const hrSamples = parseHeartRateSamples(rawHr);
-    const workouts = attachHrFromSamples(normaliseWorkouts(rawWorkouts), hrSamples);
+    const rawWorkouts = Array.isArray((result as any)?.healthkitWorkouts)
+      ? (result as any).healthkitWorkouts
+      : [];
+    const workouts = normaliseWorkouts(rawWorkouts);
 
     return { workouts, rawPayload: result, error: null };
   } catch (err) {
     console.error('[Despia] fetchRecentWorkouts failed:', err);
     return { workouts: [], rawPayload: null, error: String(err) };
   }
-}
-
-export interface HrSamplePoint {
-  time: number;
-  bpm: number;
-}
-
-/** Parse Despia HealthKit HR quantity samples (expects `sample.date`; falls back to common field names). */
-export function parseHeartRateSamples(raw: unknown): HrSamplePoint[] {
-  if (!Array.isArray(raw)) return [];
-  const out: HrSamplePoint[] = [];
-  for (const item of raw) {
-    const s = item as Record<string, unknown>;
-    const dateVal = (s.date ?? s.startDate ?? s.endDate) as string | number | undefined;
-    let timeMs = NaN;
-    if (typeof dateVal === 'string') {
-      timeMs = Date.parse(dateVal);
-    } else if (typeof dateVal === 'number' && Number.isFinite(dateVal)) {
-      timeMs = dateVal > 1e12 ? dateVal : dateVal * 1000;
-    }
-    const qty =
-      typeof s.value === 'number'
-        ? s.value
-        : typeof s.quantity === 'number'
-          ? s.quantity
-          : typeof s.bpm === 'number'
-            ? s.bpm
-            : null;
-    if (!Number.isFinite(timeMs) || qty === null || !Number.isFinite(qty)) continue;
-    out.push({ time: timeMs, bpm: qty });
-  }
-  return out;
-}
-
-export function attachHrFromSamples(workouts: WorkoutObject[], hrRaw: unknown): WorkoutObject[] {
-  const hrSamples = Array.isArray(hrRaw)
-    ? hrRaw.every((sample) => {
-        const p = sample as Record<string, unknown>;
-        return typeof p.time === 'number' && typeof p.bpm === 'number';
-      })
-      ? (hrRaw as HrSamplePoint[])
-      : parseHeartRateSamples(hrRaw)
-    : parseHeartRateSamples(hrRaw);
-  return workouts.map((w) => {
-    const workoutStartMs = Date.parse(w.startedAt);
-    if (!Number.isFinite(workoutStartMs)) return w;
-    const workoutEndMs = workoutStartMs + Math.max(0, w.durationMin) * 60 * 1000;
-    const inRange = hrSamples.filter((sample) => sample.time >= workoutStartMs && sample.time <= workoutEndMs);
-    if (inRange.length === 0) return w;
-    const sum = inRange.reduce((acc, sample) => acc + sample.bpm, 0);
-    const avg = sum / inRange.length;
-    return { ...w, avgHr: Math.round(avg * 10) / 10 };
-  });
 }
 
 function normaliseWorkouts(raw: unknown): WorkoutObject[] {
@@ -123,6 +70,13 @@ function normaliseWorkouts(raw: unknown): WorkoutObject[] {
 
   return items.map((item) => {
     const w = item as Record<string, unknown>;
+
+    const avgHrSample = Array.isArray(w.samples)
+      ? (w.samples as any[]).find((s: any) => s.key === 'HKQuantityTypeIdentifierHeartRateAverage')
+      : null;
+    const peakHrSample = Array.isArray(w.samples)
+      ? (w.samples as any[]).find((s: any) => s.key === 'HKQuantityTypeIdentifierHeartRateMax')
+      : null;
 
     let avgPacePerKm: number | null = null;
     if (typeof w.avgPacePerKm === 'number') {
@@ -146,18 +100,16 @@ function normaliseWorkouts(raw: unknown): WorkoutObject[] {
             ? w.durationMin
             : 0,
       activityType: String(w.activityType ?? w.workoutActivityType ?? 'unknown'),
-      avgHr:
-        typeof w.avgHeartRate === 'number'
-          ? w.avgHeartRate
-          : typeof w.avgHr === 'number'
-            ? w.avgHr
-            : null,
-      peakHr:
-        typeof w.maxHeartRate === 'number'
-          ? w.maxHeartRate
-          : typeof w.peakHr === 'number'
-            ? w.peakHr
-            : null,
+      avgHr: avgHrSample
+        ? Number(avgHrSample.value) || null
+        : typeof w.avgHr === 'number'
+          ? w.avgHr
+          : null,
+      peakHr: peakHrSample
+        ? Number(peakHrSample.value) || null
+        : typeof w.peakHr === 'number'
+          ? w.peakHr
+          : null,
       distanceM:
         typeof w.totalDistance === 'number'
           ? w.totalDistance
