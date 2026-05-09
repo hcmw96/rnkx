@@ -390,8 +390,8 @@ export default function ProfilePage() {
       toast.success(`Synced ${(data as { processed?: number } | null)?.processed ?? 0} workout(s).`);
       try {
         await loadProfile();
-      } catch (profileErr) {
-        toast.error('loadProfile failed: ' + String(profileErr));
+      } catch {
+        // profile reload failed silently — sync was still successful
       }
     } catch (err) {
       toast.error(err instanceof Error ? err.message : String(err));
