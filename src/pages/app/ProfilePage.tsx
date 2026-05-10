@@ -65,7 +65,7 @@ import { presentPaywall } from '@/services/revenuecat';
 import { supabase } from '@/services/supabase';
 
 const ATHLETE_COLUMNS =
-  'id,username,display_name,country,avatar_url,total_score,selected_leagues,wearables,user_id,max_hr,max_hr_source,is_premium,health_data_sharing,is_public';
+  'id,username,display_name,country,avatar_url,total_score,selected_leagues,wearables,user_id,max_hr,max_hr_source,is_premium,is_public';
 
 interface AthleteRow {
   id: string;
@@ -80,7 +80,6 @@ interface AthleteRow {
   max_hr: number | string | null;
   max_hr_source: string | null;
   is_premium: boolean | null;
-  health_data_sharing: boolean | null;
   is_public: boolean | null;
 }
 
@@ -160,6 +159,10 @@ function athleteWearsApple(wearables: string[] | null | undefined): boolean {
   });
 }
 
+function athleteWearsWhoop(wearables: string[] | null | undefined): boolean {
+  return (wearables ?? []).some((w) => String(w).toLowerCase() === 'whoop');
+}
+
 function labelForMaxHrSource(source: string | null | undefined): string {
   switch (source) {
     case 'manual':
@@ -226,6 +229,8 @@ export default function ProfilePage() {
   const [settingsBusy, setSettingsBusy] = useState(false);
   const [deleteAccountOpen, setDeleteAccountOpen] = useState(false);
   const [deleteAccountWorking, setDeleteAccountWorking] = useState(false);
+  /** UI-only until athletes.health_data_sharing exists in DB */
+  const [healthDataSharingUi, setHealthDataSharingUi] = useState(true);
 
   const loadProfile = useCallback(async () => {
     setLoading(true);
@@ -264,7 +269,6 @@ export default function ProfilePage() {
       setAthlete({
         ...row,
         is_premium: row.is_premium ?? false,
-        health_data_sharing: row.health_data_sharing ?? true,
         is_public: row.is_public ?? true,
       });
       const [{ data: connRows, error: connErr }, whoopRes] = await Promise.all([
@@ -468,59 +472,82 @@ export default function ProfilePage() {
   };
 
   const handleSync = async () => {
+    if (!athlete?.id) {
+      toast.error('Missing athlete profile.');
+      return;
+    }
+
+    const wearsApple = athleteWearsApple(athlete.wearables ?? null);
+    const despiaIphone = isDespiaIphoneUa();
+
     setSyncing(true);
-    let syncData: Awaited<ReturnType<typeof fetchRecentWorkouts>>;
     try {
-      // Only fetch from HealthKit if user has Apple Watch connected
-      if (!athleteWearsApple(athlete?.wearables ?? null) || !isDespiaIphoneUa()) {
-        toast.error('No Apple Watch connected.');
-        setSyncing(false);
+      if (wearsApple && despiaIphone) {
+        let syncData: Awaited<ReturnType<typeof fetchRecentWorkouts>>;
+        try {
+          syncData = await fetchRecentWorkouts();
+        } catch (err) {
+          toast.error('fetchRecentWorkouts threw: ' + String(err));
+          return;
+        }
+        if (syncData.error) {
+          toast.error('fetchRecentWorkouts failed', { description: syncData.error });
+          return;
+        }
+
+        const response = await fetch(
+          `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/sync-activities`,
+          {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              appleWorkouts: syncData.workouts,
+              source: 'apple',
+              athlete_id: athlete.id,
+            }),
+          },
+        );
+        if (!response.ok) {
+          const errText = await response.text();
+          throw new Error(`sync-activities ${response.status}: ${errText}`);
+        }
+        const data = await response.json();
+        toast.success(`Synced ${(data as { processed?: number } | null)?.processed ?? 0} workout(s).`);
+        try {
+          await loadProfile();
+        } catch {
+          // profile reload failed silently — sync was still successful
+        }
         return;
       }
 
-      syncData = await fetchRecentWorkouts();
-    } catch (err) {
-      toast.error('fetchRecentWorkouts threw: ' + String(err));
-      setSyncing(false);
-      return;
-    }
-    if (syncData.error) {
-      toast.error('fetchRecentWorkouts failed', { description: syncData.error });
-      setSyncing(false);
-      return;
-    }
-
-    if (!athlete?.id) {
-      toast.error('Missing athlete profile.');
-      setSyncing(false);
-      return;
-    }
-
-    try {
-      const response = await fetch(
-        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/sync-activities`,
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ appleWorkouts: syncData.workouts, source: 'apple', athlete_id: athlete.id }),
-        }
-      );
-      if (!response.ok) {
-        const errText = await response.text();
-        throw new Error(`sync-activities ${response.status}: ${errText}`);
+      if (whoopConnection != null || athleteWearsWhoop(athlete.wearables ?? null)) {
+        toast.message('WHOOP syncs automatically via webhook — no manual sync needed.');
+        return;
       }
-      const data = await response.json();
-      toast.success(`Synced ${(data as { processed?: number } | null)?.processed ?? 0} workout(s).`);
-      try {
-        await loadProfile();
-      } catch {
-        // profile reload failed silently — sync was still successful
+
+      if (terraConnections.length > 0) {
+        const provider = terraConnections[0].provider;
+        const isGarmin = String(provider).toUpperCase() === 'GARMIN';
+        toast.message(
+          isGarmin
+            ? 'Garmin syncs automatically via webhook — no manual sync needed.'
+            : `${providerLabel(provider)} syncs automatically via webhook — no manual sync needed.`,
+        );
+        return;
       }
+
+      if (wearsApple && !despiaIphone) {
+        toast.message('Apple Watch sync is available in the RNKX iPhone app with Health access.');
+        return;
+      }
+
+      toast.error('No device connected. Please connect a wearable first.');
     } catch (err) {
       toast.error(err instanceof Error ? err.message : String(err));
+    } finally {
+      setSyncing(false);
     }
-
-    setSyncing(false);
   };
 
   /** Same sign-out path used across the app: `supabase.auth.signOut()` then login. */
@@ -844,21 +871,6 @@ export default function ProfilePage() {
         return;
       }
       setAthlete((prev) => (prev ? { ...prev, selected_leagues: next } : prev));
-    } finally {
-      setSettingsBusy(false);
-    }
-  }
-
-  async function setHealthDataSharing(value: boolean) {
-    if (!athlete?.id || settingsBusy) return;
-    setSettingsBusy(true);
-    try {
-      const { error } = await supabase.from('athletes').update({ health_data_sharing: value }).eq('id', athlete.id);
-      if (error) {
-        toast.error(error.message);
-        return;
-      }
-      setAthlete((prev) => (prev ? { ...prev, health_data_sharing: value } : prev));
     } finally {
       setSettingsBusy(false);
     }
@@ -1570,7 +1582,7 @@ export default function ProfilePage() {
               )}
             </article>
 
-            {/* HEALTH DATA */}
+            {/* HEALTH DATA — preference not persisted until DB column exists */}
             <article className="space-y-3 rounded-xl border border-border bg-card p-4">
               <div className="flex items-center gap-2">
                 <Heart className="h-5 w-5 text-neon-lime" aria-hidden />
@@ -1579,12 +1591,11 @@ export default function ProfilePage() {
               <div className="flex items-start justify-between gap-4">
                 <div className="min-w-0">
                   <p className="text-sm font-medium text-foreground">Share health data</p>
-                  <p className="text-xs text-muted-foreground">Allow RNKX to sync your health metrics</p>
+                  <p className="text-xs text-muted-foreground">Allow RNKX to sync your health metrics (display only for now)</p>
                 </div>
                 <Switch
-                  checked={athlete.health_data_sharing ?? true}
-                  disabled={settingsBusy}
-                  onCheckedChange={(v) => void setHealthDataSharing(v)}
+                  checked={healthDataSharingUi}
+                  onCheckedChange={setHealthDataSharingUi}
                   className="data-[state=checked]:bg-neon-lime"
                 />
               </div>
