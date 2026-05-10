@@ -41,67 +41,111 @@ serve(async (req) => {
       return json({ success: true });
     }
 
-    let body: {
-      receiver_athlete_id?: string;
-      sender_name?: string;
-      preview?: string;
-    };
+    let body: Record<string, unknown>;
     try {
       body = await req.json();
     } catch {
       return json({ success: true });
     }
 
+    const supabase = createClient(supabaseUrl, serviceKey);
+
+    async function notifyAthlete(receiverAthleteId: string, senderDisplay: string, previewRaw: string): Promise<void> {
+      const trimmedReceiver = receiverAthleteId.trim();
+      if (!trimmedReceiver) return;
+
+      const { data: athlete, error: athErr } = await supabase
+        .from('athletes')
+        .select('id')
+        .eq('id', trimmedReceiver)
+        .maybeSingle();
+
+      if (athErr) {
+        console.error('[notify-new-message] athlete lookup', athErr);
+        return;
+      }
+
+      if (!athlete?.id) {
+        console.warn('[notify-new-message] unknown receiver athlete', trimmedReceiver);
+        return;
+      }
+      const externalUserId = String(athlete.id);
+
+      const title = `${sanitize(senderDisplay, 60)} 💬`;
+      const message = sanitize(previewRaw || 'New message', 200);
+
+      const osRes = await fetch(ONESIGNAL_API, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Basic ${apiKey}`,
+        },
+        body: JSON.stringify({
+          app_id: appId,
+          include_external_user_ids: [externalUserId],
+          headings: { en: title },
+          contents: { en: message },
+          url: SOCIAL_URL,
+        }),
+      });
+
+      const osJson = await osRes.json().catch(() => ({}));
+      if (!osRes.ok) {
+        console.error('[notify-new-message] OneSignal', osRes.status, osJson);
+      }
+    }
+
+    /** League / group chat: fan out to all conversation members except the sender */
+    const conversationId = typeof body.conversation_id === 'string' ? body.conversation_id.trim() : '';
+    const senderAthleteId = typeof body.sender_athlete_id === 'string' ? body.sender_athlete_id.trim() : '';
+    const messageBody = typeof body.message_body === 'string' ? body.message_body.trim() : '';
+
+    if (conversationId && senderAthleteId && messageBody) {
+      const { data: rows, error: memErr } = await supabase
+        .from('conversation_members')
+        .select('athlete_id')
+        .eq('conversation_id', conversationId);
+
+      if (memErr) {
+        console.error('[notify-new-message] conversation_members', memErr);
+        return json({ success: true });
+      }
+
+      const recipientIds = [...new Set((rows ?? []).map((r) => String((r as { athlete_id?: string }).athlete_id ?? '')))].filter(
+        (id) => id.length > 0 && id !== senderAthleteId,
+      );
+
+      const { data: senderRow } = await supabase
+        .from('athletes')
+        .select('username, display_name')
+        .eq('id', senderAthleteId)
+        .maybeSingle();
+
+      const sr = senderRow as { username?: string | null; display_name?: string | null } | null;
+      const u = sr?.username != null ? String(sr.username).trim() : '';
+      const d = sr?.display_name != null ? String(sr.display_name).trim() : '';
+      const senderDisplay = u || d || 'Someone';
+      const preview = sanitize(messageBody, 200);
+
+      for (const rid of recipientIds) {
+        await notifyAthlete(rid, senderDisplay, preview);
+      }
+
+      return json({ success: true });
+    }
+
+    /** Direct / legacy: single receiver */
     const receiverAthleteId =
       typeof body.receiver_athlete_id === 'string' ? body.receiver_athlete_id.trim() : '';
     const senderName = typeof body.sender_name === 'string' ? body.sender_name.trim() : 'Someone';
     const preview = typeof body.preview === 'string' ? body.preview.trim() : '';
 
     if (!receiverAthleteId) {
-      console.warn('[notify-new-message] missing receiver_athlete_id');
+      console.warn('[notify-new-message] missing receiver_athlete_id and not a group payload');
       return json({ success: true });
     }
 
-    const supabase = createClient(supabaseUrl, serviceKey);
-    const { data: athlete, error: athErr } = await supabase
-      .from('athletes')
-      .select('id')
-      .eq('id', receiverAthleteId)
-      .maybeSingle();
-
-    if (athErr) {
-      console.error('[notify-new-message] athlete lookup', athErr);
-      return json({ success: true });
-    }
-
-    if (!athlete?.id) {
-      console.warn('[notify-new-message] unknown receiver athlete', receiverAthleteId);
-      return json({ success: true });
-    }
-    const externalUserId = String(athlete.id);
-
-    const title = `${sanitize(senderName, 60)} 💬`;
-    const message = sanitize(preview || 'New message', 200);
-
-    const osRes = await fetch(ONESIGNAL_API, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Basic ${apiKey}`,
-      },
-      body: JSON.stringify({
-        app_id: appId,
-        include_external_user_ids: [externalUserId],
-        headings: { en: title },
-        contents: { en: message },
-        url: SOCIAL_URL,
-      }),
-    });
-
-    const osJson = await osRes.json().catch(() => ({}));
-    if (!osRes.ok) {
-      console.error('[notify-new-message] OneSignal', osRes.status, osJson);
-    }
+    await notifyAthlete(receiverAthleteId, senderName, preview || 'New message');
   } catch (e) {
     console.error('[notify-new-message]', e);
   }

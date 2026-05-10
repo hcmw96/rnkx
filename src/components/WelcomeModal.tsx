@@ -1,27 +1,40 @@
-import { useCallback } from 'react';
+import { useCallback, useRef, useState } from 'react';
 import { Trophy } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
 import { HowItWorksScrollBody } from '@/components/HowItWorksContent';
-
-export const RNKX_WELCOME_SEEN_KEY = 'rnkx_welcome_seen' as const;
+import { supabase } from '@/services/supabase';
+import { toast } from 'sonner';
 
 type WelcomeModalProps = {
-  username: string;
+  athleteId: string;
+  /** Shown in the headline (“Hey …!”) — usually display_name or username */
+  greetingName: string;
   onDismiss?: () => void;
 };
 
-export function WelcomeModal({ username, onDismiss }: WelcomeModalProps) {
-  const dismiss = useCallback(() => {
-    try {
-      window.localStorage.setItem(RNKX_WELCOME_SEEN_KEY, 'true');
-    } catch {
-      /* ignore quota / privacy mode */
-    }
-    onDismiss?.();
-  }, [onDismiss]);
+export function WelcomeModal({ athleteId, greetingName, onDismiss }: WelcomeModalProps) {
+  const [busy, setBusy] = useState(false);
+  const inFlightRef = useRef(false);
 
-  const displayName = username.trim() || 'there';
+  const dismiss = useCallback(async () => {
+    if (!athleteId || inFlightRef.current) return;
+    inFlightRef.current = true;
+    setBusy(true);
+    try {
+      const { error } = await supabase.from('athletes').update({ has_seen_welcome: true }).eq('id', athleteId);
+      if (error) {
+        toast.error(error.message);
+        return;
+      }
+      onDismiss?.();
+    } finally {
+      inFlightRef.current = false;
+      setBusy(false);
+    }
+  }, [athleteId, onDismiss]);
+
+  const displayLine = greetingName.trim() || 'there';
 
   return (
     <div
@@ -43,7 +56,7 @@ export function WelcomeModal({ username, onDismiss }: WelcomeModalProps) {
               </span>
             </div>
             <p className="text-3xl font-bold leading-tight text-white sm:text-4xl">
-              Hey {displayName}! 👋
+              Hey {displayLine}! 👋
             </p>
             <p className="max-w-md text-sm font-medium text-emerald-100/90">
               Here's how to climb the ranks
@@ -61,8 +74,9 @@ export function WelcomeModal({ username, onDismiss }: WelcomeModalProps) {
           <Button
             type="button"
             size="lg"
+            disabled={busy}
             className="h-14 w-full rounded-xl bg-[#ADFF2F] font-display text-lg font-bold tracking-wide text-zinc-900 shadow-[0_0_28px_rgba(173,255,47,0.28)] hover:bg-[#9EF01A]"
-            onClick={dismiss}
+            onClick={() => void dismiss()}
           >
             Got it, let's go! 🚀
           </Button>

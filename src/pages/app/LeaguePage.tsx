@@ -227,20 +227,34 @@ export default function LeaguePage() {
   const isCreator = league && athleteId && league.created_by === athleteId;
 
   const sendChat = async () => {
-    const text = chatInput.trim();
-    const cid = league?.conversation_id;
-    const aid = athleteId;
-    if (!text || !cid || !aid) return;
+    const messageBody = chatInput.trim();
+    const conversationId = league?.conversation_id;
+    const currentAthleteId = athleteId;
+    if (!messageBody || !conversationId || !currentAthleteId) return;
     const { error } = await supabase.from('conversation_messages').insert({
-      conversation_id: cid,
-      athlete_id: aid,
-      body: text,
+      conversation_id: conversationId,
+      athlete_id: currentAthleteId,
+      body: messageBody,
     });
     if (error) {
       toast.error(error.message);
       return;
     }
     setChatInput('');
+    try {
+      const { error: notifyErr } = await supabase.functions.invoke('notify-new-message', {
+        body: {
+          conversation_id: conversationId,
+          sender_athlete_id: currentAthleteId,
+          message_body: messageBody,
+        },
+      });
+      if (notifyErr) {
+        console.warn('[League chat] notify-new-message:', notifyErr.message);
+      }
+    } catch (e) {
+      console.warn('[League chat] notify-new-message failed:', e);
+    }
   };
 
   return (

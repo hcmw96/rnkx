@@ -25,7 +25,7 @@ import {
   TermsPageRoute,
   WaiverPageRoute,
 } from './pages/legal/StaticLegalPages';
-import { WelcomeModal, RNKX_WELCOME_SEEN_KEY } from '@/components/WelcomeModal';
+import { WelcomeModal } from '@/components/WelcomeModal';
 import { setOneSignalExternalId } from './services/onesignal';
 import { supabase } from './services/supabase';
 
@@ -47,7 +47,8 @@ function SessionRoutes() {
   const [initialized, setInitialized] = useState(false);
   const [session, setSession] = useState<Session | null>(null);
   const [profileComplete, setProfileComplete] = useState(false);
-  const [welcomeUsername, setWelcomeUsername] = useState<string | null>(null);
+  const [welcomeAthleteId, setWelcomeAthleteId] = useState<string | null>(null);
+  const [welcomeGreetingName, setWelcomeGreetingName] = useState('');
   const [showWelcomeOverlay, setShowWelcomeOverlay] = useState(false);
 
   const refetchProfile = useCallback(async () => {
@@ -111,28 +112,58 @@ function SessionRoutes() {
   }, []);
 
   useEffect(() => {
-    if (!session?.user?.id || !profileComplete || typeof window === 'undefined') {
-      setWelcomeUsername(null);
+    if (!session?.user?.id || !profileComplete) {
+      setWelcomeAthleteId(null);
+      setWelcomeGreetingName('');
       setShowWelcomeOverlay(false);
       return;
     }
     const uid = session.user.id;
-    const seenWelcome = window.localStorage.getItem(RNKX_WELCOME_SEEN_KEY) === 'true';
-    setShowWelcomeOverlay(!seenWelcome);
 
     let cancelled = false;
     void (async () => {
       const [byUserId, byId] = await Promise.all([
-        supabase.from('athletes').select('username').eq('user_id', uid).not('username', 'is', null).maybeSingle(),
-        supabase.from('athletes').select('username').eq('id', uid).not('username', 'is', null).maybeSingle(),
+        supabase
+          .from('athletes')
+          .select('id, username, display_name, has_seen_welcome')
+          .eq('user_id', uid)
+          .not('username', 'is', null)
+          .maybeSingle(),
+        supabase
+          .from('athletes')
+          .select('id, username, display_name, has_seen_welcome')
+          .eq('id', uid)
+          .not('username', 'is', null)
+          .maybeSingle(),
       ]);
-      const name =
-        typeof byUserId.data?.username === 'string'
-          ? byUserId.data.username
-          : typeof byId.data?.username === 'string'
-            ? byId.data.username
-            : null;
-      if (!cancelled) setWelcomeUsername(name);
+
+      type Row = {
+        id: string;
+        username: string | null;
+        display_name: string | null;
+        has_seen_welcome: boolean | null;
+      };
+
+      const row = (byUserId.data as Row | null) ?? (byId.data as Row | null);
+      if (cancelled) return;
+
+      if (!row?.id) {
+        setWelcomeAthleteId(null);
+        setWelcomeGreetingName('');
+        setShowWelcomeOverlay(false);
+        return;
+      }
+
+      const greet =
+        typeof row.display_name === 'string' && row.display_name.trim()
+          ? row.display_name.trim()
+          : typeof row.username === 'string'
+            ? row.username.trim()
+            : 'there';
+
+      setWelcomeAthleteId(row.id);
+      setWelcomeGreetingName(greet);
+      setShowWelcomeOverlay(row.has_seen_welcome !== true);
     })();
 
     return () => {
@@ -171,8 +202,12 @@ function SessionRoutes() {
 
   return (
     <ProfileGateContext.Provider value={{ refetchProfile }}>
-      {welcomeUsername && showWelcomeOverlay ? (
-        <WelcomeModal username={welcomeUsername} onDismiss={() => setShowWelcomeOverlay(false)} />
+      {welcomeAthleteId && showWelcomeOverlay ? (
+        <WelcomeModal
+          athleteId={welcomeAthleteId}
+          greetingName={welcomeGreetingName}
+          onDismiss={() => setShowWelcomeOverlay(false)}
+        />
       ) : null}
       <Routes>
         <Route path="/privacy" element={<PrivacyPolicyPageRoute />} />

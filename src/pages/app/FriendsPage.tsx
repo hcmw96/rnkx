@@ -138,11 +138,11 @@ export default function FriendsPage({ embedded = false }: FriendsPageProps) {
     const t = setTimeout(() => {
       void (async () => {
         setSearching(true);
-        const q = `%${search.trim()}%`;
+        const q = search.trim();
         const { data, error } = await supabase
           .from('athletes')
           .select('id, username, display_name, avatar_url')
-          .ilike('username', q)
+          .or(`username.ilike.%${q}%,display_name.ilike.%${q}%`)
           .neq('id', athleteId)
           .limit(15);
         if (error) {
@@ -197,7 +197,7 @@ export default function FriendsPage({ embedded = false }: FriendsPageProps) {
             <div className="relative">
               <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
               <Input
-                placeholder="Search athletes by username…"
+                placeholder="Search by display name or @username…"
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 className="pl-9"
@@ -210,9 +210,9 @@ export default function FriendsPage({ embedded = false }: FriendsPageProps) {
                   <li key={a.id} className="flex items-center justify-between gap-2 rounded-md px-2 py-2">
                     <div className="min-w-0">
                       <p className="truncate text-sm font-medium text-foreground">
-                        {a.display_name || a.username || 'Athlete'}
+                        {a.display_name?.trim() || '—'}
                       </p>
-                      <p className="text-xs text-muted-foreground">@{a.username ?? '—'}</p>
+                      <p className="truncate text-xs text-muted-foreground">@{a.username ?? '—'}</p>
                     </div>
                     <Button type="button" size="sm" variant="secondary" onClick={() => void sendRequest(a.id)}>
                       <UserPlus className="mr-1 h-3 w-3" />

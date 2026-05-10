@@ -65,7 +65,7 @@ import { presentPaywall } from '@/services/revenuecat';
 import { supabase } from '@/services/supabase';
 
 const ATHLETE_COLUMNS =
-  'id,username,display_name,country,avatar_url,total_score,selected_leagues,wearables,user_id,max_hr,max_hr_source,is_premium,is_public';
+  'id,username,display_name,country,avatar_url,total_score,selected_leagues,wearables,user_id,max_hr,max_hr_source,is_premium,health_data_enabled,profile_public';
 
 interface AthleteRow {
   id: string;
@@ -80,7 +80,8 @@ interface AthleteRow {
   max_hr: number | string | null;
   max_hr_source: string | null;
   is_premium: boolean | null;
-  is_public: boolean | null;
+  health_data_enabled: boolean | null;
+  profile_public: boolean | null;
 }
 
 interface FriendMini {
@@ -229,8 +230,6 @@ export default function ProfilePage() {
   const [settingsBusy, setSettingsBusy] = useState(false);
   const [deleteAccountOpen, setDeleteAccountOpen] = useState(false);
   const [deleteAccountWorking, setDeleteAccountWorking] = useState(false);
-  /** UI-only until athletes.health_data_sharing exists in DB */
-  const [healthDataSharingUi, setHealthDataSharingUi] = useState(true);
 
   const loadProfile = useCallback(async () => {
     setLoading(true);
@@ -269,7 +268,8 @@ export default function ProfilePage() {
       setAthlete({
         ...row,
         is_premium: row.is_premium ?? false,
-        is_public: row.is_public ?? true,
+        health_data_enabled: row.health_data_enabled ?? true,
+        profile_public: row.profile_public ?? true,
       });
       const [{ data: connRows, error: connErr }, whoopRes] = await Promise.all([
         supabase.from('terra_connections').select('id,terra_user_id,provider').eq('athlete_id', athleteRow.id),
@@ -876,16 +876,31 @@ export default function ProfilePage() {
     }
   }
 
-  async function setProfilePublic(value: boolean) {
+  async function setHealthDataEnabled(value: boolean) {
     if (!athlete?.id || settingsBusy) return;
     setSettingsBusy(true);
     try {
-      const { error } = await supabase.from('athletes').update({ is_public: value }).eq('id', athlete.id);
+      const { error } = await supabase.from('athletes').update({ health_data_enabled: value }).eq('id', athlete.id);
       if (error) {
         toast.error(error.message);
         return;
       }
-      setAthlete((prev) => (prev ? { ...prev, is_public: value } : prev));
+      setAthlete((prev) => (prev ? { ...prev, health_data_enabled: value } : prev));
+    } finally {
+      setSettingsBusy(false);
+    }
+  }
+
+  async function setProfilePublic(value: boolean) {
+    if (!athlete?.id || settingsBusy) return;
+    setSettingsBusy(true);
+    try {
+      const { error } = await supabase.from('athletes').update({ profile_public: value }).eq('id', athlete.id);
+      if (error) {
+        toast.error(error.message);
+        return;
+      }
+      setAthlete((prev) => (prev ? { ...prev, profile_public: value } : prev));
     } finally {
       setSettingsBusy(false);
     }
@@ -1582,7 +1597,7 @@ export default function ProfilePage() {
               )}
             </article>
 
-            {/* HEALTH DATA — preference not persisted until DB column exists */}
+            {/* HEALTH DATA */}
             <article className="space-y-3 rounded-xl border border-border bg-card p-4">
               <div className="flex items-center gap-2">
                 <Heart className="h-5 w-5 text-neon-lime" aria-hidden />
@@ -1591,11 +1606,12 @@ export default function ProfilePage() {
               <div className="flex items-start justify-between gap-4">
                 <div className="min-w-0">
                   <p className="text-sm font-medium text-foreground">Share health data</p>
-                  <p className="text-xs text-muted-foreground">Allow RNKX to sync your health metrics (display only for now)</p>
+                  <p className="text-xs text-muted-foreground">Allow RNKX to sync your health metrics</p>
                 </div>
                 <Switch
-                  checked={healthDataSharingUi}
-                  onCheckedChange={setHealthDataSharingUi}
+                  checked={athlete.health_data_enabled ?? true}
+                  disabled={settingsBusy}
+                  onCheckedChange={(v) => void setHealthDataEnabled(v)}
                   className="data-[state=checked]:bg-neon-lime"
                 />
               </div>
@@ -1613,7 +1629,7 @@ export default function ProfilePage() {
                   <p className="text-xs text-muted-foreground">Others can see your rank on leaderboards</p>
                 </div>
                 <Switch
-                  checked={athlete.is_public ?? true}
+                  checked={athlete.profile_public ?? true}
                   disabled={settingsBusy}
                   onCheckedChange={(v) => void setProfilePublic(v)}
                   className="data-[state=checked]:bg-neon-lime"
