@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { AppShell } from '@/components/app/AppShell';
-import { LeagueToggle } from '@/components/leaderboard/LeagueToggle';
+import { LeagueToggle, type LeaderboardLeagueTab } from '@/components/leaderboard/LeagueToggle';
+import { PremiumGate } from '@/components/PremiumGate';
+import { FriendsPreview } from '@/components/premium/PreviewMocks';
 import { Skeleton } from '@/components/ui/skeleton';
 import { getCountryByName } from '@/data/countries';
 import { usePullToRefresh } from '@/hooks/usePullToRefresh';
@@ -208,7 +210,7 @@ async function fetchMergedLeaderboard(
 }
 
 export default function LeaderboardPage() {
-  const [activeLeague, setActiveLeague] = useState<League>('engine');
+  const [activeLeague, setActiveLeague] = useState<LeaderboardLeagueTab>('engine');
   const [seasonName, setSeasonName] = useState<string | null>(null);
   const [merged, setMerged] = useState<MergedAthlete[]>([]);
   const [loading, setLoading] = useState(true);
@@ -248,7 +250,10 @@ export default function LeaderboardPage() {
   }, [loadAll]);
 
   const { isRefreshing, pullDistance, pullHandlers } = usePullToRefresh(loadAll);
-  const rows = useMemo(() => buildRowsForLeague(merged, activeLeague), [merged, activeLeague]);
+  const rows = useMemo(() => {
+    if (activeLeague === 'friends') return [];
+    return buildRowsForLeague(merged, activeLeague);
+  }, [merged, activeLeague]);
 
   return (
     <AppShell>
@@ -277,6 +282,20 @@ export default function LeaderboardPage() {
 
         {loading ? (
           <LeaderboardSkeleton />
+        ) : activeLeague === 'friends' ? (
+          <PremiumGate
+            athleteId={currentUserId ?? undefined}
+            title="Invite Friends to Compete"
+            description="Private leagues and friend leaderboards"
+            previewContent={<FriendsPreview />}
+          >
+            <div className="rounded-lg border border-border bg-card p-6 text-center">
+              <p className="text-sm font-medium text-foreground">Friends leaderboard</p>
+              <p className="mt-2 text-sm text-muted-foreground">
+                Invite friends from Social → Friends to compete in private leagues and compare scores here.
+              </p>
+            </div>
+          </PremiumGate>
         ) : !error && rows.length === 0 ? (
           <p className="rounded-lg border border-border bg-card p-6 text-center text-sm text-muted-foreground">
             No athletes ranked yet

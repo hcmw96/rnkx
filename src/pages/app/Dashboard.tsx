@@ -2,6 +2,8 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { AppShell } from '@/components/app/AppShell';
 import { MomentumBlock } from '@/components/dashboard/MomentumBlock';
 import { SeasonCard } from '@/components/dashboard/SeasonCard';
+import { PremiumGate } from '@/components/PremiumGate';
+import { InsightsPreview } from '@/components/premium/PreviewMocks';
 import { usePullToRefresh } from '@/hooks/usePullToRefresh';
 import { activitySessionScore } from '@/lib/activitySessionScore';
 import { supabase } from '@/services/supabase';
@@ -52,6 +54,7 @@ export default function Dashboard() {
   const [season, setSeason] = useState<ActiveSeason | null>(null);
   const [stats, setStats] = useState<AthleteStats | null>(null);
   const [recentActivities, setRecentActivities] = useState<RecentActivity[]>([]);
+  const [athleteId, setAthleteId] = useState<string | undefined>();
 
   const loadDashboard = useCallback(async () => {
     setLoading(true);
@@ -129,7 +132,29 @@ export default function Dashboard() {
     void loadDashboard();
   }, [loadDashboard]);
 
+  useEffect(() => {
+    void supabase.auth.getUser().then(({ data }) => {
+      const uid = data.user?.id;
+      setAthleteId(uid);
+    });
+  }, []);
+
   const { isRefreshing, pullDistance, pullHandlers } = usePullToRefresh(loadDashboard);
+
+  const insightsTopSessions = useMemo(() => {
+    const scored = recentActivities.map((activity) => {
+      const leagueType = activity.league_type === 'run' ? 'run' : 'engine';
+      const duration = Math.max(0, Number(activity.duration_minutes ?? 0));
+      const score = activitySessionScore(
+        leagueType,
+        duration,
+        activity.avg_hr_percent != null ? Number(activity.avg_hr_percent) : null,
+        activity.avg_pace_seconds != null ? Number(activity.avg_pace_seconds) : null,
+      );
+      return { activity, leagueType, score };
+    });
+    return [...scored].sort((a, b) => b.score - a.score).slice(0, 3);
+  }, [recentActivities]);
 
   const daysRemaining = useMemo(() => {
     if (!season?.ends_at) return undefined;
@@ -195,6 +220,92 @@ export default function Dashboard() {
             {(stats?.total_score ?? 0).toLocaleString(undefined, { maximumFractionDigits: 1 })}
           </p>
         </div>
+
+        <PremiumGate
+          athleteId={athleteId}
+          badge="PREMIUM"
+          title="Unlock Your Performance Story"
+          description="See your rank trajectory, session breakdowns, and biggest gains"
+          previewContent={<InsightsPreview />}
+        >
+          <div className="space-y-5 rounded-lg border border-border bg-card p-4">
+            <div>
+              <h3 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">Insights</h3>
+              <p className="mt-1 text-xs text-muted-foreground">
+                Snapshot of how you&apos;re trending this season.
+              </p>
+            </div>
+
+            <div className="rounded-lg border border-border bg-muted/25 p-4">
+              <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Rank trajectory</p>
+              <div className="mt-3 flex flex-wrap gap-4">
+                <div>
+                  <p className="text-[10px] uppercase text-muted-foreground">Engine</p>
+                  <p className="text-lg font-semibold text-foreground">
+                    #{stats?.engine_rank != null ? stats.engine_rank.toLocaleString() : '—'}
+                  </p>
+                  {stats?.engine_weekly_change != null ? (
+                    <p
+                      className={`text-xs font-medium ${stats.engine_weekly_change >= 0 ? 'text-emerald-400' : 'text-amber-500/90'}`}
+                    >
+                      {stats.engine_weekly_change >= 0 ? '+' : ''}
+                      {stats.engine_weekly_change} vs last week
+                    </p>
+                  ) : null}
+                </div>
+                <div>
+                  <p className="text-[10px] uppercase text-muted-foreground">Run</p>
+                  <p className="text-lg font-semibold text-foreground">
+                    #{stats?.run_rank != null ? stats.run_rank.toLocaleString() : '—'}
+                  </p>
+                  {stats?.run_weekly_change != null ? (
+                    <p
+                      className={`text-xs font-medium ${stats.run_weekly_change >= 0 ? 'text-emerald-400' : 'text-amber-500/90'}`}
+                    >
+                      {stats.run_weekly_change >= 0 ? '+' : ''}
+                      {stats.run_weekly_change} vs last week
+                    </p>
+                  ) : null}
+                </div>
+              </div>
+            </div>
+
+            <div>
+              <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Session breakdowns</p>
+              {!insightsTopSessions.length ? (
+                <p className="mt-2 text-sm text-muted-foreground">No scored workouts yet — log a session to see breakdowns.</p>
+              ) : (
+                <ul className="mt-2 space-y-2">
+                  {insightsTopSessions.map(({ activity, leagueType, score }) => (
+                    <li
+                      key={activity.id}
+                      className="flex items-center justify-between rounded-md border border-border/60 bg-background/60 px-3 py-2"
+                    >
+                      <div className="min-w-0">
+                        <p className="truncate text-sm font-medium text-foreground">
+                          {activityLabel(activity.activity_type, leagueType)}
+                        </p>
+                        <p className="text-[11px] text-muted-foreground">
+                          {new Date(`${activity.activity_date}T12:00:00`).toLocaleDateString()}
+                        </p>
+                      </div>
+                      <span className="ml-2 shrink-0 text-sm font-semibold text-neon-lime">
+                        {score.toLocaleString()} pts
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+
+            <div className="rounded-lg border border-emerald-900/40 bg-emerald-950/20 p-4">
+              <p className="text-xs font-medium uppercase tracking-wide text-emerald-300/90">Biggest gains</p>
+              <p className="mt-2 text-sm text-foreground">
+                Stay consistent with weekly volume — your momentum scores track promotion pressure in each league.
+              </p>
+            </div>
+          </div>
+        </PremiumGate>
 
         <div className="rounded-lg border border-border bg-card p-4">
           <h3 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">Recent workouts</h3>

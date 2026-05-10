@@ -18,6 +18,14 @@ import JoinLeaguePage from './pages/JoinLeaguePage';
 import AthleteAuth from './pages/AthleteAuth';
 import WhoopCallback from './pages/auth/WhoopCallback';
 import Onboarding from './pages/Onboarding';
+import HowItWorksPage from './pages/app/HowItWorksPage';
+import {
+  CookiesPageRoute,
+  PrivacyPolicyPageRoute,
+  TermsPageRoute,
+  WaiverPageRoute,
+} from './pages/legal/StaticLegalPages';
+import { WelcomeModal, RNKX_WELCOME_SEEN_KEY } from '@/components/WelcomeModal';
 import { setOneSignalExternalId } from './services/onesignal';
 import { supabase } from './services/supabase';
 
@@ -39,6 +47,8 @@ function SessionRoutes() {
   const [initialized, setInitialized] = useState(false);
   const [session, setSession] = useState<Session | null>(null);
   const [profileComplete, setProfileComplete] = useState(false);
+  const [welcomeUsername, setWelcomeUsername] = useState<string | null>(null);
+  const [showWelcomeOverlay, setShowWelcomeOverlay] = useState(false);
 
   const refetchProfile = useCallback(async () => {
     const {
@@ -101,6 +111,36 @@ function SessionRoutes() {
   }, []);
 
   useEffect(() => {
+    if (!session?.user?.id || !profileComplete || typeof window === 'undefined') {
+      setWelcomeUsername(null);
+      setShowWelcomeOverlay(false);
+      return;
+    }
+    const uid = session.user.id;
+    const seenWelcome = window.localStorage.getItem(RNKX_WELCOME_SEEN_KEY) === 'true';
+    setShowWelcomeOverlay(!seenWelcome);
+
+    let cancelled = false;
+    void (async () => {
+      const [byUserId, byId] = await Promise.all([
+        supabase.from('athletes').select('username').eq('user_id', uid).not('username', 'is', null).maybeSingle(),
+        supabase.from('athletes').select('username').eq('id', uid).not('username', 'is', null).maybeSingle(),
+      ]);
+      const name =
+        typeof byUserId.data?.username === 'string'
+          ? byUserId.data.username
+          : typeof byId.data?.username === 'string'
+            ? byId.data.username
+            : null;
+      if (!cancelled) setWelcomeUsername(name);
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [session?.user?.id, profileComplete]);
+
+  useEffect(() => {
     if (!session?.user || !profileComplete) return;
 
     const uid = session.user.id;
@@ -131,7 +171,14 @@ function SessionRoutes() {
 
   return (
     <ProfileGateContext.Provider value={{ refetchProfile }}>
+      {welcomeUsername && showWelcomeOverlay ? (
+        <WelcomeModal username={welcomeUsername} onDismiss={() => setShowWelcomeOverlay(false)} />
+      ) : null}
       <Routes>
+        <Route path="/privacy" element={<PrivacyPolicyPageRoute />} />
+        <Route path="/terms" element={<TermsPageRoute />} />
+        <Route path="/waiver" element={<WaiverPageRoute />} />
+        <Route path="/cookies" element={<CookiesPageRoute />} />
         <Route path="/auth/whoop/callback" element={<WhoopCallback />} />
         <Route path="/whoop-callback" element={<WhoopCallback />} />
         <Route path="/app/whoop-callback" element={<WhoopCallback />} />
@@ -196,6 +243,18 @@ function SessionRoutes() {
               <Navigate to="/onboarding" replace />
             ) : (
               <ProfilePage />
+            )
+          }
+        />
+        <Route
+          path="/app/how-it-works"
+          element={
+            !session ? (
+              <Navigate to="/auth" replace />
+            ) : !profileComplete ? (
+              <Navigate to="/onboarding" replace />
+            ) : (
+              <HowItWorksPage />
             )
           }
         />

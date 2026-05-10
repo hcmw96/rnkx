@@ -425,6 +425,9 @@ verify_jwt = false
 [functions.whoop-sync-manual]
 verify_jwt = false
 
+[functions.delete-account]
+verify_jwt = true
+
 [analytics]
 enabled = true
 port = 54327
