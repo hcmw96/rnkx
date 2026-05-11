@@ -9,6 +9,8 @@ const DEFAULT_DESCRIPTION = 'Upgrade to RNKX Premium to unlock';
 
 type PremiumGateProps = {
   athleteId: string | undefined;
+  /** Supabase auth user id — used as RevenueCat `external_id` when opening the paywall. */
+  userId: string | undefined;
   children: ReactNode;
   previewContent?: ReactNode;
   title?: string;
@@ -18,13 +20,14 @@ type PremiumGateProps = {
 
 export function PremiumGate({
   athleteId,
+  userId,
   children,
   previewContent,
   title,
   description,
   badge,
 }: PremiumGateProps) {
-  const { isPremium, loading, presentPaywall } = usePremium(athleteId);
+  const { isPremium, loading, presentPaywall } = usePremium(athleteId, userId);
 
   if (loading) {
     return <div />;

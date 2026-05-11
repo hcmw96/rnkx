@@ -42,6 +42,7 @@ type ChatMessage = {
 export default function LeaguePage() {
   const { leagueId } = useParams<{ leagueId: string }>();
   const [athleteId, setAthleteId] = useState<string | undefined>();
+  const [authUserId, setAuthUserId] = useState<string | undefined>();
   const [league, setLeague] = useState<League | null>(null);
   const [members, setMembers] = useState<MemberRow[]>([]);
   const [seasonId, setSeasonId] = useState<string | null>(null);
@@ -60,10 +61,12 @@ export default function LeaguePage() {
     const uid = auth.user?.id;
     if (!uid) {
       setAthleteId(undefined);
+      setAuthUserId(undefined);
       setLeague(null);
       setLoading(false);
       return;
     }
+    setAuthUserId(uid);
     const [byUserId, byId] = await Promise.all([
       supabase.from('athletes').select('id').eq('user_id', uid).not('username', 'is', null).maybeSingle(),
       supabase.from('athletes').select('id').eq('id', uid).not('username', 'is', null).maybeSingle(),
@@ -259,7 +262,7 @@ export default function LeaguePage() {
 
   return (
     <AppShell>
-      <PremiumGate athleteId={athleteId}>
+      <PremiumGate athleteId={athleteId} userId={authUserId}>
         <section className="mx-auto max-w-lg space-y-4" {...pullHandlers}>
           {(isRefreshing || pullDistance > 0) && (
             <p className="text-center text-xs text-muted-foreground">

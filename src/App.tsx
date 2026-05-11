@@ -3,7 +3,7 @@ import type { Session } from '@supabase/supabase-js';
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { Loader2 } from 'lucide-react';
-import { Toaster } from 'sonner';
+import { toast, Toaster } from 'sonner';
 import { ProfileGateContext } from '@/context/ProfileGateContext';
 import LeaderboardPage from './pages/app/LeaderboardPage';
 import ProfilePage from './pages/app/ProfilePage';
@@ -27,6 +27,7 @@ import {
 } from './pages/legal/StaticLegalPages';
 import { WelcomeModal } from '@/components/WelcomeModal';
 import { setOneSignalExternalId } from './services/onesignal';
+import { applyPremiumIfStoreHasEntitlement } from './services/revenuecat';
 import { supabase } from './services/supabase';
 
 const queryClient = new QueryClient();
@@ -190,6 +191,28 @@ function SessionRoutes() {
         console.warn('[OneSignal] set external id failed', err);
       }
     })();
+  }, [session?.user?.id, profileComplete]);
+
+  useEffect(() => {
+    if (!session?.user?.id || !profileComplete) {
+      window.onRevenueCatPurchase = undefined;
+      return;
+    }
+
+    window.onRevenueCatPurchase = async () => {
+      const isPremium = await applyPremiumIfStoreHasEntitlement();
+      if (isPremium) {
+        toast.success('Premium unlocked! 🎉');
+      }
+    };
+
+    void (async () => {
+      await applyPremiumIfStoreHasEntitlement();
+    })();
+
+    return () => {
+      window.onRevenueCatPurchase = undefined;
+    };
   }, [session?.user?.id, profileComplete]);
 
   if (!initialized) {

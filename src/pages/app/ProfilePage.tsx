@@ -61,7 +61,7 @@ import { providerLabel } from '@/components/terra/TerraWearableProviders';
 import { getCountryByName } from '@/data/countries';
 import { cn } from '@/lib/utils';
 import { fetchRecentWorkouts } from '@/services/despia';
-import { presentPaywall } from '@/services/revenuecat';
+import { presentPaywall, restoreInAppPurchasesAndApplyPremium } from '@/services/revenuecat';
 import { supabase } from '@/services/supabase';
 
 const ATHLETE_COLUMNS =
@@ -227,6 +227,7 @@ export default function ProfilePage() {
   const [assistantInput, setAssistantInput] = useState('');
   const [supportBody, setSupportBody] = useState('');
   const [supportSending, setSupportSending] = useState(false);
+  const [restorePurchasing, setRestorePurchasing] = useState(false);
   const [settingsBusy, setSettingsBusy] = useState(false);
   const [deleteAccountOpen, setDeleteAccountOpen] = useState(false);
   const [deleteAccountWorking, setDeleteAccountWorking] = useState(false);
@@ -931,10 +932,23 @@ export default function ProfilePage() {
     window.open(`${window.location.origin}${path}`, '_blank', 'noopener,noreferrer');
   }
 
-  function handleRestorePurchases() {
-    toast.message('Restore purchases coming soon.', {
-      description: 'RevenueCat restore will connect here.',
-    });
+  async function handleRestorePurchases() {
+    setRestorePurchasing(true);
+    try {
+      const result = await restoreInAppPurchasesAndApplyPremium();
+      if (result === 'premium') {
+        setAthlete((prev) => (prev ? { ...prev, is_premium: true } : prev));
+        toast.success('Premium unlocked! 🎉');
+      } else if (result === 'none') {
+        toast.message('No active subscription found');
+      } else if (result === 'restore_error') {
+        toast.error('Could not restore purchases. Try again.');
+      } else {
+        toast.message('Restore purchases is only available in the RNKX app.');
+      }
+    } finally {
+      setRestorePurchasing(false);
+    }
   }
 
   function handleAssistantSend() {
@@ -1664,7 +1678,11 @@ export default function ProfilePage() {
                   <Button
                     type="button"
                     className="mt-4 w-full bg-neon-lime font-semibold text-black hover:bg-neon-lime/90"
-                    onClick={presentPaywall}
+                    onClick={() => {
+                      const uid = athlete.user_id;
+                      if (uid) presentPaywall(uid);
+                      else window.location.href = '/premium';
+                    }}
                   >
                     Unlock Premium
                   </Button>
@@ -1677,8 +1695,9 @@ export default function ProfilePage() {
             {/* RESTORE PURCHASES */}
             <button
               type="button"
-              className="flex w-full items-start gap-3 rounded-xl border border-border bg-card p-4 text-left transition hover:bg-muted/30"
-              onClick={handleRestorePurchases}
+              disabled={restorePurchasing}
+              className="flex w-full items-start gap-3 rounded-xl border border-border bg-card p-4 text-left transition hover:bg-muted/30 disabled:pointer-events-none disabled:opacity-50"
+              onClick={() => void handleRestorePurchases()}
             >
               <RotateCcw className="mt-0.5 h-5 w-5 shrink-0 text-neon-lime" aria-hidden />
               <div className="min-w-0">

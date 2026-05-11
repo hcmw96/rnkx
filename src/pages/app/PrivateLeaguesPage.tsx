@@ -23,6 +23,7 @@ type PrivateLeaguesPageProps = {
 
 export default function PrivateLeaguesPage({ embedded = false }: PrivateLeaguesPageProps) {
   const [athleteId, setAthleteId] = useState<string | undefined>();
+  const [authUserId, setAuthUserId] = useState<string | undefined>();
   const [leagues, setLeagues] = useState<{ league: LeagueRow; memberCount: number }[]>([]);
   const [loading, setLoading] = useState(true);
   const load = useCallback(async () => {
@@ -31,12 +32,14 @@ export default function PrivateLeaguesPage({ embedded = false }: PrivateLeaguesP
     if (authErr || !auth.user) {
       toast.error(authErr?.message ?? 'Not signed in');
       setAthleteId(undefined);
+      setAuthUserId(undefined);
       setLeagues([]);
       setLoading(false);
       return;
     }
 
     const uid = auth.user.id;
+    setAuthUserId(uid);
     const [byUserId, byId] = await Promise.all([
       supabase.from('athletes').select('id').eq('user_id', uid).not('username', 'is', null).maybeSingle(),
       supabase.from('athletes').select('id').eq('id', uid).not('username', 'is', null).maybeSingle(),
@@ -152,7 +155,9 @@ export default function PrivateLeaguesPage({ embedded = false }: PrivateLeaguesP
 
   return (
     <AppShell>
-      <PremiumGate athleteId={athleteId}>{content}</PremiumGate>
+      <PremiumGate athleteId={athleteId} userId={authUserId}>
+        {content}
+      </PremiumGate>
     </AppShell>
   );
 }

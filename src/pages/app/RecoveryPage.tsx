@@ -9,14 +9,17 @@ type RecoveryPageProps = {
 
 export default function RecoveryPage({ embedded = false }: RecoveryPageProps) {
   const [athleteId, setAthleteId] = useState<string | undefined>();
+  const [authUserId, setAuthUserId] = useState<string | undefined>();
 
   const loadAthlete = useCallback(async () => {
     const { data: auth } = await supabase.auth.getUser();
     const uid = auth.user?.id;
     if (!uid) {
       setAthleteId(undefined);
+      setAuthUserId(undefined);
       return;
     }
+    setAuthUserId(uid);
     const [byUserId, byId] = await Promise.all([
       supabase.from('athletes').select('id').eq('user_id', uid).not('username', 'is', null).maybeSingle(),
       supabase.from('athletes').select('id').eq('id', uid).not('username', 'is', null).maybeSingle(),
@@ -42,7 +45,9 @@ export default function RecoveryPage({ embedded = false }: RecoveryPageProps) {
 
   return (
     <AppShell>
-      <PremiumGate athleteId={athleteId}>{inner}</PremiumGate>
+      <PremiumGate athleteId={athleteId} userId={authUserId}>
+        {inner}
+      </PremiumGate>
     </AppShell>
   );
 }

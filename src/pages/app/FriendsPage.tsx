@@ -29,6 +29,7 @@ type FriendsPageProps = {
 
 export default function FriendsPage({ embedded = false }: FriendsPageProps) {
   const [athleteId, setAthleteId] = useState<string | undefined>();
+  const [authUserId, setAuthUserId] = useState<string | undefined>();
   const [search, setSearch] = useState('');
   const [results, setResults] = useState<AthleteLite[]>([]);
   const [searching, setSearching] = useState(false);
@@ -41,11 +42,13 @@ export default function FriendsPage({ embedded = false }: FriendsPageProps) {
     const uid = auth.user?.id;
     if (!uid) {
       setAthleteId(undefined);
+      setAuthUserId(undefined);
       setIncoming([]);
       setFriends([]);
       setLoading(false);
       return;
     }
+    setAuthUserId(uid);
     const [byUserId, byId] = await Promise.all([
       supabase.from('athletes').select('id').eq('user_id', uid).not('username', 'is', null).maybeSingle(),
       supabase.from('athletes').select('id').eq('id', uid).not('username', 'is', null).maybeSingle(),
@@ -289,7 +292,9 @@ export default function FriendsPage({ embedded = false }: FriendsPageProps) {
 
   return (
     <AppShell>
-      <PremiumGate athleteId={athleteId}>{content}</PremiumGate>
+      <PremiumGate athleteId={athleteId} userId={authUserId}>
+        {content}
+      </PremiumGate>
     </AppShell>
   );
 }

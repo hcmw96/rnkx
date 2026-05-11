@@ -13,6 +13,8 @@ declare global {
         language?: string;
       }) => void;
     };
+    /** Despia native bridge: called after a RevenueCat purchase completes. */
+    onRevenueCatPurchase?: () => void | Promise<void>;
   }
 }
 

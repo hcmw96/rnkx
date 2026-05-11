@@ -223,6 +223,7 @@ export default function Dashboard() {
 
         <PremiumGate
           athleteId={athleteId}
+          userId={athleteId}
           badge="PREMIUM"
           title="Unlock Your Performance Story"
           description="See your rank trajectory, session breakdowns, and biggest gains"

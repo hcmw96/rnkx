@@ -285,6 +285,7 @@ export default function LeaderboardPage() {
         ) : activeLeague === 'friends' ? (
           <PremiumGate
             athleteId={currentUserId ?? undefined}
+            userId={currentUserId ?? undefined}
             title="Invite Friends to Compete"
             description="Private leagues and friend leaderboards"
             previewContent={<FriendsPreview />}
