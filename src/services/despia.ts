@@ -43,7 +43,7 @@ export async function fetchRecentWorkouts(): Promise<DespiaSyncResult> {
 
   try {
     const result = await despia(
-      'healthkit://workouts?days=14&included=HKQuantityTypeIdentifierHeartRateAverage,HKQuantityTypeIdentifierHeartRateMax',
+      'healthkit://workouts?days=14&included=HKQuantityTypeIdentifierHeartRateAverage,HKQuantityTypeIdentifierHeartRateMax,HKQuantityTypeIdentifierRunningSpeedAverage',
       ['healthkitWorkouts'],
     );
 
@@ -78,12 +78,16 @@ function normaliseWorkouts(raw: unknown): WorkoutObject[] {
       ? (w.samples as any[]).find((s: any) => s.key === 'HKQuantityTypeIdentifierHeartRateMax')
       : null;
 
-    let avgPacePerKm: number | null = null;
-    if (typeof w.avgPacePerKm === 'number') {
-      avgPacePerKm = w.avgPacePerKm;
-    } else if (typeof w.avgSpeed === 'number' && w.avgSpeed > 0) {
-      avgPacePerKm = 1000 / (w.avgSpeed as number);
-    }
+    const speedSample = Array.isArray(w.samples)
+      ? (w.samples as any[]).find((s: any) => s.key === 'HKQuantityTypeIdentifierRunningSpeedAverage')
+      : null;
+    const speedMs = speedSample ? Number(speedSample.value) || null : null;
+    const avgPacePerKm: number | null =
+      speedMs && speedMs > 0
+        ? Math.round(1000 / speedMs)
+        : typeof w.avgPacePerKm === 'number'
+          ? w.avgPacePerKm
+          : null;
 
     return {
       sourceId: String(
