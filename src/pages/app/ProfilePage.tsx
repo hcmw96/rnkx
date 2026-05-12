@@ -59,6 +59,7 @@ import {
 } from '@/components/BrandLogos';
 import { providerLabel } from '@/components/terra/TerraWearableProviders';
 import { getCountryByName } from '@/data/countries';
+import { isDespiaIphoneUa } from '@/lib/despiaPlatform';
 import { cn } from '@/lib/utils';
 import { fetchRecentWorkouts } from '@/services/despia';
 import { presentPaywall, restoreInAppPurchasesAndApplyPremium } from '@/services/revenuecat';
@@ -144,13 +145,6 @@ function isDespiaWebView(): boolean {
   const hasDespiaBridge = (window as Window & { despia?: unknown }).despia != null;
   const isIosUa = /iPhone|iPad|iPod/.test(navigator.userAgent);
   return hasDespiaBridge || isIosUa;
-}
-
-/** Despia iOS WebView — used to probe HealthKit access on Profile (see Apple Watch card). */
-function isDespiaIphoneUa(): boolean {
-  if (typeof navigator === 'undefined') return false;
-  const ua = navigator.userAgent.toLowerCase();
-  return ua.includes('despia') && ua.includes('iphone');
 }
 
 function athleteWearsApple(wearables: string[] | null | undefined): boolean {

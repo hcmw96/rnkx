@@ -1,12 +1,25 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { X, Zap } from 'lucide-react';
 import { AppShell } from '@/components/app/AppShell';
+import { Button } from '@/components/ui/button';
 import { MomentumBlock } from '@/components/dashboard/MomentumBlock';
 import { SeasonCard } from '@/components/dashboard/SeasonCard';
 import { PremiumGate } from '@/components/PremiumGate';
 import { InsightsPreview } from '@/components/premium/PreviewMocks';
 import { usePullToRefresh } from '@/hooks/usePullToRefresh';
 import { activitySessionScore } from '@/lib/activitySessionScore';
+import { isDespiaIphoneUa, wearablesIncludeAppleWatch } from '@/lib/despiaPlatform';
 import { supabase } from '@/services/supabase';
+
+const SYNC_STALE_MS = 24 * 60 * 60 * 1000;
+
+function isSyncStale(lastSynced: string | null | undefined): boolean {
+  if (lastSynced == null || lastSynced === '') return true;
+  const t = new Date(lastSynced).getTime();
+  if (!Number.isFinite(t)) return true;
+  return Date.now() - t > SYNC_STALE_MS;
+}
 
 interface ActiveSeason {
   name: string;
@@ -49,12 +62,16 @@ function activityLabel(activityType: string | null, leagueType: string): string 
 }
 
 export default function Dashboard() {
+  const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [season, setSeason] = useState<ActiveSeason | null>(null);
   const [stats, setStats] = useState<AthleteStats | null>(null);
   const [recentActivities, setRecentActivities] = useState<RecentActivity[]>([]);
   const [athleteId, setAthleteId] = useState<string | undefined>();
+  const [lastSynced, setLastSynced] = useState<string | null>(null);
+  const [wearables, setWearables] = useState<string[] | null>(null);
+  const [syncReminderDismissed, setSyncReminderDismissed] = useState(false);
 
   const loadDashboard = useCallback(async () => {
     setLoading(true);
@@ -91,17 +108,31 @@ export default function Dashboard() {
 
       const userId = userData.user?.id;
       if (!userId) {
+        setLastSynced(null);
+        setWearables(null);
         setLoading(false);
         return;
       }
 
-      const { data: statsData, error: statsError } = await supabase
-        .from('athlete_stats')
-        .select(
-          'engine_rank,run_rank,engine_score,run_score,total_score,engine_weekly_change,run_weekly_change,engine_places_to_promotion,run_places_to_promotion,engine_places_to_relegation,run_places_to_relegation,engine_division,run_division,selected_leagues'
-        )
-        .eq('athlete_id', userId)
-        .maybeSingle();
+      const [{ data: statsData, error: statsError }, { data: athleteRow, error: athleteRowError }] =
+        await Promise.all([
+          supabase
+            .from('athlete_stats')
+            .select(
+              'engine_rank,run_rank,engine_score,run_score,total_score,engine_weekly_change,run_weekly_change,engine_places_to_promotion,run_places_to_promotion,engine_places_to_relegation,run_places_to_relegation,engine_division,run_division,selected_leagues'
+            )
+            .eq('athlete_id', userId)
+            .maybeSingle(),
+          supabase.from('athletes').select('last_synced, wearables').eq('id', userId).maybeSingle(),
+        ]);
+
+      if (athleteRowError) {
+        setLastSynced(null);
+        setWearables(null);
+      } else {
+        setLastSynced((athleteRow?.last_synced as string | null) ?? null);
+        setWearables((athleteRow?.wearables as string[] | null) ?? null);
+      }
 
       if (statsError) {
         setError(statsError.message);
@@ -161,6 +192,13 @@ export default function Dashboard() {
     return Math.max(0, Math.ceil((new Date(season.ends_at).getTime() - Date.now()) / (1000 * 60 * 60 * 24)));
   }, [season?.ends_at]);
 
+  const showSyncReminderBanner = useMemo(() => {
+    if (syncReminderDismissed) return false;
+    if (!isDespiaIphoneUa()) return false;
+    if (!wearablesIncludeAppleWatch(wearables)) return false;
+    return isSyncStale(lastSynced);
+  }, [syncReminderDismissed, lastSynced, wearables]);
+
   if (loading) {
     return (
       <AppShell>
@@ -176,6 +214,35 @@ export default function Dashboard() {
   return (
     <AppShell>
       <section className="space-y-4" {...pullHandlers}>
+        {showSyncReminderBanner ? (
+          <div
+            className="flex items-center gap-2 rounded-lg border border-amber-500/40 bg-amber-500/15 px-3 py-2.5 text-amber-950 shadow-sm dark:border-amber-400/35 dark:bg-amber-400/12 dark:text-amber-50"
+            role="status"
+          >
+            <Zap className="h-5 w-5 shrink-0 text-amber-600 dark:text-amber-300" aria-hidden />
+            <p className="min-w-0 flex-1 text-sm font-medium leading-snug">
+              Sync your workouts to stay on the leaderboard
+            </p>
+            <Button
+              type="button"
+              size="sm"
+              variant="secondary"
+              className="shrink-0 border-amber-600/40 bg-amber-100/90 text-amber-950 hover:bg-amber-200/90 dark:border-amber-300/40 dark:bg-amber-500/25 dark:text-amber-50 dark:hover:bg-amber-500/35"
+              onClick={() => navigate('/app/profile')}
+            >
+              Sync now
+            </Button>
+            <button
+              type="button"
+              className="shrink-0 rounded-md p-1 text-amber-900/70 hover:bg-amber-500/25 hover:text-amber-950 dark:text-amber-100/80 dark:hover:bg-amber-400/20 dark:hover:text-amber-50"
+              aria-label="Dismiss sync reminder"
+              onClick={() => setSyncReminderDismissed(true)}
+            >
+              <X className="h-4 w-4" />
+            </button>
+          </div>
+        ) : null}
+
         {(isRefreshing || pullDistance > 0) && (
           <p className="text-center text-xs text-muted-foreground">
             {isRefreshing ? 'Refreshing dashboard...' : pullDistance > 72 ? 'Release to refresh' : 'Pull to refresh'}
