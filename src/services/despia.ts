@@ -44,7 +44,7 @@ export async function fetchRecentWorkouts(): Promise<DespiaSyncResult> {
 
   try {
     const result = await despia(
-      'healthkit://workouts?days=14&included=HKQuantityTypeIdentifierHeartRateAverage,HKQuantityTypeIdentifierHeartRateMax,HKQuantityTypeIdentifierRunningSpeedAverage',
+      'healthkit://workouts?days=14&included=HKQuantityTypeIdentifierHeartRateAverage,HKQuantityTypeIdentifierHeartRateMax,HKQuantityTypeIdentifierRunningSpeedAverage,HKQuantityTypeIdentifierDistanceWalkingRunningSum',
       ['healthkitWorkouts'],
     );
 
@@ -91,12 +91,27 @@ function normaliseWorkouts(raw: unknown): WorkoutObject[] {
       ? (w.samples as any[]).find((s: any) => s.key === 'HKQuantityTypeIdentifierRunningSpeedAverage')
       : null;
     const speedMs = speedSample ? Number(speedSample.value) || null : null;
-    const avgPacePerKm: number | null =
-      speedMs && speedMs > 0
-        ? Math.round(1000 / speedMs)
-        : typeof w.avgPacePerKm === 'number'
-          ? w.avgPacePerKm
-          : null;
+
+    const distanceSample = Array.isArray(w.samples)
+      ? (w.samples as any[]).find((s: any) => s.key === 'HKQuantityTypeIdentifierDistanceWalkingRunningSum')
+      : null;
+    const distanceFromSample = distanceSample ? Number(distanceSample.value) || null : null;
+
+    const durationMin =
+      typeof w.duration === 'number'
+        ? w.duration / 60
+        : typeof w.durationMin === 'number'
+          ? w.durationMin
+          : 0;
+
+    let avgPacePerKm: number | null = null;
+    if (speedMs && speedMs > 0) {
+      avgPacePerKm = Math.round(1000 / speedMs);
+    } else if (distanceFromSample && distanceFromSample > 0) {
+      avgPacePerKm = Math.round((durationMin * 60) / (distanceFromSample / 1000));
+    } else if (typeof w.avgPacePerKm === 'number') {
+      avgPacePerKm = w.avgPacePerKm;
+    }
 
     return {
       sourceId: String(
@@ -106,12 +121,7 @@ function normaliseWorkouts(raw: unknown): WorkoutObject[] {
           `apple_${w.date ?? w.startDate ?? w.startedAt}_${w.activityType ?? 'unknown'}_${Math.round(typeof w.duration === 'number' ? w.duration : 0)}`,
       ),
       startedAt: String(w.date ?? w.startDate ?? w.startedAt ?? new Date().toISOString()),
-      durationMin:
-        typeof w.duration === 'number'
-          ? w.duration / 60
-          : typeof w.durationMin === 'number'
-            ? w.durationMin
-            : 0,
+      durationMin,
       activityType: String(w.activityType ?? w.workoutActivityType ?? 'unknown'),
       avgHr: avgHrSample
         ? Number(avgHrSample.value) || null
