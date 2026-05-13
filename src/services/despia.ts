@@ -1,4 +1,5 @@
 import despia from 'despia-native';
+import { toast } from 'sonner';
 
 export interface WorkoutObject {
   sourceId: string;
@@ -52,6 +53,14 @@ export async function fetchRecentWorkouts(): Promise<DespiaSyncResult> {
     const rawWorkouts = Array.isArray((result as any)?.healthkitWorkouts)
       ? (result as any).healthkitWorkouts
       : [];
+    const firstRun = rawWorkouts.find((w: any) =>
+      String(w.activityType ?? '').toLowerCase().includes('run'),
+    );
+    if (firstRun) {
+      toast.message('run raw samples', {
+        description: JSON.stringify(firstRun.samples ?? []).slice(0, 300),
+      });
+    }
     const workouts = normaliseWorkouts(rawWorkouts);
 
     return { workouts, rawPayload: result, error: null };
