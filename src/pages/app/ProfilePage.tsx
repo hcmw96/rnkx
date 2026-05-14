@@ -490,28 +490,51 @@ export default function ProfilePage() {
           return;
         }
 
-        const response = await fetch(
-          `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/sync-activities`,
-          {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              appleWorkouts: syncData.workouts,
-              source: 'apple',
-              athlete_id: athlete.id,
-            }),
-          },
-        );
-        if (!response.ok) {
-          const errText = await response.text();
-          throw new Error(`sync-activities ${response.status}: ${errText}`);
-        }
-        const data = await response.json();
-        toast.success(`Synced ${(data as { processed?: number } | null)?.processed ?? 0} workout(s).`);
+        toast.message('Syncing...', { description: `Found ${syncData.workouts.length} workouts` });
+
+        let response: Response;
         try {
-          await loadProfile();
-        } catch {
-          // profile reload failed silently — sync was still successful
+          response = await fetch(
+            `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/sync-activities`,
+            {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                appleWorkouts: syncData.workouts,
+                source: 'apple',
+                athlete_id: athlete.id,
+              }),
+            },
+          );
+        } catch (fetchErr) {
+          toast.error('sync-activities request failed: ' + String(fetchErr));
+          return;
+        }
+
+        if (!response.ok) {
+          try {
+            const errText = await response.text();
+            toast.error(`sync-activities HTTP ${response.status}`, {
+              description: errText.slice(0, 500),
+            });
+          } catch (textErr) {
+            toast.error('sync-activities: could not read error body: ' + String(textErr), {
+              description: `HTTP ${response.status}`,
+            });
+          }
+          return;
+        }
+
+        try {
+          const data = await response.json();
+          toast.success(`Synced ${(data as { processed?: number } | null)?.processed ?? 0} workout(s).`);
+          try {
+            await loadProfile();
+          } catch {
+            // profile reload failed silently — sync was still successful
+          }
+        } catch (jsonErr) {
+          toast.error('Response parse error: ' + String(jsonErr));
         }
         return;
       }
@@ -539,7 +562,10 @@ export default function ProfilePage() {
 
       toast.error('No device connected. Please connect a wearable first.');
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : String(err));
+      toast.error(
+        'Sync error: ' +
+          (err instanceof Error ? err.message + ' | ' + err.stack?.slice(0, 100) : String(err)),
+      );
     } finally {
       setSyncing(false);
     }
@@ -651,8 +677,10 @@ export default function ProfilePage() {
     setAppleConnecting(true);
     setAppleError(null);
     try {
-      await despia('readhealthkit://HKWorkoutTypeIdentifier?days=1', ['healthkitResponse']);
-      await despia('readhealthkit://HKQuantityTypeIdentifierHeartRate?days=1', ['healthkitResponse']);
+      await despia(
+        'healthkit://workouts?days=1&included=HKQuantityTypeIdentifierHeartRateAverage,HKQuantityTypeIdentifierHeartRateMax,HKQuantityTypeIdentifierRunningSpeedAverage,HKQuantityTypeIdentifierDistanceWalkingRunningSum',
+        ['healthkitWorkouts'],
+      );
 
       const current = athlete.wearables ?? [];
       const nextWearables = Array.from(new Set([...current, 'apple_watch']));
