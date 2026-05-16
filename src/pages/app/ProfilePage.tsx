@@ -478,11 +478,13 @@ export default function ProfilePage() {
     setSyncing(true);
     try {
       if (wearsApple && despiaIphone) {
+        toast.message('Sync: reading HealthKit...');
+
         let syncData: Awaited<ReturnType<typeof fetchRecentWorkouts>>;
         try {
           syncData = await fetchRecentWorkouts();
         } catch (err) {
-          toast.error('fetchRecentWorkouts threw: ' + String(err));
+          toast.error('Step 1 failed: ' + String(err));
           return;
         }
         if (syncData.error) {
@@ -490,7 +492,8 @@ export default function ProfilePage() {
           return;
         }
 
-        toast.message('Syncing...', { description: `Found ${syncData.workouts.length} workouts` });
+        const workouts = syncData.workouts;
+        toast.message('Sync: uploading ' + workouts.length + ' workouts...');
 
         let response: Response;
         try {
@@ -500,14 +503,14 @@ export default function ProfilePage() {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({
-                appleWorkouts: syncData.workouts,
+                appleWorkouts: workouts,
                 source: 'apple',
                 athlete_id: athlete.id,
               }),
             },
           );
-        } catch (fetchErr) {
-          toast.error('sync-activities request failed: ' + String(fetchErr));
+        } catch (err) {
+          toast.error('Step 2 failed: ' + String(err));
           return;
         }
 
@@ -518,7 +521,7 @@ export default function ProfilePage() {
               description: errText.slice(0, 500),
             });
           } catch (textErr) {
-            toast.error('sync-activities: could not read error body: ' + String(textErr), {
+            toast.error('Step 2 failed: ' + String(textErr), {
               description: `HTTP ${response.status}`,
             });
           }
@@ -528,13 +531,15 @@ export default function ProfilePage() {
         try {
           const data = await response.json();
           toast.success(`Synced ${(data as { processed?: number } | null)?.processed ?? 0} workout(s).`);
+
+          toast.message('Sync: refreshing profile...');
           try {
             await loadProfile();
           } catch {
             // profile reload failed silently — sync was still successful
           }
-        } catch (jsonErr) {
-          toast.error('Response parse error: ' + String(jsonErr));
+        } catch (err) {
+          toast.error('Step 3 failed: ' + String(err));
         }
         return;
       }
@@ -562,10 +567,8 @@ export default function ProfilePage() {
 
       toast.error('No device connected. Please connect a wearable first.');
     } catch (err) {
-      toast.error(
-        'Sync error: ' +
-          (err instanceof Error ? err.message + ' | ' + err.stack?.slice(0, 100) : String(err)),
-      );
+      toast.error('Sync crashed: ' + String(err));
+      console.error('[handleSync] crash:', err);
     } finally {
       setSyncing(false);
     }
