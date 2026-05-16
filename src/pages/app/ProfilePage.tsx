@@ -401,7 +401,7 @@ export default function ProfilePage() {
     void (async () => {
       try {
         const result = await despia(
-          'healthkit://workouts?days=7&included=HKQuantityTypeIdentifierHeartRateAverage',
+          'healthkit://workouts?days=5&included=HKQuantityTypeIdentifierHeartRateAverage',
           ['healthkitWorkouts'],
         );
         if (cancelled) return;
