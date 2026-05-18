@@ -1,5 +1,15 @@
 import despia from 'despia-native';
-import { toast } from 'sonner';
+import {
+  extractHealthkitWorkoutsArray,
+  readHealthKitWorkouts,
+} from '@/lib/healthKitWorkoutRead';
+import {
+  appendSyncDebug,
+  estimateJsonBytes,
+  releaseHealthKit,
+  summarizeRawHealthKitWorkouts,
+  tryAcquireHealthKit,
+} from '@/lib/syncDebug';
 
 export interface WorkoutObject {
   sourceId: string;
@@ -27,7 +37,7 @@ export async function requestHealthKitPermissions(): Promise<boolean> {
   try {
     await despia(
       'healthkit://read?types=HKWorkoutTypeIdentifier,HKQuantityTypeIdentifierHeartRate,HKQuantityTypeIdentifierDistanceWalkingRunning,HKQuantityTypeIdentifierRunningSpeed&days=1',
-      ['healthkitResponse']
+      ['healthkitResponse'],
     );
     return true;
   } catch (err) {
@@ -42,31 +52,50 @@ export async function fetchRecentWorkouts(): Promise<DespiaSyncResult> {
     return { workouts: [], rawPayload: null, error: 'Not in Despia runtime' };
   }
 
+  if (!tryAcquireHealthKit('sync')) {
+    appendSyncDebug('hk_lock_busy', { owner: 'sync' });
+    return {
+      workouts: [],
+      rawPayload: null,
+      error: 'HealthKit read already in progress — try again in a few seconds',
+    };
+  }
+
   try {
-    const result = await despia(
-      'healthkit://workouts?days=7&included=HKQuantityTypeIdentifierHeartRateAverage,HKQuantityTypeIdentifierHeartRateMax,HKQuantityTypeIdentifierRunningSpeedAverage,HKQuantityTypeIdentifierDistanceWalkingRunningSum',
-      ['healthkitWorkouts'],
-    );
+    appendSyncDebug('hk_fetch_start', { kind: 'sync', days: 7 });
 
-    console.log('[Despia] Raw response:', JSON.stringify(result, null, 2));
+    const result = await readHealthKitWorkouts('sync');
 
-    const rawWorkouts = Array.isArray((result as any)?.healthkitWorkouts)
-      ? (result as any).healthkitWorkouts
-      : [];
-    const firstRun = rawWorkouts.find((w: any) =>
-      String(w.activityType ?? '').toLowerCase().includes('run'),
-    );
-    if (firstRun) {
-      toast.message('run raw samples', {
-        description: JSON.stringify(firstRun.samples ?? []).slice(0, 300),
-      });
-    }
+    const rawWorkouts = extractHealthkitWorkoutsArray(result);
+    const summary = summarizeRawHealthKitWorkouts(rawWorkouts);
+
+    console.log('[Despia] HealthKit workouts:', summary.count, summary);
+
+    appendSyncDebug('hk_fetch_returned', {
+      despiaReturned: result != null,
+      rawCount: summary.count,
+      totalSamples: summary.totalSamples,
+      sampleKeys: summary.sampleKeys.slice(0, 80),
+    });
+
+    appendSyncDebug('hk_normalize_start', { rawCount: summary.count });
+
     const workouts = normaliseWorkouts(rawWorkouts);
+
+    const normalizedBytes = estimateJsonBytes(workouts);
+    appendSyncDebug('hk_normalize_done', {
+      normalizedCount: workouts.length,
+      normalizedBytes: normalizedBytes ?? -1,
+    });
 
     return { workouts, rawPayload: result, error: null };
   } catch (err) {
+    const message = String(err);
     console.error('[Despia] fetchRecentWorkouts failed:', err);
-    return { workouts: [], rawPayload: null, error: String(err) };
+    appendSyncDebug('hk_fetch_error', undefined, message);
+    return { workouts: [], rawPayload: null, error: message };
+  } finally {
+    releaseHealthKit('sync');
   }
 }
 

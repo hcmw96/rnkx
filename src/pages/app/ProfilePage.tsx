@@ -60,6 +60,20 @@ import {
 import { providerLabel } from '@/components/terra/TerraWearableProviders';
 import { getCountryByName } from '@/data/countries';
 import { isDespiaIphoneUa } from '@/lib/despiaPlatform';
+import {
+  extractHealthkitWorkoutsArray,
+  readHealthKitWorkouts,
+} from '@/lib/healthKitWorkoutRead';
+import {
+  appendSyncDebug,
+  estimateJsonBytes,
+  formatSyncDebugReport,
+  getSyncDebugLog,
+  isHealthKitBusy,
+  releaseHealthKit,
+  tryAcquireHealthKit,
+  waitForHealthKitIdle,
+} from '@/lib/syncDebug';
 import { cn } from '@/lib/utils';
 import { fetchRecentWorkouts } from '@/services/despia';
 import { presentPaywall, restoreInAppPurchasesAndApplyPremium } from '@/services/revenuecat';
@@ -196,6 +210,8 @@ export default function ProfilePage() {
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
   const [syncing, setSyncing] = useState(false);
+  const [syncDebugPreview, setSyncDebugPreview] = useState<string | null>(null);
+  const syncingRef = useRef(false);
   const [terraConnecting, setTerraConnecting] = useState(false);
   const [terraConnections, setTerraConnections] = useState<TerraConnectionRow[]>([]);
   const [whoopConnection, setWhoopConnection] = useState<WhoopConnectionRow | null>(null);
@@ -387,6 +403,19 @@ export default function ProfilePage() {
     [athlete?.wearables],
   );
 
+  const refreshSyncDebugPreview = useCallback(() => {
+    const report = formatSyncDebugReport(8);
+    setSyncDebugPreview(getSyncDebugLog().length > 0 ? report : null);
+  }, []);
+
+  useEffect(() => {
+    refreshSyncDebugPreview();
+  }, [refreshSyncDebugPreview]);
+
+  useEffect(() => {
+    syncingRef.current = syncing;
+  }, [syncing]);
+
   useEffect(() => {
     if (!athlete?.id) return;
 
@@ -399,28 +428,51 @@ export default function ProfilePage() {
     let cancelled = false;
 
     void (async () => {
+      if (syncingRef.current || isHealthKitBusy()) {
+        appendSyncDebug('probe_skip_busy', {
+          syncing: syncingRef.current,
+          hkBusy: isHealthKitBusy(),
+        });
+        return;
+      }
+
+      if (!tryAcquireHealthKit('probe')) {
+        appendSyncDebug('probe_skip_busy', { reason: 'lock' });
+        return;
+      }
+
+      appendSyncDebug('probe_start', { days: 5 });
+
       try {
-        const result = await despia(
-          'healthkit://workouts?days=5&included=HKQuantityTypeIdentifierHeartRateAverage',
-          ['healthkitWorkouts'],
-        );
+        const result = await readHealthKitWorkouts('probe');
         if (cancelled) return;
-        const rawWorkouts = (result as Record<string, unknown> | null)?.healthkitWorkouts;
-        if (Array.isArray(rawWorkouts) && rawWorkouts.length >= 1) {
+        const rawWorkouts = extractHealthkitWorkoutsArray(result);
+        appendSyncDebug('probe_done', { rawCount: rawWorkouts.length });
+        if (rawWorkouts.length >= 1) {
           setAppleHkLiveOk(true);
         } else {
           setAppleHkLiveOk(null);
         }
-      } catch {
+      } catch (err) {
         if (cancelled) return;
+        appendSyncDebug('probe_fail', undefined, String(err));
         setAppleHkLiveOk(null);
+      } finally {
+        releaseHealthKit('probe');
+        if (!cancelled) refreshSyncDebugPreview();
       }
     })();
 
     return () => {
       cancelled = true;
     };
-  }, [athlete?.id, athleteWearablesKey]);
+  }, [athlete?.id, athleteWearablesKey, refreshSyncDebugPreview]);
+
+  function syncFailToast(title: string) {
+    const detail = formatSyncDebugReport(6).slice(0, 450);
+    toast.error(title, { description: detail || undefined });
+    refreshSyncDebugPreview();
+  }
 
   const openAvatarPicker = () => {
     fileInputRef.current?.click();
@@ -475,24 +527,51 @@ export default function ProfilePage() {
     const wearsApple = athleteWearsApple(athlete.wearables ?? null);
     const despiaIphone = isDespiaIphoneUa();
 
+    appendSyncDebug('sync_start', {
+      athleteId: athlete.id.slice(0, 8),
+      wearsApple,
+      despiaIphone,
+    });
+
     setSyncing(true);
     try {
       if (wearsApple && despiaIphone) {
+        appendSyncDebug('sync_branch_apple');
+
+        const idle = await waitForHealthKitIdle(10_000);
+        if (!idle) {
+          appendSyncDebug('hk_lock_wait', { ok: false });
+          syncFailToast('HealthKit is busy — wait a moment and try again');
+          return;
+        }
+        appendSyncDebug('hk_lock_wait', { ok: true });
+
         toast.message('Sync: reading HealthKit...');
 
         let syncData: Awaited<ReturnType<typeof fetchRecentWorkouts>>;
         try {
           syncData = await fetchRecentWorkouts();
         } catch (err) {
-          toast.error('Step 1 failed: ' + String(err));
+          appendSyncDebug('sync_step1_fail', undefined, String(err));
+          syncFailToast('Step 1 failed: ' + String(err));
           return;
         }
         if (syncData.error) {
-          toast.error('fetchRecentWorkouts failed', { description: syncData.error });
+          appendSyncDebug('sync_step1_fail', { source: 'syncData.error' }, syncData.error);
+          syncFailToast('fetchRecentWorkouts failed: ' + syncData.error);
           return;
         }
 
         const workouts = syncData.workouts;
+        const uploadBytes = estimateJsonBytes({
+          appleWorkouts: workouts,
+          source: 'apple',
+          athlete_id: athlete.id,
+        });
+        appendSyncDebug('sync_upload_start', {
+          workoutCount: workouts.length,
+          uploadBytes: uploadBytes ?? -1,
+        });
         toast.message('Sync: uploading ' + workouts.length + ' workouts...');
 
         let response: Response;
@@ -510,36 +589,44 @@ export default function ProfilePage() {
             },
           );
         } catch (err) {
-          toast.error('Step 2 failed: ' + String(err));
+          appendSyncDebug('sync_step2_fail', undefined, String(err));
+          syncFailToast('Step 2 failed: ' + String(err));
           return;
         }
 
         if (!response.ok) {
           try {
             const errText = await response.text();
-            toast.error(`sync-activities HTTP ${response.status}`, {
-              description: errText.slice(0, 500),
-            });
+            appendSyncDebug('sync_step2_fail', { httpStatus: response.status }, errText.slice(0, 200));
+            syncFailToast(`sync-activities HTTP ${response.status}: ${errText.slice(0, 120)}`);
           } catch (textErr) {
-            toast.error('Step 2 failed: ' + String(textErr), {
-              description: `HTTP ${response.status}`,
-            });
+            appendSyncDebug('sync_step2_fail', { httpStatus: response.status }, String(textErr));
+            syncFailToast('Step 2 failed: ' + String(textErr));
           }
           return;
         }
 
+        appendSyncDebug('sync_upload_done', { httpStatus: response.status });
+
         try {
+          appendSyncDebug('sync_parse_start');
           const data = await response.json();
+          appendSyncDebug('sync_parse_done', {
+            processed: (data as { processed?: number } | null)?.processed ?? -1,
+          });
           toast.success(`Synced ${(data as { processed?: number } | null)?.processed ?? 0} workout(s).`);
 
           toast.message('Sync: refreshing profile...');
+          appendSyncDebug('sync_profile_reload');
           try {
             await loadProfile();
           } catch {
             // profile reload failed silently — sync was still successful
           }
+          appendSyncDebug('sync_done');
         } catch (err) {
-          toast.error('Step 3 failed: ' + String(err));
+          appendSyncDebug('sync_step3_fail', undefined, String(err));
+          syncFailToast('Step 3 failed: ' + String(err));
         }
         return;
       }
@@ -567,10 +654,12 @@ export default function ProfilePage() {
 
       toast.error('No device connected. Please connect a wearable first.');
     } catch (err) {
-      toast.error('Sync crashed: ' + String(err));
+      appendSyncDebug('sync_crashed', undefined, String(err));
+      syncFailToast('Sync crashed: ' + String(err));
       console.error('[handleSync] crash:', err);
     } finally {
       setSyncing(false);
+      refreshSyncDebugPreview();
     }
   };
 
@@ -1383,6 +1472,15 @@ export default function ProfilePage() {
             >
               {!hasConnectedSyncDevice ? 'Connect a device to sync' : syncing ? 'Syncing…' : 'Sync workouts'}
             </Button>
+            {syncDebugPreview ? (
+              <p
+                className="text-[11px] leading-snug text-muted-foreground break-words"
+                role="note"
+                aria-label="Last sync diagnostic trace for support"
+              >
+                Last sync trace (screenshot for support): {syncDebugPreview}
+              </p>
+            ) : null}
 
             {/* ACCOUNT */}
             <article className="space-y-4 rounded-xl border border-border bg-card p-4">
