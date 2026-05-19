@@ -62,6 +62,7 @@ import { getCountryByName } from '@/data/countries';
 import { isDespiaIphoneUa } from '@/lib/despiaPlatform';
 import {
   extractHealthkitWorkoutsArray,
+  HEALTHKIT_WORKOUT_INCLUDED_FULL,
   readHealthKitWorkouts,
 } from '@/lib/healthKitWorkoutRead';
 import {
@@ -770,7 +771,7 @@ export default function ProfilePage() {
     setAppleError(null);
     try {
       await despia(
-        'healthkit://workouts?days=1&included=HKQuantityTypeIdentifierHeartRateAverage,HKQuantityTypeIdentifierHeartRateMax,HKQuantityTypeIdentifierRunningSpeedAverage,HKQuantityTypeIdentifierDistanceWalkingRunningSum',
+        `healthkit://workouts?days=1&included=${HEALTHKIT_WORKOUT_INCLUDED_FULL}`,
         ['healthkitWorkouts'],
       );
 

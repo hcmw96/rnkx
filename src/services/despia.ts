@@ -1,8 +1,5 @@
 import despia from 'despia-native';
-import {
-  extractHealthkitWorkoutsArray,
-  readHealthKitWorkouts,
-} from '@/lib/healthKitWorkoutRead';
+import { readHealthKitWorkoutsForSync, SYNC_DAYS } from '@/lib/healthKitWorkoutRead';
 import {
   appendSyncDebug,
   estimateJsonBytes,
@@ -62,17 +59,16 @@ export async function fetchRecentWorkouts(): Promise<DespiaSyncResult> {
   }
 
   try {
-    appendSyncDebug('hk_fetch_start', { kind: 'sync', days: 7 });
+    appendSyncDebug('hk_fetch_start', { kind: 'sync', days: SYNC_DAYS, phases: 'hr,pace' });
 
-    const result = await readHealthKitWorkouts('sync');
+    const { merged: rawWorkouts, phases } = await readHealthKitWorkoutsForSync();
 
-    const rawWorkouts = extractHealthkitWorkoutsArray(result);
     const summary = summarizeRawHealthKitWorkouts(rawWorkouts);
 
-    console.log('[Despia] HealthKit workouts:', summary.count, summary);
+    console.log('[Despia] HealthKit workouts merged:', summary.count, summary);
 
     appendSyncDebug('hk_fetch_returned', {
-      despiaReturned: result != null,
+      merged: true,
       rawCount: summary.count,
       totalSamples: summary.totalSamples,
       sampleKeys: summary.sampleKeys.slice(0, 80),
@@ -88,7 +84,7 @@ export async function fetchRecentWorkouts(): Promise<DespiaSyncResult> {
       normalizedBytes: normalizedBytes ?? -1,
     });
 
-    return { workouts, rawPayload: result, error: null };
+    return { workouts, rawPayload: { phases, mergedCount: rawWorkouts.length }, error: null };
   } catch (err) {
     const message = String(err);
     console.error('[Despia] fetchRecentWorkouts failed:', err);
