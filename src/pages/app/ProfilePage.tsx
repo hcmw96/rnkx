@@ -575,47 +575,41 @@ export default function ProfilePage() {
         });
         toast.message('Sync: uploading ' + workouts.length + ' workouts...');
 
-        let response: Response;
+        let syncResult: { processed?: number } | null = null;
         try {
-          response = await fetch(
-            `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/sync-activities`,
+          const { data, error } = await supabase.functions.invoke<{ processed?: number; error?: string }>(
+            'sync-activities',
             {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
+              body: {
                 appleWorkouts: workouts,
                 source: 'apple',
                 athlete_id: athlete.id,
-              }),
+              },
             },
           );
+          if (error) {
+            appendSyncDebug('sync_step2_fail', { via: 'invoke' }, error.message);
+            syncFailToast('Step 2 failed: ' + error.message);
+            return;
+          }
+          if (data && typeof data === 'object' && 'error' in data && data.error) {
+            appendSyncDebug('sync_step2_fail', { via: 'invoke_body' }, String(data.error));
+            syncFailToast('Step 2 failed: ' + String(data.error));
+            return;
+          }
+          syncResult = data;
+          appendSyncDebug('sync_upload_done', { via: 'invoke' });
         } catch (err) {
-          appendSyncDebug('sync_step2_fail', undefined, String(err));
+          appendSyncDebug('sync_step2_fail', { via: 'invoke_throw' }, String(err));
           syncFailToast('Step 2 failed: ' + String(err));
           return;
         }
 
-        if (!response.ok) {
-          try {
-            const errText = await response.text();
-            appendSyncDebug('sync_step2_fail', { httpStatus: response.status }, errText.slice(0, 200));
-            syncFailToast(`sync-activities HTTP ${response.status}: ${errText.slice(0, 120)}`);
-          } catch (textErr) {
-            appendSyncDebug('sync_step2_fail', { httpStatus: response.status }, String(textErr));
-            syncFailToast('Step 2 failed: ' + String(textErr));
-          }
-          return;
-        }
-
-        appendSyncDebug('sync_upload_done', { httpStatus: response.status });
-
         try {
-          appendSyncDebug('sync_parse_start');
-          const data = await response.json();
           appendSyncDebug('sync_parse_done', {
-            processed: (data as { processed?: number } | null)?.processed ?? -1,
+            processed: syncResult?.processed ?? -1,
           });
-          toast.success(`Synced ${(data as { processed?: number } | null)?.processed ?? 0} workout(s).`);
+          toast.success(`Synced ${syncResult?.processed ?? 0} workout(s).`);
 
           toast.message('Sync: refreshing profile...');
           appendSyncDebug('sync_profile_reload');
