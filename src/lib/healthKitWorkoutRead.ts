@@ -10,11 +10,9 @@ const PROBE_INCLUDED = 'HKQuantityTypeIdentifierHeartRateAverage';
 /** days=7 + all metrics in one call has hung ~60s and killed the WebView on some devices. */
 export const SYNC_DAYS = 5;
 
+/** Proven safe on devices where combined pace metrics kill the WebView on the 2nd HK call. */
 const SYNC_INCLUDED_HR =
   'HKQuantityTypeIdentifierHeartRateAverage,HKQuantityTypeIdentifierHeartRateMax';
-
-const SYNC_INCLUDED_PACE =
-  'HKQuantityTypeIdentifierRunningSpeedAverage,HKQuantityTypeIdentifierDistanceWalkingRunningSum';
 
 export type HealthKitWorkoutReadKind = 'sync' | 'probe';
 
@@ -43,87 +41,26 @@ export function extractHealthkitWorkoutsArray(
   return Array.isArray(raw) ? raw : [];
 }
 
-function workoutMergeKey(w: Record<string, unknown>): string {
-  if (w.uuid != null) return `uuid:${String(w.uuid)}`;
-  if (w.id != null) return `id:${String(w.id)}`;
-  if (w.sourceId != null) return `source:${String(w.sourceId)}`;
-  const started = w.date ?? w.startDate ?? w.startedAt ?? '';
-  const type = w.activityType ?? w.workoutActivityType ?? '';
-  const duration = typeof w.duration === 'number' ? w.duration : 0;
-  return `fallback:${String(started)}_${String(type)}_${duration}`;
-}
-
-function copySamples(w: Record<string, unknown>): unknown[] {
-  return Array.isArray(w.samples) ? [...(w.samples as unknown[])] : [];
-}
-
-/** Merge two HealthKit workout lists (same days window) by workout id; combine sample arrays. */
-export function mergeRawHealthKitWorkouts(primary: unknown[], secondary: unknown[]): unknown[] {
-  const map = new Map<string, Record<string, unknown>>();
-
-  for (const item of primary) {
-    const w = item as Record<string, unknown>;
-    map.set(workoutMergeKey(w), { ...w, samples: copySamples(w) });
-  }
-
-  for (const item of secondary) {
-    const w = item as Record<string, unknown>;
-    const key = workoutMergeKey(w);
-    const existing = map.get(key);
-    if (!existing) {
-      map.set(key, { ...w, samples: copySamples(w) });
-      continue;
-    }
-    const mergedSamples = [...copySamples(existing), ...copySamples(w)];
-    map.set(key, {
-      ...existing,
-      ...w,
-      samples: mergedSamples,
-      totalDistance:
-        typeof existing.totalDistance === 'number'
-          ? existing.totalDistance
-          : w.totalDistance,
-      distanceM:
-        typeof existing.distanceM === 'number' ? existing.distanceM : w.distanceM,
-      peakHr: typeof existing.peakHr === 'number' ? existing.peakHr : w.peakHr,
-      avgHr: typeof existing.avgHr === 'number' ? existing.avgHr : w.avgHr,
-    });
-  }
-
-  return [...map.values()];
-}
-
-export type SyncHealthKitPhase = 'hr' | 'pace';
-
 export interface SyncHealthKitReadResult {
   merged: unknown[];
-  phases: Record<SyncHealthKitPhase, { count: number }>;
+  phases: { hr: { count: number } };
 }
 
 /**
- * Manual sync: two smaller HealthKit queries (HR, then pace/distance) over 5 days,
- * then merge — avoids the single heavy days=7 / 4-metric call that crashed some devices.
+ * Manual sync: single HealthKit read (HR only). Kirsty's trace showed HR returns
+ * instantly but a 2nd call for distance/speed kills the WebView before JS runs again.
+ * Distance/pace are taken from workout metadata in normaliseWorkouts when present.
  */
 export async function readHealthKitWorkoutsForSync(): Promise<SyncHealthKitReadResult> {
   const days = SYNC_DAYS;
 
-  appendSyncDebug('hk_fetch_start', { phase: 'hr', days });
+  appendSyncDebug('hk_fetch_start', { phase: 'hr', days, mode: 'hr_only' });
   const hrResult = await despia(workoutsCommand(days, SYNC_INCLUDED_HR), ['healthkitWorkouts']);
   const hrWorkouts = extractHealthkitWorkoutsArray(hrResult);
-  appendSyncDebug('hk_fetch_returned', { phase: 'hr', rawCount: hrWorkouts.length });
-
-  appendSyncDebug('hk_fetch_start', { phase: 'pace', days });
-  const paceResult = await despia(workoutsCommand(days, SYNC_INCLUDED_PACE), ['healthkitWorkouts']);
-  const paceWorkouts = extractHealthkitWorkoutsArray(paceResult);
-  appendSyncDebug('hk_fetch_returned', { phase: 'pace', rawCount: paceWorkouts.length });
-
-  const merged = mergeRawHealthKitWorkouts(hrWorkouts, paceWorkouts);
+  appendSyncDebug('hk_fetch_returned', { phase: 'hr', rawCount: hrWorkouts.length, mode: 'hr_only' });
 
   return {
-    merged,
-    phases: {
-      hr: { count: hrWorkouts.length },
-      pace: { count: paceWorkouts.length },
-    },
+    merged: hrWorkouts,
+    phases: { hr: { count: hrWorkouts.length } },
   };
 }

@@ -59,7 +59,7 @@ export async function fetchRecentWorkouts(): Promise<DespiaSyncResult> {
   }
 
   try {
-    appendSyncDebug('hk_fetch_start', { kind: 'sync', days: SYNC_DAYS, phases: 'hr,pace' });
+    appendSyncDebug('hk_fetch_start', { kind: 'sync', days: SYNC_DAYS, phases: 'hr_only' });
 
     const { merged: rawWorkouts, phases } = await readHealthKitWorkoutsForSync();
 
@@ -129,11 +129,16 @@ function normaliseWorkouts(raw: unknown): WorkoutObject[] {
           ? w.durationMin
           : 0;
 
+    const distanceM =
+      distanceFromSample ??
+      (typeof w.totalDistance === 'number' ? w.totalDistance : null) ??
+      (typeof w.distanceM === 'number' ? w.distanceM : null);
+
     let avgPacePerKm: number | null = null;
     if (speedMs && speedMs > 0) {
       avgPacePerKm = Math.round(1000 / speedMs);
-    } else if (distanceFromSample && distanceFromSample > 0) {
-      avgPacePerKm = Math.round((durationMin * 60) / (distanceFromSample / 1000));
+    } else if (distanceM && distanceM > 0 && durationMin > 0) {
+      avgPacePerKm = Math.round((durationMin * 60) / (distanceM / 1000));
     } else if (typeof w.avgPacePerKm === 'number') {
       avgPacePerKm = w.avgPacePerKm;
     }
@@ -158,12 +163,7 @@ function normaliseWorkouts(raw: unknown): WorkoutObject[] {
         : typeof w.peakHr === 'number'
           ? w.peakHr
           : null,
-      distanceM:
-        typeof w.totalDistance === 'number'
-          ? w.totalDistance
-          : typeof w.distanceM === 'number'
-            ? w.distanceM
-            : null,
+      distanceM,
       avgPacePerKm,
     };
   });
