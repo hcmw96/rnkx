@@ -76,6 +76,7 @@ import {
   waitForHealthKitIdle,
 } from '@/lib/syncDebug';
 import { cn } from '@/lib/utils';
+import { syncAppleWorkoutsToDatabase } from '@/lib/syncActivitiesApple';
 import { fetchRecentWorkouts } from '@/services/despia';
 import { presentPaywall, restoreInAppPurchasesAndApplyPremium } from '@/services/revenuecat';
 import { supabase } from '@/services/supabase';
@@ -570,46 +571,31 @@ export default function ProfilePage() {
           athlete_id: athlete.id,
         });
         appendSyncDebug('sync_upload_start', {
+          via: 'rpc',
           workoutCount: workouts.length,
           uploadBytes: uploadBytes ?? -1,
         });
         toast.message('Sync: uploading ' + workouts.length + ' workouts...');
 
-        let syncResult: { processed?: number } | null = null;
+        let processed = 0;
         try {
-          const { data, error } = await supabase.functions.invoke<{ processed?: number; error?: string }>(
-            'sync-activities',
-            {
-              body: {
-                appleWorkouts: workouts,
-                source: 'apple',
-                athlete_id: athlete.id,
-              },
-            },
-          );
-          if (error) {
-            appendSyncDebug('sync_step2_fail', { via: 'invoke' }, error.message);
-            syncFailToast('Step 2 failed: ' + error.message);
+          const upload = await syncAppleWorkoutsToDatabase(athlete.id, workouts);
+          if (upload.error) {
+            appendSyncDebug('sync_step2_fail', { via: 'rpc' }, upload.error);
+            syncFailToast('Step 2 failed: ' + upload.error);
             return;
           }
-          if (data && typeof data === 'object' && 'error' in data && data.error) {
-            appendSyncDebug('sync_step2_fail', { via: 'invoke_body' }, String(data.error));
-            syncFailToast('Step 2 failed: ' + String(data.error));
-            return;
-          }
-          syncResult = data;
-          appendSyncDebug('sync_upload_done', { via: 'invoke' });
+          processed = upload.processed;
+          appendSyncDebug('sync_upload_done', { via: 'rpc', processed });
         } catch (err) {
-          appendSyncDebug('sync_step2_fail', { via: 'invoke_throw' }, String(err));
+          appendSyncDebug('sync_step2_fail', { via: 'rpc_throw' }, String(err));
           syncFailToast('Step 2 failed: ' + String(err));
           return;
         }
 
         try {
-          appendSyncDebug('sync_parse_done', {
-            processed: syncResult?.processed ?? -1,
-          });
-          toast.success(`Synced ${syncResult?.processed ?? 0} workout(s).`);
+          appendSyncDebug('sync_parse_done', { processed });
+          toast.success(`Synced ${processed} workout(s).`);
 
           toast.message('Sync: refreshing profile...');
           appendSyncDebug('sync_profile_reload');
