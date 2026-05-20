@@ -1,12 +1,10 @@
 import despia from 'despia-native';
-import { readHealthKitWorkoutsForSync, SYNC_DAYS } from '@/lib/healthKitWorkoutRead';
+import { readHealthKitWorkoutsForSync } from '@/lib/healthKitWorkoutRead';
 import {
-  appendSyncDebug,
-  estimateJsonBytes,
   releaseHealthKit,
   summarizeRawHealthKitWorkouts,
   tryAcquireHealthKit,
-} from '@/lib/syncDebug';
+} from '@/lib/healthKitSync';
 
 export interface WorkoutObject {
   sourceId: string;
@@ -50,7 +48,6 @@ export async function fetchRecentWorkouts(): Promise<DespiaSyncResult> {
   }
 
   if (!tryAcquireHealthKit('sync')) {
-    appendSyncDebug('hk_lock_busy', { owner: 'sync' });
     return {
       workouts: [],
       rawPayload: null,
@@ -59,36 +56,18 @@ export async function fetchRecentWorkouts(): Promise<DespiaSyncResult> {
   }
 
   try {
-    appendSyncDebug('hk_fetch_start', { kind: 'sync', days: SYNC_DAYS, phases: 'hr_only' });
-
     const { merged: rawWorkouts, phases } = await readHealthKitWorkoutsForSync();
 
     const summary = summarizeRawHealthKitWorkouts(rawWorkouts);
 
     console.log('[Despia] HealthKit workouts merged:', summary.count, summary);
 
-    appendSyncDebug('hk_fetch_returned', {
-      merged: true,
-      rawCount: summary.count,
-      totalSamples: summary.totalSamples,
-      sampleKeys: summary.sampleKeys.slice(0, 80),
-    });
-
-    appendSyncDebug('hk_normalize_start', { rawCount: summary.count });
-
     const workouts = normaliseWorkouts(rawWorkouts);
-
-    const normalizedBytes = estimateJsonBytes(workouts);
-    appendSyncDebug('hk_normalize_done', {
-      normalizedCount: workouts.length,
-      normalizedBytes: normalizedBytes ?? -1,
-    });
 
     return { workouts, rawPayload: { phases, mergedCount: rawWorkouts.length }, error: null };
   } catch (err) {
     const message = String(err);
     console.error('[Despia] fetchRecentWorkouts failed:', err);
-    appendSyncDebug('hk_fetch_error', undefined, message);
     return { workouts: [], rawPayload: null, error: message };
   } finally {
     releaseHealthKit('sync');

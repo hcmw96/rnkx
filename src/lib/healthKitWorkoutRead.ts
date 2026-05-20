@@ -1,5 +1,4 @@
 import despia from 'despia-native';
-import { appendSyncDebug } from '@/lib/syncDebug';
 
 /** Used at connect time (days=1) — not for manual sync fetch. */
 export const HEALTHKIT_WORKOUT_INCLUDED_FULL =
@@ -54,10 +53,8 @@ export interface SyncHealthKitReadResult {
 export async function readHealthKitWorkoutsForSync(): Promise<SyncHealthKitReadResult> {
   const days = SYNC_DAYS;
 
-  appendSyncDebug('hk_fetch_start', { phase: 'hr', days, mode: 'hr_only' });
   const hrResult = await despia(workoutsCommand(days, SYNC_INCLUDED_HR), ['healthkitWorkouts']);
   const hrWorkouts = extractHealthkitWorkoutsArray(hrResult);
-  appendSyncDebug('hk_fetch_returned', { phase: 'hr', rawCount: hrWorkouts.length, mode: 'hr_only' });
 
   return {
     merged: hrWorkouts,
