@@ -18,6 +18,8 @@ export type SyncDebugStep =
   | 'sync_parse_done'
   | 'sync_profile_reload'
   | 'sync_done'
+  | 'max_hr_applied'
+  | 'max_hr_apply_fail'
   | 'sync_step1_fail'
   | 'sync_step2_fail'
   | 'sync_step3_fail'

@@ -75,6 +75,11 @@ import {
   tryAcquireHealthKit,
   waitForHealthKitIdle,
 } from '@/lib/syncDebug';
+import {
+  inferMaxHrFromAppleWorkouts,
+  nextProfileMaxHrFromApple,
+  shouldApplyAppleMaxHrToProfile,
+} from '@/lib/appleMaxHr';
 import { cn } from '@/lib/utils';
 import { syncAppleWorkoutsToDatabase } from '@/lib/syncActivitiesApple';
 import { fetchRecentWorkouts } from '@/services/despia';
@@ -183,6 +188,8 @@ function labelForMaxHrSource(source: string | null | undefined): string {
       return 'Detected from WHOOP';
     case 'terra_live':
       return 'Detected from your wearable';
+    case 'apple_watch':
+      return 'Detected from Apple Watch';
     default:
       return source ? `Source: ${source}` : '';
   }
@@ -587,6 +594,29 @@ export default function ProfilePage() {
           }
           processed = upload.processed;
           appendSyncDebug('sync_upload_done', { via: 'rpc', processed });
+
+          if (shouldApplyAppleMaxHrToProfile(athlete.max_hr_source)) {
+            const inferred = inferMaxHrFromAppleWorkouts(workouts);
+            const curMax = parseMaxHrDisplay(athlete.max_hr);
+            const nextMax = nextProfileMaxHrFromApple(curMax, inferred);
+            const needsMaxHrWrite =
+              nextMax !== null &&
+              (curMax !== nextMax || athlete.max_hr_source !== 'apple_watch');
+            if (needsMaxHrWrite) {
+              const { error: maxHrErr } = await supabase
+                .from('athletes')
+                .update({ max_hr: nextMax, max_hr_source: 'apple_watch' })
+                .eq('id', athlete.id);
+              if (!maxHrErr) {
+                setAthlete((prev) =>
+                  prev ? { ...prev, max_hr: nextMax, max_hr_source: 'apple_watch' } : prev,
+                );
+                appendSyncDebug('max_hr_applied', { bpm: nextMax });
+              } else {
+                appendSyncDebug('max_hr_apply_fail', undefined, maxHrErr.message);
+              }
+            }
+          }
         } catch (err) {
           appendSyncDebug('sync_step2_fail', { via: 'rpc_throw' }, String(err));
           syncFailToast('Step 2 failed: ' + String(err));
