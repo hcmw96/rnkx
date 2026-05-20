@@ -148,10 +148,10 @@ export function InviteFriendModal({ open, onOpenChange, leagueId, leagueName, on
           <div className="relative">
             <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
             <Input
-              placeholder="Search by name or username…"
+              placeholder="Search by name or username..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="pl-9"
+              className="border-neon-lime/50 bg-[hsla(0,0%,8%,1)] pl-9 focus-visible:border-neon-lime focus-visible:ring-2 focus-visible:ring-neon-lime/40 focus-visible:ring-offset-0"
             />
           </div>
 

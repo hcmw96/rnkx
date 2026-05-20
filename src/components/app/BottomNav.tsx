@@ -1,13 +1,13 @@
 import { Link, useLocation } from "react-router-dom";
-import { Home, Trophy, User, UsersRound } from "lucide-react";
+import { Heart, Home, Trophy, User } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { haptic } from "@/lib/haptics";
 
 const navItems = [
-  { path: "/app", icon: Home, label: "Home", match: "exact" as const },
-  { path: "/app/leaderboard", icon: Trophy, label: "Leaderboard", match: "exact" as const },
-  { path: "/app/social", icon: UsersRound, label: "Social", match: "prefix" as const },
-  { path: "/app/profile", icon: User, label: "Profile", match: "exact" as const },
+  { path: "/app", icon: Home, label: "Dashboard" },
+  { path: "/app/leaderboard", icon: Trophy, label: "Leaderboard" },
+  { path: "/app/recovery", icon: Heart, label: "Recovery" },
+  { path: "/app/profile", icon: User, label: "Profile" },
 ];
 
 export function BottomNav() {
@@ -19,25 +19,22 @@ export function BottomNav() {
         className="flex h-16 items-center justify-around px-4"
         style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}
       >
-        {navItems.map(({ path, icon: Icon, label, match }) => {
-          const isActive =
-            match === "prefix"
-              ? location.pathname === path || location.pathname.startsWith(`${path}/`)
-              : location.pathname === path;
+        {navItems.map(({ path, icon: Icon, label }) => {
+          const isActive = location.pathname === path;
           return (
             <Link
               key={path}
               to={path}
               onClick={() => haptic('light')}
               className={cn(
-                "flex flex-col items-center gap-1 px-4 py-2 transition-colors",
+                "flex flex-col items-center gap-1 px-3 py-2 transition-colors",
                 isActive
                   ? "text-secondary"
                   : "text-muted-foreground hover:text-foreground"
               )}
             >
               <Icon className={cn("h-5 w-5", isActive && "glow-cyan")} />
-              <span className={cn("text-xs font-medium", isActive && "text-secondary")}>
+              <span className={cn("text-[10px] font-medium sm:text-xs", isActive && "text-secondary")}>
                 {label}
               </span>
             </Link>

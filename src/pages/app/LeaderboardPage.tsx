@@ -1,11 +1,11 @@
 import { useCallback, useEffect, useMemo, useState, type ComponentType } from 'react';
-import { Link } from 'react-router-dom';
-import { Bell, ChevronDown, Globe, MessageCircle, Settings, Users, Zap } from 'lucide-react';
+import { ChevronDown, Globe, Users, Zap } from 'lucide-react';
 import { AppShell } from '@/components/app/AppShell';
+import { AppHeaderActions } from '@/components/app/AppHeaderActions';
+import { LeaderboardLeaguesPanel } from '@/components/leaderboard/LeaderboardLeaguesPanel';
 import { PremiumGate } from '@/components/PremiumGate';
 import { FriendsPreview } from '@/components/premium/PreviewMocks';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Button } from '@/components/ui/button';
 import { getCountryByName } from '@/data/countries';
 import { haptic } from '@/lib/haptics';
 import { usePullToRefresh } from '@/hooks/usePullToRefresh';
@@ -292,40 +292,8 @@ export default function LeaderboardPage() {
     { id: 'leagues', label: 'Leagues' },
   ];
 
-  const headerActions = (
-    <>
-      <Link
-        to="/app/social"
-        aria-label="Messages"
-        className="rounded-lg p-2 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-        onClick={() => haptic('light')}
-      >
-        <MessageCircle className="h-5 w-5" />
-      </Link>
-      <button
-        type="button"
-        aria-label="Notifications"
-        className="rounded-lg p-2 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-        onClick={() => {
-          haptic('light');
-          toast.message('Notifications', { description: 'Alerts will appear here soon.' });
-        }}
-      >
-        <Bell className="h-5 w-5" />
-      </button>
-      <Link
-        to="/app/profile"
-        aria-label="Settings"
-        className="rounded-lg p-2 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-        onClick={() => haptic('light')}
-      >
-        <Settings className="h-5 w-5" />
-      </Link>
-    </>
-  );
-
   return (
-    <AppShell headerActions={headerActions}>
+    <AppShell headerActions={<AppHeaderActions />}>
       <section className="mx-auto flex max-w-lg flex-col gap-5 pb-2" {...pullHandlers}>
         {(isRefreshing || pullDistance > 0) && (
           <p className="text-center text-xs text-muted-foreground">
@@ -398,8 +366,10 @@ export default function LeaderboardPage() {
                 className={cn(
                   'rounded-lg py-2.5 text-center text-[11px] font-semibold transition-colors sm:text-xs',
                   scopeTab === t.id
-                    ? 'bg-muted text-foreground shadow-sm'
-                    : 'text-muted-foreground hover:text-foreground/90'
+                    ? t.id === 'leagues'
+                      ? 'border border-neon-lime/70 bg-muted/80 text-foreground shadow-sm'
+                      : 'bg-muted text-foreground shadow-sm'
+                    : 'text-muted-foreground hover:text-foreground/90',
                 )}
               >
                 {t.label}
@@ -439,19 +409,7 @@ export default function LeaderboardPage() {
             </div>
           </PremiumGate>
         ) : scopeTab === 'leagues' ? (
-          <div className="rounded-xl border border-border/70 bg-[hsla(0,0%,10%,1)] px-6 py-12 text-center shadow-sm">
-            <p className="font-display text-lg uppercase tracking-[0.06em] text-foreground">Private leagues</p>
-            <p className="mt-2 max-w-xs mx-auto text-sm text-muted-foreground">
-              See standings for leagues you&apos;ve joined from the Social hub.
-            </p>
-            <Button
-              type="button"
-              className="mt-6 bg-neon-lime font-semibold text-black hover:bg-neon-lime/90"
-              asChild
-            >
-              <Link to="/app/social/leagues">View leagues</Link>
-            </Button>
-          </div>
+          <LeaderboardLeaguesPanel />
         ) : !error && rows.length === 0 ? (
           <p className="rounded-xl border border-border bg-[hsla(0,0%,10%,1)] px-4 py-10 text-center text-sm text-muted-foreground">
             No athletes ranked yet

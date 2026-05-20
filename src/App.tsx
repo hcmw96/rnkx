@@ -335,7 +335,18 @@ function SessionRoutes() {
         </Route>
         <Route path="/app/friends" element={<Navigate to="/app/social/friends" replace />} />
         <Route path="/app/leagues" element={<Navigate to="/app/social/leagues" replace />} />
-        <Route path="/app/recovery" element={<Navigate to="/app/social" replace />} />
+        <Route
+          path="/app/recovery"
+          element={
+            !session ? (
+              <Navigate to="/auth" replace />
+            ) : !profileComplete ? (
+              <Navigate to="/onboarding" replace />
+            ) : (
+              <RecoveryPage />
+            )
+          }
+        />
         <Route
           path="/app/leagues/:leagueId"
           element={

@@ -1,6 +1,4 @@
 import { useCallback, useEffect, useState } from 'react';
-import { AppShell } from '@/components/app/AppShell';
-import { PremiumGate } from '@/components/PremiumGate';
 import { CreateLeagueModal } from '@/components/leagues/CreateLeagueModal';
 import { InviteFriendModal } from '@/components/leagues/InviteFriendModal';
 import { PrivateLeagueCard } from '@/components/leagues/PrivateLeagueCard';
@@ -13,34 +11,26 @@ type LeagueRow = {
   description: string | null;
   image_url: string | null;
   conversation_id: string | null;
-  league_type: string;
   invite_code: string | null;
 };
 
-type PrivateLeaguesPageProps = {
-  embedded?: boolean;
-};
-
-export default function PrivateLeaguesPage({ embedded = false }: PrivateLeaguesPageProps) {
+export function LeaderboardLeaguesPanel() {
   const [athleteId, setAthleteId] = useState<string | undefined>();
-  const [authUserId, setAuthUserId] = useState<string | undefined>();
   const [leagues, setLeagues] = useState<{ league: LeagueRow; memberCount: number }[]>([]);
   const [loading, setLoading] = useState(true);
   const [inviteLeague, setInviteLeague] = useState<LeagueRow | null>(null);
+
   const load = useCallback(async () => {
     setLoading(true);
     const { data: auth, error: authErr } = await supabase.auth.getUser();
     if (authErr || !auth.user) {
-      toast.error(authErr?.message ?? 'Not signed in');
       setAthleteId(undefined);
-      setAuthUserId(undefined);
       setLeagues([]);
       setLoading(false);
       return;
     }
 
     const uid = auth.user.id;
-    setAuthUserId(uid);
     const [byUserId, byId] = await Promise.all([
       supabase.from('athletes').select('id').eq('user_id', uid).not('username', 'is', null).maybeSingle(),
       supabase.from('athletes').select('id').eq('id', uid).not('username', 'is', null).maybeSingle(),
@@ -75,7 +65,7 @@ export default function PrivateLeaguesPage({ embedded = false }: PrivateLeaguesP
 
     const { data: leagueRows, error: leagueErr } = await supabase
       .from('private_leagues')
-      .select('id, name, description, image_url, conversation_id, league_type, invite_code')
+      .select('id, name, description, image_url, conversation_id, invite_code')
       .in('id', leagueIds);
 
     if (leagueErr) {
@@ -85,7 +75,10 @@ export default function PrivateLeaguesPage({ embedded = false }: PrivateLeaguesP
       return;
     }
 
-    const { data: allMembers } = await supabase.from('private_league_members').select('league_id').in('league_id', leagueIds);
+    const { data: allMembers } = await supabase
+      .from('private_league_members')
+      .select('league_id')
+      .in('league_id', leagueIds);
 
     const countByLeague = new Map<string, number>();
     for (const row of allMembers ?? []) {
@@ -106,35 +99,37 @@ export default function PrivateLeaguesPage({ embedded = false }: PrivateLeaguesP
     void load();
   }, [load]);
 
-  const content = (
-    <section className="mx-auto max-w-lg space-y-4">
+  return (
+    <div className="space-y-3 pb-4">
       <div className="flex items-center justify-between gap-3">
-        {!embedded ? (
-          <h1 className="font-display text-xl text-foreground">Private leagues</h1>
-        ) : (
-          <h2 className="font-display text-lg text-foreground">Leagues</h2>
-        )}
-        {athleteId ? <CreateLeagueModal athleteId={athleteId} onCreated={() => void load()} /> : null}
+        <h3 className="font-display text-lg uppercase tracking-wide text-foreground">Your Leagues</h3>
+        {athleteId ? (
+          <CreateLeagueModal
+            athleteId={athleteId}
+            onCreated={() => void load()}
+            triggerLabel="+ New League"
+            triggerClassName="h-9 shrink-0 rounded-lg bg-neon-lime px-3 text-xs font-semibold text-black hover:bg-neon-lime/90"
+          />
+        ) : null}
       </div>
 
       {loading ? (
-        <p className="text-sm text-muted-foreground">Loading…</p>
+        <p className="text-sm text-muted-foreground">Loading leagues…</p>
       ) : leagues.length === 0 ? (
-        <p className="rounded-lg border border-dashed border-border p-6 text-center text-sm text-muted-foreground">
+        <p className="rounded-xl border border-dashed border-border/70 bg-[hsla(0,0%,10%,1)] px-4 py-10 text-center text-sm text-muted-foreground">
           No leagues yet. Create one to compete with friends.
         </p>
       ) : (
-        <ul className="space-y-2">
+        <ul className="space-y-2.5">
           {leagues.map(({ league, memberCount }) => (
             <li key={league.id}>
               <PrivateLeagueCard
                 id={league.id}
                 name={league.name}
                 memberCount={memberCount}
-                inviteCode={league.invite_code}
-                conversationId={league.conversation_id}
                 imageUrl={league.image_url}
                 description={league.description}
+                conversationId={league.conversation_id}
                 onAddFriend={() => setInviteLeague(league)}
               />
             </li>
@@ -153,18 +148,6 @@ export default function PrivateLeaguesPage({ embedded = false }: PrivateLeaguesP
           onInvited={() => void load()}
         />
       ) : null}
-    </section>
-  );
-
-  if (embedded) {
-    return content;
-  }
-
-  return (
-    <AppShell>
-      <PremiumGate athleteId={athleteId} userId={authUserId}>
-        {content}
-      </PremiumGate>
-    </AppShell>
+    </div>
   );
 }

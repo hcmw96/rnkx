@@ -1,68 +1,87 @@
-import { Users, UserPlus } from 'lucide-react';
+import { MessageCircle, UserPlus } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Link } from 'react-router-dom';
+import { LeagueChevronLogo } from '@/components/leagues/LeagueChevronLogo';
 
 interface PrivateLeagueCardProps {
   id: string;
   name: string;
   memberCount: number;
-  inviteCode: string | null;
+  inviteCode?: string | null;
   conversationId?: string | null;
   imageUrl?: string | null;
   description?: string | null;
-  onShareInvite: () => void;
+  /** Opens add-friend modal (leaderboard leagues tab). */
+  onAddFriend?: () => void;
+  /** Legacy: share invite link (social leagues page). */
+  onShareInvite?: () => void;
 }
 
 export function PrivateLeagueCard({
   id,
   name,
   memberCount,
-  inviteCode,
   imageUrl,
   description,
+  conversationId,
+  onAddFriend,
   onShareInvite,
+  inviteCode,
 }: PrivateLeagueCardProps) {
+  const chatHref = conversationId ? `/app/leagues/${id}#chat` : `/app/leagues/${id}`;
+
   return (
-    <Link
-      to={`/app/leagues/${id}`}
+    <div
       className={cn(
-        'flex w-full items-center gap-3 rounded-lg border border-border bg-card p-3',
-        'transition-colors hover:border-muted-foreground/50',
+        'flex w-full items-center gap-3 rounded-xl border border-border/80 bg-[hsla(0,0%,10%,1)] p-3.5',
+        'shadow-sm',
       )}
     >
-      <div className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-full bg-primary/10">
-        {imageUrl ? (
-          <img src={imageUrl} alt={name} className="h-full w-full object-cover" />
-        ) : (
-          <Users className="h-5 w-5 text-primary" />
-        )}
-      </div>
-      <div className="min-w-0 flex-1">
-        <div className="truncate font-medium text-foreground">{name}</div>
-        {description ? (
-          <div className="truncate text-xs text-muted-foreground">{description}</div>
-        ) : (
-          <div className="text-xs text-muted-foreground">
-            {memberCount} member{memberCount !== 1 ? 's' : ''}
-          </div>
-        )}
-      </div>
-      <div className="flex items-center gap-1">
+      <Link to={`/app/leagues/${id}`} className="flex min-w-0 flex-1 items-center gap-3">
+        <div className="flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-full">
+          {imageUrl ? (
+            <img src={imageUrl} alt={name} className="h-full w-full rounded-full object-cover" />
+          ) : (
+            <LeagueChevronLogo className="h-11 w-11" />
+          )}
+        </div>
+        <div className="min-w-0 flex-1">
+          <div className="truncate text-[15px] font-semibold text-foreground">{name}</div>
+          {description ? (
+            <div className="truncate text-xs text-muted-foreground">{description}</div>
+          ) : (
+            <div className="text-xs text-muted-foreground">
+              {memberCount} member{memberCount !== 1 ? 's' : ''}
+            </div>
+          )}
+        </div>
+      </Link>
+      <div className="flex shrink-0 items-center gap-0.5">
         <button
           type="button"
-          onClick={(e) => {
-            e.preventDefault();
-            e.stopPropagation();
+          onClick={() => {
+            if (onAddFriend) {
+              onAddFriend();
+              return;
+            }
             if (!inviteCode) return;
-            onShareInvite();
+            onShareInvite?.();
           }}
-          disabled={!inviteCode}
-          title={inviteCode ? 'Invite friends' : 'Invite link unavailable'}
-          className="p-2 text-muted-foreground transition-colors hover:text-foreground disabled:opacity-40"
+          disabled={!onAddFriend && !inviteCode}
+          title={onAddFriend ? 'Add friend to league' : inviteCode ? 'Invite friends' : 'Invite unavailable'}
+          className="rounded-lg p-2.5 text-muted-foreground transition-colors hover:bg-muted/60 hover:text-foreground disabled:opacity-40"
+          aria-label="Add friend to league"
         >
           <UserPlus className="h-4 w-4" />
         </button>
+        <Link
+          to={chatHref}
+          className="rounded-lg p-2.5 text-secondary transition-colors hover:bg-muted/60"
+          aria-label="League chat"
+        >
+          <MessageCircle className="h-4 w-4 fill-secondary/20" />
+        </Link>
       </div>
-    </Link>
+    </div>
   );
 }

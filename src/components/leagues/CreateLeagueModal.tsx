@@ -12,9 +12,16 @@ import { cn } from '@/lib/utils';
 interface CreateLeagueModalProps {
   athleteId: string;
   onCreated: () => void;
+  triggerLabel?: string;
+  triggerClassName?: string;
 }
 
-export function CreateLeagueModal({ athleteId, onCreated }: CreateLeagueModalProps) {
+export function CreateLeagueModal({
+  athleteId,
+  onCreated,
+  triggerLabel = 'New League',
+  triggerClassName,
+}: CreateLeagueModalProps) {
   const [open, setOpen] = useState(false);
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
@@ -141,8 +148,15 @@ export function CreateLeagueModal({ athleteId, onCreated }: CreateLeagueModalPro
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button size="sm" className="gap-1 bg-primary text-primary-foreground hover:bg-primary/90">
-          <Plus className="h-4 w-4" /> New League
+        <Button
+          size="sm"
+          className={cn(
+            'gap-1 bg-primary text-primary-foreground hover:bg-primary/90',
+            triggerClassName,
+          )}
+        >
+          {triggerLabel.startsWith('+') ? null : <Plus className="h-4 w-4" />}
+          {triggerLabel}
         </Button>
       </DialogTrigger>
       <DialogContent className="border-border bg-card">
