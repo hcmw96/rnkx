@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
+import { invokePushNotify } from '@/lib/pushNotify';
 import { supabase } from '@/services/supabase';
 import { toast } from 'sonner';
 import { Search, Loader2, UserPlus } from 'lucide-react';
@@ -115,16 +116,12 @@ export function InviteFriendModal({ open, onOpenChange, leagueId, leagueName, on
           .maybeSingle();
 
         if (invitedAthlete?.user_id) {
-          void supabase.functions
-            .invoke('notify-league-invite', {
-              body: {
-                invited_user_id: invitedAthlete.user_id,
-                league_name: leagueName,
-                league_id: leagueId,
-                inviter_name: inviterName,
-              },
-            })
-            .catch((err) => console.error('[Push] League invite notification failed:', err));
+          invokePushNotify('notify-league-invite', {
+            invited_user_id: invitedAthlete.user_id,
+            league_name: leagueName,
+            league_id: leagueId,
+            inviter_name: inviterName,
+          });
         }
       }
 

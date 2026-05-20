@@ -9,6 +9,7 @@ import { LeaguePodium } from '@/components/leagues/LeaguePodium';
 import { LeagueHighlights } from '@/components/leagues/LeagueHighlights';
 import { LeagueActivityFeed } from '@/components/leagues/LeagueActivityFeed';
 import { EditLeagueModal } from '@/components/leagues/EditLeagueModal';
+import { invokePushNotify } from '@/lib/pushNotify';
 import { supabase } from '@/services/supabase';
 import { toast } from 'sonner';
 import { shareLeagueInvite } from '@/lib/shareLeagueInvite';
@@ -244,20 +245,11 @@ export default function LeaguePage() {
       return;
     }
     setChatInput('');
-    try {
-      const { error: notifyErr } = await supabase.functions.invoke('notify-new-message', {
-        body: {
-          conversation_id: conversationId,
-          sender_athlete_id: currentAthleteId,
-          message_body: messageBody,
-        },
-      });
-      if (notifyErr) {
-        console.warn('[League chat] notify-new-message:', notifyErr.message);
-      }
-    } catch (e) {
-      console.warn('[League chat] notify-new-message failed:', e);
-    }
+    invokePushNotify('notify-new-message', {
+      conversation_id: conversationId,
+      sender_athlete_id: currentAthleteId,
+      message_body: messageBody,
+    });
   };
 
   return (

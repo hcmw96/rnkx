@@ -62,8 +62,8 @@ import { getCountryByName } from '@/data/countries';
 import { isDespiaIphoneUa } from '@/lib/despiaPlatform';
 import {
   extractHealthkitWorkoutsArray,
-  HEALTHKIT_WORKOUT_INCLUDED_FULL,
   readHealthKitWorkouts,
+  SYNC_INCLUDED_HR,
 } from '@/lib/healthKitWorkoutRead';
 import {
   isHealthKitBusy,
@@ -420,9 +420,16 @@ export default function ProfilePage() {
       return;
     }
 
+    if (appleHkLiveOk === true) {
+      return;
+    }
+
     let cancelled = false;
 
     void (async () => {
+      await new Promise((r) => setTimeout(r, 1500));
+      if (cancelled) return;
+
       if (syncingRef.current || isHealthKitBusy()) {
         return;
       }
@@ -451,7 +458,7 @@ export default function ProfilePage() {
     return () => {
       cancelled = true;
     };
-  }, [athlete?.id, athleteWearablesKey]);
+  }, [athlete?.id, athleteWearablesKey, appleHkLiveOk]);
 
   const openAvatarPicker = () => {
     fileInputRef.current?.click();
@@ -716,10 +723,7 @@ export default function ProfilePage() {
     setAppleConnecting(true);
     setAppleError(null);
     try {
-      await despia(
-        `healthkit://workouts?days=1&included=${HEALTHKIT_WORKOUT_INCLUDED_FULL}`,
-        ['healthkitWorkouts'],
-      );
+      await despia(`healthkit://workouts?days=1&included=${SYNC_INCLUDED_HR}`, ['healthkitWorkouts']);
 
       const current = athlete.wearables ?? [];
       const nextWearables = Array.from(new Set([...current, 'apple_watch']));

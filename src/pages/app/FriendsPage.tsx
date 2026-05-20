@@ -3,6 +3,7 @@ import { AppShell } from '@/components/app/AppShell';
 import { PremiumGate } from '@/components/PremiumGate';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { invokePushNotify } from '@/lib/pushNotify';
 import { supabase } from '@/services/supabase';
 import { toast } from 'sonner';
 import { Search, UserPlus, Check, X } from 'lucide-react';
@@ -175,6 +176,10 @@ export default function FriendsPage({ embedded = false }: FriendsPageProps) {
       return;
     }
     toast.success('Friend request sent.');
+    invokePushNotify('notify-friend-request', {
+      from_athlete_id: athleteId,
+      to_athlete_id: friendId,
+    });
     setSearch('');
     setResults([]);
   };

@@ -1,4 +1,8 @@
+import despia from 'despia-native';
 import OneSignal from 'react-onesignal';
+import { isDespiaIphoneUa } from '@/lib/despiaPlatform';
+
+const PUSH_PERMISSION_PROMPT_KEY = 'rnkx_onesignal_permission_prompted';
 
 let initPromise: Promise<void> | null = null;
 
@@ -28,4 +32,21 @@ export async function setOneSignalExternalId(athleteId: string): Promise<void> {
 
 export async function requestNotificationPermission(): Promise<boolean> {
   return OneSignal.Notifications.requestPermission();
+}
+
+/**
+ * Despia native OneSignal permission prompt (iOS). Runs at most once per device.
+ */
+export async function requestDespiaOneSignalPermissionOnce(): Promise<void> {
+  if (typeof window === 'undefined') return;
+  if (!(window as Window & { despia?: unknown }).despia) return;
+  if (!isDespiaIphoneUa()) return;
+  if (localStorage.getItem(PUSH_PERMISSION_PROMPT_KEY) === '1') return;
+
+  try {
+    await despia('onesignal://requestPermission', ['oneSignalResponse']);
+    localStorage.setItem(PUSH_PERMISSION_PROMPT_KEY, '1');
+  } catch (err) {
+    console.warn('[OneSignal] Despia permission request failed:', err);
+  }
 }

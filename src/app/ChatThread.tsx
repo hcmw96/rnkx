@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { useParams, Link } from "react-router-dom";
+import { invokePushNotify } from "@/lib/pushNotify";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -202,13 +203,11 @@ export default function ChatThread() {
       if (error) throw error;
       if (type === "text") setNewMsg("");
 
-      supabase.functions.invoke("notify-new-message", {
-        body: {
-          receiver_athlete_id: friendId,
-          sender_name: myDisplayName || "Someone",
-          preview: type === "gif" ? "Sent a GIF" : content,
-        },
-      }).catch((err) => console.warn("[Push] notify failed:", err));
+      invokePushNotify("notify-new-message", {
+        receiver_athlete_id: friendId,
+        sender_name: myDisplayName || "Someone",
+        preview: type === "gif" ? "Sent a GIF" : content,
+      });
     } catch (err) {
       console.error("Send error:", err);
     } finally {

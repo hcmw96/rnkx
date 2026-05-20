@@ -9,15 +9,15 @@ const PROBE_INCLUDED = 'HKQuantityTypeIdentifierHeartRateAverage';
 /** days=7 + all metrics in one call has hung ~60s and killed the WebView on some devices. */
 export const SYNC_DAYS = 5;
 
-/** Proven safe on devices where combined pace metrics kill the WebView on the 2nd HK call. */
-const SYNC_INCLUDED_HR =
+/** Proven safe on devices where RunningSpeed / Distance aggregates kill the WebView. */
+export const SYNC_INCLUDED_HR =
   'HKQuantityTypeIdentifierHeartRateAverage,HKQuantityTypeIdentifierHeartRateMax';
 
 export type HealthKitWorkoutReadKind = 'sync' | 'probe';
 
 export function healthKitWorkoutsCommand(kind: HealthKitWorkoutReadKind): string {
   if (kind === 'probe') {
-    return `healthkit://workouts?days=${SYNC_DAYS}&included=${PROBE_INCLUDED}`;
+    return `healthkit://workouts?days=1&included=${PROBE_INCLUDED}`;
   }
   return `healthkit://workouts?days=${SYNC_DAYS}&included=${SYNC_INCLUDED_HR}`;
 }
