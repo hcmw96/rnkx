@@ -1,5 +1,4 @@
 import despia from 'despia-native';
-import { readHealthKitWorkoutsForSync } from '@/lib/healthKitWorkoutRead';
 import {
   releaseHealthKit,
   summarizeRawHealthKitWorkouts,
@@ -56,10 +55,13 @@ export async function fetchRecentWorkouts(): Promise<DespiaSyncResult> {
   }
 
   try {
-    // HR-only HealthKit read — RunningSpeedAverage / DistanceWalkingRunning in `included`
-    // has hung ~60s and killed the Despia WebView on some devices (Kirsty). Pace still
-    // comes from workout distance + duration in normaliseWorkouts when metadata exists.
-    const { merged: rawWorkouts, phases } = await readHealthKitWorkoutsForSync();
+    const result = await despia(
+      'healthkit://workouts?days=5&included=HKQuantityTypeIdentifierHeartRateAverage,HKQuantityTypeIdentifierHeartRateMax,HKQuantityTypeIdentifierRunningSpeedAverage',
+      ['healthkitWorkouts'],
+    );
+
+    const raw = (result as Record<string, unknown> | null)?.healthkitWorkouts;
+    const rawWorkouts: unknown[] = Array.isArray(raw) ? raw : [];
 
     const summary = summarizeRawHealthKitWorkouts(rawWorkouts);
 
@@ -67,7 +69,7 @@ export async function fetchRecentWorkouts(): Promise<DespiaSyncResult> {
 
     const workouts = normaliseWorkouts(rawWorkouts);
 
-    return { workouts, rawPayload: { phases, mergedCount: rawWorkouts.length }, error: null };
+    return { workouts, rawPayload: { mergedCount: rawWorkouts.length }, error: null };
   } catch (err) {
     const message = String(err);
     console.error('[Despia] fetchRecentWorkouts failed:', err);
