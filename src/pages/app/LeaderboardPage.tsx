@@ -1,15 +1,23 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState, type ComponentType } from 'react';
+import { Link } from 'react-router-dom';
+import { Bell, ChevronDown, Globe, MessageCircle, Settings, Users, Zap } from 'lucide-react';
 import { AppShell } from '@/components/app/AppShell';
-import { LeagueToggle, type LeaderboardLeagueTab } from '@/components/leaderboard/LeagueToggle';
 import { PremiumGate } from '@/components/PremiumGate';
 import { FriendsPreview } from '@/components/premium/PreviewMocks';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Button } from '@/components/ui/button';
 import { getCountryByName } from '@/data/countries';
+import { haptic } from '@/lib/haptics';
 import { usePullToRefresh } from '@/hooks/usePullToRefresh';
 import { cn } from '@/lib/utils';
 import { supabase } from '@/services/supabase';
+import { toast } from 'sonner';
 
 type League = 'engine' | 'run';
+type ScopeTab = 'open' | 'overall' | 'friends' | 'leagues';
+
+/** Marketing subtitle under active season title (until DB exposes a subtitle field). */
+const SEASON_TAGLINE = 'Spring Push';
 
 interface LeaderboardViewRow {
   id: string;
@@ -61,13 +69,6 @@ function num(v: number | string | null | undefined): number {
   return typeof v === 'number' ? v : Number(v);
 }
 
-function rankClass(rank: number): string | undefined {
-  if (rank === 1) return 'rank-gold font-bold';
-  if (rank === 2) return 'rank-silver font-bold';
-  if (rank === 3) return 'rank-bronze font-bold';
-  return undefined;
-}
-
 function buildRowsForLeague(merged: MergedAthlete[], league: League): LeaderboardRow[] {
   const allHaveLeagueRank =
     merged.length > 0 &&
@@ -115,23 +116,25 @@ function buildRowsForLeague(merged: MergedAthlete[], league: League): Leaderboar
 
 function LeaderboardSkeleton() {
   return (
-    <ul className="space-y-3">
+    <ul className="space-y-3 px-0.5">
       {Array.from({ length: 8 }).map((_, i) => (
-        <li key={i} className="flex items-center gap-3 rounded-lg border border-border bg-card p-4">
-          <Skeleton className="h-8 w-10 shrink-0" />
-          <Skeleton className="h-10 w-10 shrink-0 rounded-full" />
+        <li
+          key={i}
+          className="flex items-center gap-3 rounded-xl border border-border bg-[hsla(0,0%,10%,1)] px-3 py-3.5 sm:gap-4"
+        >
+          <Skeleton className="h-12 w-8 shrink-0 rounded-md bg-muted" />
+          <Skeleton className="h-14 w-14 shrink-0 rounded-full bg-muted" />
           <div className="min-w-0 flex-1 space-y-2">
-            <Skeleton className="h-4 w-32" />
-            <Skeleton className="h-3 w-20" />
+            <Skeleton className="h-5 w-36 rounded bg-muted" />
+            <Skeleton className="h-3 w-24 rounded bg-muted" />
           </div>
-          <Skeleton className="h-4 w-14 shrink-0" />
+          <Skeleton className="h-10 w-16 shrink-0 rounded bg-muted" />
         </li>
       ))}
     </ul>
   );
 }
 
-/** PostgREST may show commas as %2C in request URLs; the client still sends plain comma-separated columns. */
 const LEADERBOARD_COLUMNS = 'id,display_name,total_score,rank';
 const ATHLETE_ENRICH_COLUMNS = 'id,username,country,avatar_url';
 const ATHLETE_STATS_COLUMNS = 'athlete_id,season_id,category,score,rank';
@@ -149,7 +152,10 @@ async function fetchMergedLeaderboard(
   const ids = base.map((r) => r.id).filter(Boolean);
 
   const athleteMap = new Map<string, AthleteExtra>();
-  const statsMap = new Map<string, { engine_score: number; run_score: number; engine_rank: number | null; run_rank: number | null }>();
+  const statsMap = new Map<
+    string,
+    { engine_score: number; run_score: number; engine_rank: number | null; run_rank: number | null }
+  >();
 
   if (ids.length) {
     const [athRes, statRes] = await Promise.all([
@@ -209,8 +215,32 @@ async function fetchMergedLeaderboard(
   return { merged, error: null };
 }
 
+function FakeDropdown({
+  icon: Icon,
+  label,
+}: {
+  icon?: ComponentType<{ className?: string }>;
+  label: string;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={() => {
+        haptic('light');
+        toast.message(`${label}`, { description: 'Filter options coming soon.' });
+      }}
+      className="flex flex-1 items-center justify-center gap-1.5 whitespace-nowrap rounded-lg border border-border bg-[hsla(0,0%,8%,1)] px-2 py-2.5 text-[11px] font-medium text-foreground shadow-sm sm:flex-initial sm:min-w-0 sm:px-3 sm:text-xs"
+    >
+      {Icon ? <Icon className="h-4 w-4 shrink-0 text-muted-foreground" /> : null}
+      <span className="truncate">{label}</span>
+      <ChevronDown className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+    </button>
+  );
+}
+
 export default function LeaderboardPage() {
-  const [activeLeague, setActiveLeague] = useState<LeaderboardLeagueTab>('engine');
+  const [activeLeague, setActiveLeague] = useState<League>('engine');
+  const [scopeTab, setScopeTab] = useState<ScopeTab>('open');
   const [seasonName, setSeasonName] = useState<string | null>(null);
   const [merged, setMerged] = useState<MergedAthlete[]>([]);
   const [loading, setLoading] = useState(true);
@@ -250,105 +280,237 @@ export default function LeaderboardPage() {
   }, [loadAll]);
 
   const { isRefreshing, pullDistance, pullHandlers } = usePullToRefresh(loadAll);
-  const rows = useMemo(() => {
-    if (activeLeague === 'friends') return [];
-    return buildRowsForLeague(merged, activeLeague);
-  }, [merged, activeLeague]);
+
+  const rows = useMemo(() => buildRowsForLeague(merged, activeLeague), [merged, activeLeague]);
+
+  const bannerSeasonLabel = seasonName ?? 'Season 1';
+
+  const scopeTabs: { id: ScopeTab; label: string }[] = [
+    { id: 'open', label: 'Open' },
+    { id: 'overall', label: 'Overall' },
+    { id: 'friends', label: 'Friends' },
+    { id: 'leagues', label: 'Leagues' },
+  ];
+
+  const headerActions = (
+    <>
+      <Link
+        to="/app/social"
+        aria-label="Messages"
+        className="rounded-lg p-2 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+        onClick={() => haptic('light')}
+      >
+        <MessageCircle className="h-5 w-5" />
+      </Link>
+      <button
+        type="button"
+        aria-label="Notifications"
+        className="rounded-lg p-2 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+        onClick={() => {
+          haptic('light');
+          toast.message('Notifications', { description: 'Alerts will appear here soon.' });
+        }}
+      >
+        <Bell className="h-5 w-5" />
+      </button>
+      <Link
+        to="/app/profile"
+        aria-label="Settings"
+        className="rounded-lg p-2 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+        onClick={() => haptic('light')}
+      >
+        <Settings className="h-5 w-5" />
+      </Link>
+    </>
+  );
 
   return (
-    <AppShell>
-      <section className="space-y-4" {...pullHandlers}>
+    <AppShell headerActions={headerActions}>
+      <section className="mx-auto flex max-w-lg flex-col gap-5 pb-2" {...pullHandlers}>
         {(isRefreshing || pullDistance > 0) && (
           <p className="text-center text-xs text-muted-foreground">
-            {isRefreshing
-              ? 'Refreshing leaderboard...'
-              : pullDistance > 72
-                ? 'Release to refresh'
-                : 'Pull to refresh'}
+            {isRefreshing ? 'Refreshing…' : pullDistance > 72 ? 'Release to refresh' : ''}
           </p>
         )}
-        <div className="space-y-1">
-          <h2 className="font-display text-xl text-foreground">Leaderboard</h2>
-          {seasonName ? (
-            <p className="text-sm text-muted-foreground">{seasonName}</p>
-          ) : (
-            <p className="text-sm text-muted-foreground">No active season</p>
-          )}
+
+        {/* Status banner */}
+        <div className="flex items-center gap-2 rounded-xl border border-neon-lime/35 bg-[hsla(72,35%,12%,0.45)] px-3.5 py-2.5">
+          <Zap className="h-4 w-4 shrink-0 text-neon-lime" aria-hidden />
+          <p className="text-[13px] font-medium leading-snug text-neon-lime">
+            <span className="font-semibold">{bannerSeasonLabel} is LIVE</span>
+            <span className="text-neon-lime/85"> · Rankings update weekly</span>
+          </p>
         </div>
 
-        <LeagueToggle activeLeague={activeLeague} onLeagueChange={setActiveLeague} />
+        {/* Season title */}
+        <div className="space-y-0.5">
+          <h2 className="font-display text-3xl uppercase tracking-[0.04em] text-foreground md:text-[2rem]">
+            {bannerSeasonLabel}
+          </h2>
+          <p className="text-[15px] text-muted-foreground">{SEASON_TAGLINE}</p>
+        </div>
 
-        {error && <p className="rounded-md bg-destructive/10 p-3 text-sm text-destructive">{error}</p>}
+        {/* ENGINE | RUN segmented control */}
+        <div className="flex rounded-xl bg-muted/90 p-1">
+          <button
+            type="button"
+            onClick={() => {
+              haptic('light');
+              setActiveLeague('engine');
+            }}
+            className={cn(
+              'flex-1 rounded-lg px-4 py-3 font-display text-sm font-bold uppercase tracking-wide transition-colors',
+              activeLeague === 'engine'
+                ? 'bg-neon-lime text-black shadow-sm'
+                : 'bg-transparent text-muted-foreground hover:text-foreground'
+            )}
+          >
+            ENGINE
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              haptic('light');
+              setActiveLeague('run');
+            }}
+            className={cn(
+              'flex-1 rounded-lg px-4 py-3 font-display text-sm font-bold uppercase tracking-wide transition-colors',
+              activeLeague === 'run'
+                ? 'bg-neon-lime text-black shadow-sm'
+                : 'bg-transparent text-muted-foreground hover:text-foreground'
+            )}
+          >
+            RUN
+          </button>
+        </div>
+
+        {/* Secondary scope tabs */}
+        <div className="rounded-xl border border-border/60 bg-[hsla(0,0%,10%,1)] p-1">
+          <div className="grid grid-cols-4 gap-0.5">
+            {scopeTabs.map((t) => (
+              <button
+                key={t.id}
+                type="button"
+                onClick={() => {
+                  haptic('light');
+                  setScopeTab(t.id);
+                }}
+                className={cn(
+                  'rounded-lg py-2.5 text-center text-[11px] font-semibold transition-colors sm:text-xs',
+                  scopeTab === t.id
+                    ? 'bg-muted text-foreground shadow-sm'
+                    : 'text-muted-foreground hover:text-foreground/90'
+                )}
+              >
+                {t.label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Filter row */}
+        <div className="flex gap-2">
+          <FakeDropdown label={seasonName ?? 'Season 1'} />
+          <FakeDropdown icon={Globe} label="All" />
+          <FakeDropdown icon={Users} label="All" />
+        </div>
+
+        {error && (
+          <p className="rounded-xl border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+            {error}
+          </p>
+        )}
 
         {loading ? (
           <LeaderboardSkeleton />
-        ) : activeLeague === 'friends' ? (
+        ) : scopeTab === 'friends' ? (
           <PremiumGate
             athleteId={currentUserId ?? undefined}
             userId={currentUserId ?? undefined}
-            title="Invite Friends to Compete"
-            description="Private leagues and friend leaderboards"
+            title="Friends leaderboard"
+            description="Invite friends from Social → Friends"
             previewContent={<FriendsPreview />}
           >
-            <div className="rounded-lg border border-border bg-card p-6 text-center">
-              <p className="text-sm font-medium text-foreground">Friends leaderboard</p>
+            <div className="rounded-xl border border-border bg-[hsla(0,0%,10%,1)] px-4 py-8 text-center">
+              <p className="font-medium text-foreground">Friends leaderboard</p>
               <p className="mt-2 text-sm text-muted-foreground">
-                Invite friends from Social → Friends to compete in private leagues and compare scores here.
+                Compare scores with people you&apos;ve added. Open Social → Friends to get started.
               </p>
             </div>
           </PremiumGate>
+        ) : scopeTab === 'leagues' ? (
+          <div className="rounded-xl border border-border/70 bg-[hsla(0,0%,10%,1)] px-6 py-12 text-center shadow-sm">
+            <p className="font-display text-lg uppercase tracking-[0.06em] text-foreground">Private leagues</p>
+            <p className="mt-2 max-w-xs mx-auto text-sm text-muted-foreground">
+              See standings for leagues you&apos;ve joined from the Social hub.
+            </p>
+            <Button
+              type="button"
+              className="mt-6 bg-neon-lime font-semibold text-black hover:bg-neon-lime/90"
+              asChild
+            >
+              <Link to="/app/social/leagues">View leagues</Link>
+            </Button>
+          </div>
         ) : !error && rows.length === 0 ? (
-          <p className="rounded-lg border border-border bg-card p-6 text-center text-sm text-muted-foreground">
+          <p className="rounded-xl border border-border bg-[hsla(0,0%,10%,1)] px-4 py-10 text-center text-sm text-muted-foreground">
             No athletes ranked yet
           </p>
         ) : (
           !error && (
-            <ul className="space-y-2">
+            <ul className="flex flex-col gap-2.5 px-0.5 pb-6">
               {rows.map((item) => {
                 const isSelf = currentUserId != null && item.id === currentUserId;
                 const initial = (item.username || item.displayName || '?').trim().charAt(0).toUpperCase() || '?';
-                const flag = item.country ? getCountryByName(item.country)?.flag ?? '' : '';
+                const flag = item.country ? (getCountryByName(item.country)?.flag ?? '') : '';
+                const isFirst = item.rank === 1;
+                const pointsInt = Number.isFinite(item.score) ? Math.round(item.score) : 0;
 
                 return (
                   <li
                     key={item.id}
                     className={cn(
-                      'flex items-center gap-3 rounded-lg border bg-card p-3',
-                      isSelf ? 'border-primary/60 ring-1 ring-primary/25' : 'border-border'
+                      'flex items-center gap-3 rounded-xl border bg-[hsla(0,0%,10%,1)] px-3 py-3.5 shadow-sm sm:gap-4',
+                      isSelf ? 'border-neon-lime/50 ring-1 ring-neon-lime/20' : 'border-border/70'
                     )}
                   >
                     <span
                       className={cn(
-                        'w-9 shrink-0 text-center font-mono text-lg tabular-nums text-muted-foreground',
-                        rankClass(item.rank)
+                        'flex w-8 shrink-0 justify-center tabular-nums leading-none sm:w-11',
+                        isFirst
+                          ? 'font-display text-4xl font-bold text-neon-lime sm:text-[2.75rem]'
+                          : 'font-display text-[1.85rem] font-bold text-muted-foreground sm:text-4xl'
                       )}
+                      aria-label={`Rank ${item.rank}`}
                     >
                       {item.rank}
                     </span>
 
-                    <div className="relative h-10 w-10 shrink-0 overflow-hidden rounded-full border border-border bg-muted">
+                    <div className="relative h-14 w-14 shrink-0 overflow-hidden rounded-full border border-border/80 bg-[hsla(0,0%,14%,1)]">
                       {item.avatarUrl ? (
-                        <img src={item.avatarUrl} alt={item.username} className="h-full w-full object-cover" />
+                        <img src={item.avatarUrl} alt="" className="h-full w-full object-cover" />
                       ) : (
-                        <span className="flex h-full w-full items-center justify-center text-sm font-semibold text-foreground">
+                        <span className="flex h-full w-full items-center justify-center font-display text-lg font-bold text-muted-foreground">
                           {initial}
                         </span>
                       )}
                     </div>
 
                     <div className="min-w-0 flex-1">
-                      <p className="truncate font-medium text-foreground">{item.username}</p>
-                      <div className="mt-0.5 flex items-center gap-1.5 text-xs text-muted-foreground">
-                        {flag ? <span className="text-base leading-none">{flag}</span> : null}
+                      <p className="truncate text-[15px] font-semibold text-foreground">{item.username}</p>
+                      <div className="mt-0.5 flex items-center gap-1 text-[13px] text-muted-foreground">
+                        {flag ? <span className="text-[15px] leading-none">{flag}</span> : null}
                         {item.country ? <span className="truncate">{item.country}</span> : null}
                       </div>
                     </div>
 
-                    <div className="shrink-0 text-right">
-                      <p className="text-sm font-semibold text-foreground">
-                        {item.score.toLocaleString(undefined, { maximumFractionDigits: 1 })}
-                      </p>
-                      <p className="text-[10px] uppercase tracking-wide text-muted-foreground">pts</p>
+                    <div className="flex shrink-0 flex-col items-end gap-0.5 text-right">
+                      <span className="font-display text-[1.85rem] font-bold leading-none text-neon-lime tabular-nums sm:text-[2rem]">
+                        {pointsInt.toLocaleString()}
+                      </span>
+                      <span className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
+                        pts
+                      </span>
                     </div>
                   </li>
                 );
@@ -356,6 +518,7 @@ export default function LeaderboardPage() {
             </ul>
           )
         )}
+
       </section>
     </AppShell>
   );

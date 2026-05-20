@@ -1,23 +1,27 @@
-import { ReactNode } from "react";
-import { BottomNav } from "./BottomNav";
+import { ReactNode } from 'react';
+import { BottomNav } from './BottomNav';
 
 interface AppShellProps {
   children: ReactNode;
   title?: string;
+  /** @deprecated No longer used — kept so older call sites compile. */
   showSettings?: boolean;
+  headerActions?: ReactNode;
 }
 
-export function AppShell({ children }: AppShellProps) {
+export function AppShell({ children, headerActions }: AppShellProps) {
   return (
     <div className="app-root">
       <header className="app-header border-b border-border bg-background">
-        <div className="relative flex h-14 items-center justify-center px-4">
-          <h1 className="font-display text-xl text-neon-lime">RNKX</h1>
+        <div className="relative grid h-14 grid-cols-[1fr_auto_1fr] items-center px-3 sm:px-4">
+          <div className="min-w-0" aria-hidden />
+          <h1 className="justify-self-center font-display text-xl tracking-wide text-neon-lime">
+            RNKX
+          </h1>
+          <div className="flex min-w-0 justify-end gap-1 sm:gap-2">{headerActions}</div>
         </div>
       </header>
-      <main className="app-content px-4 py-4">
-        {children}
-      </main>
+      <main className="app-content px-4 py-4">{children}</main>
       <BottomNav />
     </div>
   );
