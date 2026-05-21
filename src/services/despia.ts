@@ -57,7 +57,7 @@ export async function fetchRecentWorkouts(): Promise<DespiaSyncResult> {
 
   try {
     const result = await despia(
-      'healthkit://workouts?days=5&included=HKQuantityTypeIdentifierHeartRateAverage,HKQuantityTypeIdentifierHeartRateMax,HKQuantityTypeIdentifierRunningSpeedAverage',
+      'healthkit://workouts?days=7&included=HKQuantityTypeIdentifierHeartRateAverage,HKQuantityTypeIdentifierHeartRateMax,HKQuantityTypeIdentifierRunningSpeedAverage',
       ['healthkitWorkouts'],
     );
 
@@ -91,9 +91,9 @@ function normaliseWorkouts(raw: unknown): WorkoutObject[] {
     const w = item as Record<string, unknown>;
 
     const activityTypeRaw = String(w.activityType ?? w.workoutActivityType ?? 'unknown');
-    if (/run/i.test(activityTypeRaw)) {
-      toast.message('run distance debug', {
-        description: `dist:${w.distance} totalDist:${w.totalDistance} distM:${w.distanceM} val:${w.value} unit:${w.unit}`,
+    if (String(w.activityType ?? '').toLowerCase().includes('run')) {
+      toast.message('run debug', {
+        description: `dist:${w.distance} totalDist:${w.totalDistance} val:${w.value} unit:${w.unit} speed:${JSON.stringify(Array.isArray(w.samples) ? (w.samples as any[]).find((s: any) => s.key?.includes('Speed')) : null)}`,
       });
     }
 
