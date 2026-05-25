@@ -28,7 +28,7 @@ import {
   UserPlus,
   Users,
 } from 'lucide-react';
-import { useLocation, useNavigate } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import { AppShell } from '@/components/app/AppShell';
 import { PremiumGate } from '@/components/PremiumGate';
@@ -79,6 +79,8 @@ import {
   shouldApplyAppleMaxHrToProfile,
 } from '@/lib/appleMaxHr';
 import { cn } from '@/lib/utils';
+import { SeasonShareDialog } from '@/components/share/SeasonShareDialog';
+import { useScoreSharePrompt } from '@/context/ScoreSharePromptContext';
 import { syncAppleWorkoutsToDatabase } from '@/lib/syncActivitiesApple';
 import { fetchRecentWorkouts } from '@/services/despia';
 import { presentPaywall, restoreInAppPurchasesAndApplyPremium } from '@/services/revenuecat';
@@ -248,6 +250,8 @@ export default function ProfilePage() {
   const [settingsBusy, setSettingsBusy] = useState(false);
   const [deleteAccountOpen, setDeleteAccountOpen] = useState(false);
   const [deleteAccountWorking, setDeleteAccountWorking] = useState(false);
+  const [seasonShareOpen, setSeasonShareOpen] = useState(false);
+  const { promptFromAppleSync } = useScoreSharePrompt();
 
   const loadProfile = useCallback(async () => {
     setLoading(true);
@@ -553,6 +557,7 @@ export default function ProfilePage() {
         toast.message('Sync: uploading ' + workouts.length + ' workouts...');
 
         let processed = 0;
+        let syncResults: Awaited<ReturnType<typeof syncAppleWorkoutsToDatabase>>['results'] = [];
         try {
           const upload = await syncAppleWorkoutsToDatabase(athlete.id, workouts);
           if (upload.error) {
@@ -560,6 +565,7 @@ export default function ProfilePage() {
             return;
           }
           processed = upload.processed;
+          syncResults = upload.results;
 
           if (shouldApplyAppleMaxHrToProfile(athlete.max_hr_source)) {
             const inferred = inferMaxHrFromAppleWorkouts(workouts);
@@ -591,6 +597,7 @@ export default function ProfilePage() {
           toast.message('Sync: refreshing profile...');
           try {
             await loadProfile();
+            await promptFromAppleSync(athlete.id, workouts, syncResults);
           } catch {
             // profile reload failed silently — sync was still successful
           }
@@ -839,31 +846,6 @@ export default function ProfilePage() {
     }
   }
 
-  const shareProfileCard = async () => {
-    const url = `${window.location.origin}/app/profile`;
-    const text = 'Check out my RNKX profile!';
-    try {
-      if (typeof navigator !== 'undefined' && typeof navigator.share === 'function') {
-        await navigator.share({ title: 'RNKX', text, url });
-        return;
-      }
-      if (navigator.clipboard?.writeText) {
-        await navigator.clipboard.writeText(url);
-        toast.success('Profile link copied to clipboard');
-        return;
-      }
-      toast.error('Sharing is not supported in this browser.');
-    } catch (err) {
-      if (err instanceof Error && err.name === 'AbortError') return;
-      try {
-        await navigator.clipboard.writeText(url);
-        toast.success('Profile link copied to clipboard');
-      } catch {
-        toast.error('Could not share or copy link.');
-      }
-    }
-  };
-
   async function handlePasswordResetEmail() {
     if (!userEmail?.trim()) {
       toast.error('No email on file for this account.');
@@ -1032,7 +1014,7 @@ export default function ProfilePage() {
   function handleAssistantSend() {
     setAssistantOpen(false);
     setAssistantInput('');
-    toast.message('Assistant coming soon.', { description: 'You will be able to ask about scoring and rules here.' });
+    navigate('/app/how-it-works');
   }
 
   const countryInfo = athlete?.country ? getCountryByName(athlete.country) : null;
@@ -1097,6 +1079,9 @@ export default function ProfilePage() {
               <DialogContent className="max-w-md border-border bg-card">
                 <DialogHeader>
                   <DialogTitle className="font-sans text-lg font-semibold">Ask the Assistant</DialogTitle>
+                  <p className="text-sm text-muted-foreground">
+                    Scoring rules and fair-play guidelines are in How It Works.
+                  </p>
                 </DialogHeader>
                 <Input
                   placeholder="Ask about scoring, leagues, or fair play…"
@@ -1111,7 +1096,7 @@ export default function ProfilePage() {
                     Cancel
                   </Button>
                   <Button type="button" className="bg-neon-lime text-black hover:bg-neon-lime/90" onClick={handleAssistantSend}>
-                    Send
+                    View scoring rules
                   </Button>
                 </DialogFooter>
               </DialogContent>
@@ -1156,7 +1141,7 @@ export default function ProfilePage() {
                   type="button"
                   variant="outline"
                   className="w-full border-neon-lime/40 bg-zinc-950/60 font-semibold text-foreground hover:bg-zinc-900"
-                  onClick={() => void shareProfileCard()}
+                  onClick={() => setSeasonShareOpen(true)}
                 >
                   <Share2 className="h-4 w-4 text-neon-lime" aria-hidden />
                   Share Your RNKX Social Card
@@ -1675,14 +1660,19 @@ export default function ProfilePage() {
               ) : (
                 <ul className="space-y-2">
                   {friendsMini.map((f) => (
-                    <li key={f.id} className="flex items-center justify-between rounded-lg border border-border/60 bg-zinc-950/40 px-3 py-2">
-                      <div className="min-w-0">
-                        <p className="truncate text-sm font-medium text-foreground">{f.display_name || f.username}</p>
-                        <p className="text-xs text-muted-foreground">@{f.username ?? '—'}</p>
-                      </div>
-                      <div className="shrink-0 text-right text-xs text-muted-foreground">
-                        <span>#{f.rank ?? '—'}</span>
-                      </div>
+                    <li key={f.id}>
+                      <Link
+                        to={`/app/friends/${f.id}`}
+                        className="flex items-center justify-between rounded-lg border border-border/60 bg-zinc-950/40 px-3 py-2 transition-colors hover:border-neon-lime/30 hover:bg-zinc-900/60"
+                      >
+                        <div className="min-w-0">
+                          <p className="truncate text-sm font-medium text-foreground">{f.display_name || f.username}</p>
+                          <p className="text-xs text-muted-foreground">@{f.username ?? '—'}</p>
+                        </div>
+                        <div className="shrink-0 text-right text-xs text-muted-foreground">
+                          <span>#{f.rank ?? '—'}</span>
+                        </div>
+                      </Link>
                     </li>
                   ))}
                 </ul>
@@ -1875,6 +1865,11 @@ export default function ProfilePage() {
         )}
       </section>
       </TooltipProvider>
+      <SeasonShareDialog
+        open={seasonShareOpen}
+        onOpenChange={setSeasonShareOpen}
+        athleteId={athlete?.id ?? null}
+      />
     </AppShell>
   );
 }

@@ -28,7 +28,7 @@ export function PrivateLeagueCard({
   onShareInvite,
   inviteCode,
 }: PrivateLeagueCardProps) {
-  const chatHref = conversationId ? `/app/leagues/${id}#chat` : `/app/leagues/${id}`;
+  const chatHref = conversationId ? `/app/chat/group/${conversationId}` : `/app/leagues/${id}`;
 
   return (
     <div

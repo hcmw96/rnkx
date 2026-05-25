@@ -1,4 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
+import { Link } from 'react-router-dom';
+import { ChevronRight, MessageCircle, Search, UserPlus, Check, X } from 'lucide-react';
 import { AppShell } from '@/components/app/AppShell';
 import { PremiumGate } from '@/components/PremiumGate';
 import { Button } from '@/components/ui/button';
@@ -6,7 +8,6 @@ import { Input } from '@/components/ui/input';
 import { invokePushNotify } from '@/lib/pushNotify';
 import { supabase } from '@/services/supabase';
 import { toast } from 'sonner';
-import { Search, UserPlus, Check, X } from 'lucide-react';
 
 type AthleteLite = {
   id: string;
@@ -271,25 +272,57 @@ export default function FriendsPage({ embedded = false }: FriendsPageProps) {
               <p className="text-xs text-muted-foreground">No friends yet. Send a request above.</p>
             ) : (
               <ul className="space-y-2">
-                {friends.map((f) => (
-                  <li key={f.id} className="rounded-lg border border-border bg-card p-3">
-                    <div className="flex items-center justify-between gap-2">
-                      <div className="min-w-0">
-                        <p className="truncate font-medium text-foreground">{f.display_name || f.username}</p>
-                        <p className="text-xs text-muted-foreground">@{f.username ?? '—'}</p>
+                {friends.map((f) => {
+                  const name = f.display_name?.trim() || f.username || 'Athlete';
+                  const initial = name.charAt(0).toUpperCase() || '?';
+                  return (
+                    <li key={f.id}>
+                      <div className="flex items-center gap-2 rounded-lg border border-border bg-card p-2.5">
+                        <Link
+                          to={`/app/friends/${f.id}`}
+                          className="flex min-w-0 flex-1 items-center gap-3 rounded-md transition-colors hover:bg-muted/30"
+                        >
+                          <div className="relative h-10 w-10 shrink-0 overflow-hidden rounded-full border border-border/80 bg-muted">
+                            {f.avatar_url ? (
+                              <img src={f.avatar_url} alt="" className="h-full w-full object-cover" />
+                            ) : (
+                              <span className="flex h-full w-full items-center justify-center font-sans text-sm font-semibold text-muted-foreground">
+                                {initial}
+                              </span>
+                            )}
+                          </div>
+                          <div className="min-w-0 flex-1">
+                            <p className="truncate text-sm font-medium text-foreground">{name}</p>
+                            <p className="truncate text-xs text-muted-foreground">@{f.username ?? '—'}</p>
+                          </div>
+                          <div className="hidden shrink-0 text-right sm:block">
+                            <p className="text-xs text-muted-foreground">
+                              Rank{' '}
+                              <span className="font-display text-sm text-foreground tabular-nums">
+                                {f.rank != null ? `#${f.rank}` : '—'}
+                              </span>
+                            </p>
+                            <p className="font-display text-base tabular-nums text-neon-lime">
+                              {f.total_score.toLocaleString()}
+                            </p>
+                          </div>
+                          <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden />
+                        </Link>
+                        <Button
+                          type="button"
+                          size="icon"
+                          variant="outline"
+                          className="shrink-0 border-neon-lime/40 text-neon-lime hover:bg-neon-lime/10"
+                          asChild
+                        >
+                          <Link to={`/app/chat/${f.id}`} aria-label={`Message ${name}`}>
+                            <MessageCircle className="h-4 w-4" />
+                          </Link>
+                        </Button>
                       </div>
-                      <div className="shrink-0 text-right text-xs text-muted-foreground">
-                        <div>Rank {f.rank != null ? `#${f.rank}` : '—'}</div>
-                        <div className="text-xs text-muted-foreground">
-                          <span className="font-display text-base text-foreground tabular-nums">
-                            {f.total_score.toLocaleString()}
-                          </span>{' '}
-                          pts
-                        </div>
-                      </div>
-                    </div>
-                  </li>
-                ))}
+                    </li>
+                  );
+                })}
               </ul>
             )}
           </div>

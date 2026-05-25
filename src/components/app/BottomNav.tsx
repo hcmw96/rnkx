@@ -1,12 +1,12 @@
 import { Link, useLocation } from "react-router-dom";
-import { Home, Trophy, User, Users } from "lucide-react";
+import { Home, Trophy, User, UsersRound } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { haptic } from "@/lib/haptics";
 
 const navItems = [
   { path: "/app", icon: Home, label: "Dashboard" },
   { path: "/app/leaderboard", icon: Trophy, label: "Leaderboard" },
-  { path: "/app/friends", icon: Users, label: "Friends" },
+  { path: "/app/social", icon: UsersRound, label: "Social" },
   { path: "/app/profile", icon: User, label: "Profile" },
 ];
 
@@ -20,7 +20,11 @@ export function BottomNav() {
           const isActive =
             path === "/app"
               ? location.pathname === "/app"
-              : location.pathname === path || location.pathname.startsWith(`${path}/`);
+              : path === "/app/social"
+                ? location.pathname.startsWith("/app/social") ||
+                  location.pathname.startsWith("/app/friends") ||
+                  location.pathname.startsWith("/app/leagues")
+                : location.pathname === path || location.pathname.startsWith(`${path}/`);
           return (
             <Link
               key={path}

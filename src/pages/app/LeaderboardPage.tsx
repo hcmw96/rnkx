@@ -1,17 +1,18 @@
-import { useCallback, useEffect, useMemo, useState, type ComponentType } from 'react';
-import { ChevronDown, Globe, Users, Zap } from 'lucide-react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { Zap } from 'lucide-react';
 import { AppShell } from '@/components/app/AppShell';
-import { AppHeaderActions } from '@/components/app/AppHeaderActions';
 import { LeaderboardLeaguesPanel } from '@/components/leaderboard/LeaderboardLeaguesPanel';
+import { LeaderboardRows } from '@/components/leaderboard/LeaderboardRows';
 import { PremiumGate } from '@/components/PremiumGate';
 import { FriendsPreview } from '@/components/premium/PreviewMocks';
 import { Skeleton } from '@/components/ui/skeleton';
-import { getCountryByName } from '@/data/countries';
+import { divisionForRank, isDivision, type Division } from '@/lib/division';
+import { fetchAcceptedFriendIds } from '@/lib/friendships';
 import { haptic } from '@/lib/haptics';
+import { resolveAthleteId } from '@/lib/resolveAthleteId';
 import { usePullToRefresh } from '@/hooks/usePullToRefresh';
 import { cn } from '@/lib/utils';
 import { supabase } from '@/services/supabase';
-import { toast } from 'sonner';
 
 type League = 'engine' | 'run';
 type ScopeTab = 'open' | 'overall' | 'friends' | 'leagues';
@@ -220,29 +221,6 @@ async function fetchMergedLeaderboard(
   return { merged, error: null };
 }
 
-function FakeDropdown({
-  icon: Icon,
-  label,
-}: {
-  icon?: ComponentType<{ className?: string }>;
-  label: string;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={() => {
-        haptic('light');
-        toast.message(`${label}`, { description: 'Filter options coming soon.' });
-      }}
-      className="flex flex-1 items-center justify-center gap-1.5 whitespace-nowrap rounded-lg border border-border bg-[hsla(0,0%,8%,1)] px-2 py-2.5 text-[11px] font-medium text-foreground shadow-sm sm:flex-initial sm:min-w-0 sm:px-3 sm:text-xs"
-    >
-      {Icon ? <Icon className="h-4 w-4 shrink-0 text-muted-foreground" /> : null}
-      <span className="truncate">{label}</span>
-      <ChevronDown className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
-    </button>
-  );
-}
-
 export default function LeaderboardPage() {
   const [activeLeague, setActiveLeague] = useState<League>('engine');
   const [scopeTab, setScopeTab] = useState<ScopeTab>('open');
@@ -251,6 +229,9 @@ export default function LeaderboardPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+  const [myAthleteId, setMyAthleteId] = useState<string | null>(null);
+  const [friendIds, setFriendIds] = useState<Set<string>>(new Set());
+  const [myDivision, setMyDivision] = useState<Division>('Open');
 
   const loadAll = useCallback(async () => {
     setLoading(true);
@@ -261,7 +242,8 @@ export default function LeaderboardPage() {
       supabase.from('seasons').select('id,name').eq('is_active', true).maybeSingle(),
     ]);
 
-    setCurrentUserId(auth.user?.id ?? null);
+    const uid = auth.user?.id ?? null;
+    setCurrentUserId(uid);
 
     if (!seasonErr && seasonRow?.name) {
       setSeasonName(String(seasonRow.name));
@@ -269,7 +251,40 @@ export default function LeaderboardPage() {
       setSeasonName(null);
     }
 
-    const pack = await fetchMergedLeaderboard((seasonRow as { id?: string } | null)?.id ?? null);
+    const seasonId = (seasonRow as { id?: string } | null)?.id ?? null;
+
+    if (uid) {
+      const aid = await resolveAthleteId(uid);
+      setMyAthleteId(aid ?? null);
+      if (aid) {
+        const friends = await fetchAcceptedFriendIds(aid);
+        setFriendIds(new Set(friends));
+        const { data: myStats } = await supabase
+          .from('athlete_stats')
+          .select('engine_division, run_division, engine_rank, run_rank')
+          .eq('athlete_id', aid)
+          .maybeSingle();
+        const divRaw =
+          activeLeague === 'run'
+            ? (myStats?.run_division as string | undefined)
+            : (myStats?.engine_division as string | undefined);
+        if (isDivision(divRaw)) {
+          setMyDivision(divRaw);
+        } else {
+          const rankField =
+            activeLeague === 'run' ? myStats?.run_rank : myStats?.engine_rank;
+          if (rankField != null) setMyDivision(divisionForRank(Number(rankField)));
+          else setMyDivision('Open');
+        }
+      } else {
+        setFriendIds(new Set());
+      }
+    } else {
+      setMyAthleteId(null);
+      setFriendIds(new Set());
+    }
+
+    const pack = await fetchMergedLeaderboard(seasonId);
     if (pack.error) {
       setError(pack.error);
       setMerged([]);
@@ -278,7 +293,7 @@ export default function LeaderboardPage() {
     }
 
     setLoading(false);
-  }, []);
+  }, [activeLeague]);
 
   useEffect(() => {
     void loadAll();
@@ -286,7 +301,19 @@ export default function LeaderboardPage() {
 
   const { isRefreshing, pullDistance, pullHandlers } = usePullToRefresh(loadAll);
 
-  const rows = useMemo(() => buildRowsForLeague(merged, activeLeague), [merged, activeLeague]);
+  const rows = useMemo(() => {
+    let base = buildRowsForLeague(merged, activeLeague);
+    if (scopeTab === 'open') {
+      base = base.filter((r) => divisionForRank(r.rank) === myDivision);
+    }
+    if (scopeTab === 'friends') {
+      base = base
+        .filter((r) => friendIds.has(r.id))
+        .sort((a, b) => a.rank - b.rank)
+        .map((r, i) => ({ ...r, rank: i + 1 }));
+    }
+    return base;
+  }, [merged, activeLeague, scopeTab, myDivision, friendIds]);
 
   const seasonLabel = seasonShortLabel(seasonName);
 
@@ -298,7 +325,7 @@ export default function LeaderboardPage() {
   ];
 
   return (
-    <AppShell headerActions={<AppHeaderActions />}>
+    <AppShell>
       <section className="mx-auto flex max-w-lg flex-col gap-5 pb-2" {...pullHandlers}>
         {(isRefreshing || pullDistance > 0) && (
           <p className="text-center text-xs text-muted-foreground">
@@ -383,12 +410,15 @@ export default function LeaderboardPage() {
           </div>
         </div>
 
-        {/* Filter row */}
-        <div className="flex gap-2">
-          <FakeDropdown label={seasonLabel} />
-          <FakeDropdown icon={Globe} label="All" />
-          <FakeDropdown icon={Users} label="All" />
-        </div>
+        <p className="text-center text-xs text-muted-foreground">
+          {scopeTab === 'open'
+            ? `${myDivision} division · ${activeLeague === 'engine' ? 'Engine' : 'Run'}`
+            : scopeTab === 'overall'
+              ? `All divisions · ${activeLeague === 'engine' ? 'Engine' : 'Run'}`
+              : scopeTab === 'friends'
+                ? `Friends · ${activeLeague === 'engine' ? 'Engine' : 'Run'}`
+                : seasonLabel}
+        </p>
 
         {error && (
           <p className="rounded-xl border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">
@@ -400,18 +430,26 @@ export default function LeaderboardPage() {
           <LeaderboardSkeleton />
         ) : scopeTab === 'friends' ? (
           <PremiumGate
-            athleteId={currentUserId ?? undefined}
+            athleteId={myAthleteId ?? undefined}
             userId={currentUserId ?? undefined}
             title="Friends leaderboard"
-            description="Invite friends from Social → Friends"
+            description="Compare scores with athletes you've added as friends"
             previewContent={<FriendsPreview />}
           >
-            <div className="rounded-xl border border-border bg-[hsla(0,0%,10%,1)] px-4 py-8 text-center">
-              <p className="font-medium text-foreground">Friends leaderboard</p>
-              <p className="mt-2 text-sm text-muted-foreground">
-                Compare scores with people you&apos;ve added. Open Social → Friends to get started.
+            {friendIds.size === 0 ? (
+              <div className="rounded-xl border border-border bg-[hsla(0,0%,10%,1)] px-4 py-8 text-center">
+                <p className="font-medium text-foreground">No friends yet</p>
+                <p className="mt-2 text-sm text-muted-foreground">
+                  Add friends from Social → Friends to see them ranked here.
+                </p>
+              </div>
+            ) : rows.length === 0 ? (
+              <p className="rounded-xl border border-border bg-[hsla(0,0%,10%,1)] px-4 py-10 text-center text-sm text-muted-foreground">
+                No scored friends in this league yet
               </p>
-            </div>
+            ) : (
+              <LeaderboardRows rows={rows} currentUserId={currentUserId} friendIds={friendIds} />
+            )}
           </PremiumGate>
         ) : scopeTab === 'leagues' ? (
           <LeaderboardLeaguesPanel />
@@ -420,69 +458,7 @@ export default function LeaderboardPage() {
             No athletes ranked yet
           </p>
         ) : (
-          !error && (
-            <ul className="flex flex-col gap-1.5 px-0.5 pb-6">
-              {rows.map((item) => {
-                const isSelf = currentUserId != null && item.id === currentUserId;
-                const initial = (item.username || item.displayName || '?').trim().charAt(0).toUpperCase() || '?';
-                const flag = item.country ? (getCountryByName(item.country)?.flag ?? '') : '';
-                const isFirst = item.rank === 1;
-                const pointsInt = Number.isFinite(item.score) ? Math.round(item.score) : 0;
-
-                return (
-                  <li
-                    key={item.id}
-                    className={cn(
-                      'flex items-center gap-2.5 rounded-lg border bg-[hsla(0,0%,10%,1)] px-2.5 py-2 shadow-sm',
-                      isSelf ? 'border-neon-lime/50 ring-1 ring-neon-lime/20' : 'border-border/70'
-                    )}
-                  >
-                    <span
-                      className={cn(
-                        'w-8 shrink-0 text-center font-display text-xl font-bold tabular-nums leading-none',
-                        isFirst ? 'text-neon-lime' : 'text-muted-foreground',
-                      )}
-                      aria-label={`Rank ${item.rank}`}
-                    >
-                      {item.rank}
-                    </span>
-
-                    <div className="relative h-10 w-10 shrink-0 overflow-hidden rounded-full border border-border/80 bg-[hsla(0,0%,14%,1)]">
-                      {item.avatarUrl ? (
-                        <img src={item.avatarUrl} alt="" className="h-full w-full object-cover" />
-                      ) : (
-                        <span className="flex h-full w-full items-center justify-center font-sans text-sm font-semibold text-muted-foreground">
-                          {initial}
-                        </span>
-                      )}
-                    </div>
-
-                    <p className="min-w-0 flex-1 truncate text-sm font-medium text-foreground">
-                      {item.username}
-                    </p>
-
-                    {flag ? (
-                      <span className="shrink-0 text-base leading-none" aria-hidden>
-                        {flag}
-                      </span>
-                    ) : null}
-
-                    <div className="flex shrink-0 flex-col items-end gap-0.5 text-right">
-                      <span
-                        className={cn(
-                          'font-display text-2xl font-bold leading-none tabular-nums',
-                          isFirst ? 'text-neon-lime' : 'text-foreground',
-                        )}
-                      >
-                        {pointsInt.toLocaleString()}
-                      </span>
-                      <span className="text-xs lowercase text-muted-foreground">pts</span>
-                    </div>
-                  </li>
-                );
-              })}
-            </ul>
-          )
+          !error && <LeaderboardRows rows={rows} currentUserId={currentUserId} friendIds={friendIds} />
         )}
 
       </section>

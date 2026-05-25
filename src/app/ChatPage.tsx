@@ -1,13 +1,14 @@
 import { useState, useEffect, useCallback } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, Link } from "react-router-dom";
 import { AppShell } from "@/components/app/AppShell";
-import { supabase } from "@/integrations/supabase/client";
+import { ChatPremiumGate } from "@/components/chat/ChatPremiumGate";
+import { NewMessageModal } from "@/components/chat/NewMessageModal";
+import { supabase } from "@/services/supabase";
+import { resolveAthleteId } from "@/lib/resolveAthleteId";
 import { Skeleton } from "@/components/ui/skeleton";
 import { MessageCircle, Users, PenSquare } from "lucide-react";
-import { Link } from "react-router-dom";
 import { formatDistanceToNow } from "date-fns";
 import { Button } from "@/components/ui/button";
-import { NewMessageModal } from "@/components/chat/NewMessageModal";
 import { usePullToRefresh } from "@/hooks/usePullToRefresh";
 
 interface ChatItem {
@@ -33,18 +34,13 @@ export default function ChatPage() {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
 
-      const { data: athlete } = await supabase
-        .from("athletes")
-        .select("id")
-        .eq("user_id", user.id)
-        .single();
-
-      if (!athlete) return;
-      setAthleteId(athlete.id);
+      const aid = await resolveAthleteId(user.id);
+      if (!aid) return;
+      setAthleteId(aid);
 
       const [dmItems, groupItems] = await Promise.all([
-        loadDMs(athlete.id),
-        loadGroupChats(athlete.id),
+        loadDMs(aid),
+        loadGroupChats(aid),
       ]);
 
       const all = [...dmItems, ...groupItems].sort(
@@ -170,7 +166,8 @@ export default function ChatPage() {
     .map(i => i.id.replace("dm-", ""));
 
   return (
-    <AppShell showSettings>
+    <AppShell>
+      <ChatPremiumGate>
       <div className="space-y-2" {...pullHandlers}>
         {(isRefreshing || pullDistance > 0) && (
           <p className="text-center text-xs text-muted-foreground">
@@ -249,6 +246,7 @@ export default function ChatPage() {
           }}
         />
       )}
+      </ChatPremiumGate>
     </AppShell>
   );
 }

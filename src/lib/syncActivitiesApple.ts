@@ -1,8 +1,10 @@
 import type { WorkoutObject } from '@/services/despia';
 import { supabase } from '@/services/supabase';
+import type { ProcessActivityRpcResult } from '@/types/shareCards';
 
 export type SyncAppleWorkoutsResult = {
   processed: number;
+  results: ProcessActivityRpcResult[];
   error: string | null;
 };
 
@@ -17,15 +19,17 @@ export async function syncAppleWorkoutsToDatabase(
   });
 
   if (error) {
-    return { processed: 0, error: error.message };
+    return { processed: 0, results: [], error: error.message };
   }
 
-  const processed =
-    data && typeof data === 'object' && 'processed' in data
-      ? Number((data as { processed: number }).processed) || 0
-      : 0;
+  const payload = data && typeof data === 'object' ? (data as Record<string, unknown>) : null;
+  const processed = payload && 'processed' in payload ? Number(payload.processed) || 0 : 0;
+  const rawResults = payload?.results;
+  const results = Array.isArray(rawResults)
+    ? (rawResults as ProcessActivityRpcResult[])
+    : [];
 
-  return { processed, error: null };
+  return { processed, results, error: null };
 }
 
 /** @deprecated Use syncAppleWorkoutsToDatabase */

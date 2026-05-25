@@ -4,11 +4,11 @@ import { invokePushNotify } from "@/lib/pushNotify";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { ArrowLeft, Send, Check, CheckCheck, Image } from "lucide-react";
+import { ArrowLeft, Send, Check, CheckCheck } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
-import { MessageReaction } from "@/components/chat/MessageReaction";
-import { GifPicker } from "@/components/chat/GifPicker";
+import { ChatPremiumGate } from "@/components/chat/ChatPremiumGate";
+import { resolveAthleteId } from "@/lib/resolveAthleteId";
 
 interface Message {
   id: string;
@@ -20,23 +20,15 @@ interface Message {
   gif_url: string | null;
 }
 
-interface ReactionData {
-  message_id: string;
-  emoji: string;
-  athlete_id: string;
-}
-
 export default function ChatThread() {
   const { friendId } = useParams<{ friendId: string }>();
   const [messages, setMessages] = useState<Message[]>([]);
-  const [reactions, setReactions] = useState<Map<string, ReactionData[]>>(new Map());
   const [newMsg, setNewMsg] = useState("");
   const [myAthleteId, setMyAthleteId] = useState<string | null>(null);
   const [myDisplayName, setMyDisplayName] = useState("");
   const [friendName, setFriendName] = useState("");
   const [friendAvatar, setFriendAvatar] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
-  const [gifOpen, setGifOpen] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -46,15 +38,17 @@ export default function ChatThread() {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
 
+      const aid = await resolveAthleteId(user.id);
+      if (!aid) return;
+
       const { data: athlete } = await supabase
         .from("athletes")
-        .select("id, display_name, username")
-        .eq("user_id", user.id)
+        .select("display_name, username")
+        .eq("id", aid)
         .single();
 
-      if (!athlete) return;
-      setMyAthleteId(athlete.id);
-      setMyDisplayName(athlete.display_name || athlete.username);
+      setMyAthleteId(aid);
+      setMyDisplayName(athlete?.display_name || athlete?.username || "");
 
       const { data: friend } = await supabase
         .from("athletes")
@@ -67,14 +61,13 @@ export default function ChatThread() {
         setFriendAvatar(friend.avatar_url);
       }
 
-      await loadMessages(athlete.id);
-      await loadReactions(athlete.id);
+      await loadMessages(aid);
 
       await supabase
         .from("direct_messages")
         .update({ read_at: new Date().toISOString() })
         .eq("sender_id", friendId)
-        .eq("receiver_id", athlete.id)
+        .eq("receiver_id", aid)
         .is("read_at", null);
     }
 
@@ -117,13 +110,6 @@ export default function ChatThread() {
           );
         }
       )
-      .on(
-        "postgres_changes",
-        { event: "*", schema: "public", table: "message_reactions" },
-        () => {
-          if (myAthleteId) loadReactions(myAthleteId);
-        }
-      )
       .subscribe();
 
     return () => { supabase.removeChannel(channel); };
@@ -145,47 +131,6 @@ export default function ChatThread() {
       .limit(200);
 
     setMessages((data as Message[]) || []);
-  }
-
-  async function loadReactions(athleteId: string) {
-    // Get all message IDs in this conversation first
-    const { data: msgs } = await supabase
-      .from("direct_messages")
-      .select("id")
-      .or(
-        `and(sender_id.eq.${athleteId},receiver_id.eq.${friendId}),and(sender_id.eq.${friendId},receiver_id.eq.${athleteId})`
-      );
-
-    if (!msgs?.length) return;
-    const msgIds = msgs.map((m) => m.id);
-
-    const { data: rxns } = await supabase
-      .from("message_reactions")
-      .select("message_id, emoji, athlete_id")
-      .in("message_id", msgIds);
-
-    const map = new Map<string, ReactionData[]>();
-    for (const r of rxns || []) {
-      const existing = map.get(r.message_id) || [];
-      existing.push(r);
-      map.set(r.message_id, existing);
-    }
-    setReactions(map);
-  }
-
-  function getReactionsForMessage(messageId: string) {
-    const rxns = reactions.get(messageId) || [];
-    const emojiMap = new Map<string, { count: number; myReaction: boolean }>();
-    for (const r of rxns) {
-      const existing = emojiMap.get(r.emoji) || { count: 0, myReaction: false };
-      existing.count++;
-      if (r.athlete_id === myAthleteId) existing.myReaction = true;
-      emojiMap.set(r.emoji, existing);
-    }
-    return Array.from(emojiMap.entries()).map(([emoji, data]) => ({
-      emoji,
-      ...data,
-    }));
   }
 
   async function handleSend(msgContent?: string, type: string = "text", gifUrl?: string) {
@@ -215,11 +160,8 @@ export default function ChatThread() {
     }
   }
 
-  function handleGifSelect(gifUrl: string) {
-    handleSend("GIF", "gif", gifUrl);
-  }
-
   return (
+    <ChatPremiumGate>
     <div className="app-root">
       <header className="app-header border-b border-border bg-background">
         <div className="flex h-14 items-center gap-3 px-4">
@@ -235,14 +177,22 @@ export default function ChatThread() {
               </span>
             )}
           </div>
-          <h1 className="font-sans text-lg font-semibold text-foreground">{friendName}</h1>
+          {friendId ? (
+            <Link
+              to={`/app/friends/${friendId}`}
+              className="min-w-0 truncate font-sans text-lg font-semibold text-foreground hover:text-neon-lime"
+            >
+              {friendName}
+            </Link>
+          ) : (
+            <h1 className="font-sans text-lg font-semibold text-foreground">{friendName}</h1>
+          )}
         </div>
       </header>
 
       <div ref={scrollRef} className="app-content px-4 py-4 space-y-1">
         {messages.map((msg) => {
           const isMine = msg.sender_id === myAthleteId;
-          const msgReactions = getReactionsForMessage(msg.id);
           return (
             <div key={msg.id} className="group">
               <div className={cn("flex", isMine ? "justify-end" : "justify-start")}>
@@ -276,15 +226,6 @@ export default function ChatThread() {
                   </div>
                 </div>
               </div>
-              {myAthleteId && (
-                <MessageReaction
-                  messageId={msg.id}
-                  athleteId={myAthleteId}
-                  reactions={msgReactions}
-                  isMine={isMine}
-                  onToggle={() => myAthleteId && loadReactions(myAthleteId)}
-                />
-              )}
             </div>
           );
         })}
@@ -295,13 +236,6 @@ export default function ChatThread() {
           onSubmit={(e) => { e.preventDefault(); handleSend(); }}
           className="flex gap-2 items-center"
         >
-          <button
-            type="button"
-            onClick={() => setGifOpen(true)}
-            className="text-muted-foreground hover:text-foreground transition-colors"
-          >
-            <Image className="h-5 w-5" />
-          </button>
           <Input
             value={newMsg}
             onChange={(e) => setNewMsg(e.target.value)}
@@ -320,7 +254,7 @@ export default function ChatThread() {
         </form>
       </div>
 
-      <GifPicker open={gifOpen} onClose={() => setGifOpen(false)} onSelect={handleGifSelect} />
     </div>
+    </ChatPremiumGate>
   );
 }

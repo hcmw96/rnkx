@@ -1,17 +1,53 @@
+import { useEffect, useState } from 'react';
 import { ArrowLeft } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
+import { resolveAthleteId } from '@/lib/resolveAthleteId';
+import { supabase } from '@/services/supabase';
+import { presentPaywall, restoreInAppPurchasesAndApplyPremium } from '@/services/revenuecat';
+import { toast } from 'sonner';
 
 const BENEFITS = [
-  'Private leagues',
-  'Friend challenges',
-  'Group messaging',
-  'Priority support',
+  'Friends & friend leaderboards',
+  'Private leagues & group chat',
+  'Performance insights & recovery',
+  'Direct messaging',
 ] as const;
 
 export default function PremiumPage() {
   const navigate = useNavigate();
+  const [userId, setUserId] = useState<string | null>(null);
+  const [restoring, setRestoring] = useState(false);
+
+  useEffect(() => {
+    void (async () => {
+      const { data } = await supabase.auth.getUser();
+      setUserId(data.user?.id ?? null);
+    })();
+  }, []);
+
+  async function handleUpgrade() {
+    if (!userId) {
+      toast.message('Sign in to upgrade', { description: 'Open the RNKX app and log in first.' });
+      navigate('/auth', { replace: true });
+      return;
+    }
+    const athleteId = await resolveAthleteId(userId);
+    presentPaywall(athleteId ?? userId);
+  }
+
+  async function handleRestore() {
+    setRestoring(true);
+    try {
+      const result = await restoreInAppPurchasesAndApplyPremium();
+      if (result === 'premium') toast.success('Premium restored!');
+      else if (result === 'not_despia') toast.message('Restore is available in the RNKX iPhone app.');
+      else if (result === 'restore_error') toast.error('Could not restore purchases.');
+      else toast.message('No active subscription found.');
+    } finally {
+      setRestoring(false);
+    }
+  }
 
   return (
     <div className="min-h-screen bg-background px-4 py-8">
@@ -22,14 +58,14 @@ export default function PremiumPage() {
         </Button>
 
         <header className="space-y-2 text-center sm:text-left">
-          <h1 className="text-2xl font-bold tracking-tight text-foreground">RNKX Premium</h1>
-          <p className="text-sm text-muted-foreground">Unlock the full experience.</p>
+          <h1 className="font-display text-2xl text-foreground">RNKX Premium</h1>
+          <p className="text-sm text-muted-foreground">Unlock the full social and insights experience.</p>
         </header>
 
         <ul className="space-y-3 rounded-xl border border-border bg-card p-5 shadow-sm">
           {BENEFITS.map((line) => (
             <li key={line} className="flex gap-3 text-sm text-foreground">
-              <span className="mt-0.5 text-primary" aria-hidden>
+              <span className="mt-0.5 text-neon-lime" aria-hidden>
                 ✓
               </span>
               <span>{line}</span>
@@ -37,21 +73,23 @@ export default function PremiumPage() {
           ))}
         </ul>
 
-        <div className="flex flex-col gap-3 sm:flex-row">
-          <Button
-            type="button"
-            className="flex-1 font-semibold"
-            onClick={() => toast.message('Apple IAP via Despia will be available soon.')}
-          >
+        <div className="flex flex-col gap-3">
+          <Button type="button" className="w-full font-semibold bg-neon-lime text-black hover:bg-neon-lime/90" onClick={() => void handleUpgrade()}>
             Upgrade
           </Button>
-          <Button type="button" variant="outline" className="flex-1" onClick={() => navigate(-1)}>
-            Not now
+          <Button
+            type="button"
+            variant="outline"
+            className="w-full border-border"
+            disabled={restoring}
+            onClick={() => void handleRestore()}
+          >
+            {restoring ? 'Restoring…' : 'Restore purchases'}
+          </Button>
+          <Button type="button" variant="ghost" className="w-full" onClick={() => navigate(userId ? '/app/profile' : '/auth')}>
+            {userId ? 'Back to profile' : 'Sign in'}
           </Button>
         </div>
-        <p className="text-center text-xs text-muted-foreground">
-          Apple In-App Purchase via Despia will be wired here later.
-        </p>
       </div>
     </div>
   );

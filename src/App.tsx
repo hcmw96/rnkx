@@ -5,19 +5,25 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { Loader2 } from 'lucide-react';
 import { toast, Toaster } from 'sonner';
 import { ProfileGateContext } from '@/context/ProfileGateContext';
+import { ScoreSharePromptProvider } from '@/context/ScoreSharePromptContext';
 import LeaderboardPage from './pages/app/LeaderboardPage';
 import ProfilePage from './pages/app/ProfilePage';
 import PremiumPage from './pages/app/PremiumPage';
 import PrivateLeaguesPage from './pages/app/PrivateLeaguesPage';
 import LeaguePage from './pages/app/LeaguePage';
 import FriendsPage from './pages/app/FriendsPage';
+import FriendProfilePage from './pages/app/FriendProfilePage';
 import SocialPage from './pages/app/SocialPage';
+import ChatPage from './app/ChatPage';
+import ChatThread from './app/ChatThread';
+import GroupChatThread from './app/GroupChatThread';
 import Dashboard from './pages/app/Dashboard';
 import JoinLeaguePage from './pages/JoinLeaguePage';
 import AthleteAuth from './pages/AthleteAuth';
 import WhoopCallback from './pages/auth/WhoopCallback';
 import Onboarding from './pages/Onboarding';
 import HowItWorksPage from './pages/app/HowItWorksPage';
+import NotificationsPage from './pages/app/NotificationsPage';
 import {
   CookiesPageRoute,
   PrivacyPolicyPageRoute,
@@ -223,8 +229,11 @@ function SessionRoutes() {
     );
   }
 
+  const showApp = !!session && profileComplete;
+
   return (
     <ProfileGateContext.Provider value={{ refetchProfile }}>
+      <ScoreSharePromptProvider authUserId={session?.user?.id} enabled={showApp}>
       {welcomeAthleteId && showWelcomeOverlay ? (
         <WelcomeModal
           athleteId={welcomeAthleteId}
@@ -333,15 +342,64 @@ function SessionRoutes() {
           <Route path="leagues" element={<PrivateLeaguesPage embedded />} />
           <Route path="recovery" element={<Navigate to="/app/profile#recovery" replace />} />
         </Route>
+        <Route path="/app/friends" element={<Navigate to="/app/social/friends" replace />} />
         <Route
-          path="/app/friends"
+          path="/app/notifications"
           element={
             !session ? (
               <Navigate to="/auth" replace />
             ) : !profileComplete ? (
               <Navigate to="/onboarding" replace />
             ) : (
-              <FriendsPage />
+              <NotificationsPage />
+            )
+          }
+        />
+        <Route
+          path="/app/friends/:athleteId"
+          element={
+            !session ? (
+              <Navigate to="/auth" replace />
+            ) : !profileComplete ? (
+              <Navigate to="/onboarding" replace />
+            ) : (
+              <FriendProfilePage />
+            )
+          }
+        />
+        <Route
+          path="/app/chat"
+          element={
+            !session ? (
+              <Navigate to="/auth" replace />
+            ) : !profileComplete ? (
+              <Navigate to="/onboarding" replace />
+            ) : (
+              <ChatPage />
+            )
+          }
+        />
+        <Route
+          path="/app/chat/group/:conversationId"
+          element={
+            !session ? (
+              <Navigate to="/auth" replace />
+            ) : !profileComplete ? (
+              <Navigate to="/onboarding" replace />
+            ) : (
+              <GroupChatThread />
+            )
+          }
+        />
+        <Route
+          path="/app/chat/:friendId"
+          element={
+            !session ? (
+              <Navigate to="/auth" replace />
+            ) : !profileComplete ? (
+              <Navigate to="/onboarding" replace />
+            ) : (
+              <ChatThread />
             )
           }
         />
@@ -362,6 +420,7 @@ function SessionRoutes() {
         <Route path="/" element={<Navigate to="/app" replace />} />
         <Route path="*" element={<Navigate to="/app" replace />} />
       </Routes>
+      </ScoreSharePromptProvider>
     </ProfileGateContext.Provider>
   );
 }

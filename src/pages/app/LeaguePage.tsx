@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Link, useParams } from 'react-router-dom';
+import { Link, useLocation, useParams } from 'react-router-dom';
 import { ArrowLeft, Send, Share2 } from 'lucide-react';
 import { AppShell } from '@/components/app/AppShell';
 import { PremiumGate } from '@/components/PremiumGate';
@@ -42,6 +42,7 @@ type ChatMessage = {
 
 export default function LeaguePage() {
   const { leagueId } = useParams<{ leagueId: string }>();
+  const location = useLocation();
   const [athleteId, setAthleteId] = useState<string | undefined>();
   const [authUserId, setAuthUserId] = useState<string | undefined>();
   const [league, setLeague] = useState<League | null>(null);
@@ -229,6 +230,16 @@ export default function LeaguePage() {
   }, [members, scoreByAthlete]);
 
   const isCreator = league && athleteId && league.created_by === athleteId;
+
+  useEffect(() => {
+    if (!league || location.hash !== '#chat') return;
+    const el = document.getElementById('chat');
+    if (!el) return;
+    const timer = window.setTimeout(() => {
+      el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }, 200);
+    return () => window.clearTimeout(timer);
+  }, [league, location.hash]);
 
   const sendChat = async () => {
     const messageBody = chatInput.trim();

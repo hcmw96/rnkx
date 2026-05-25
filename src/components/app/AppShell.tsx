@@ -1,4 +1,5 @@
 import { ReactNode } from 'react';
+import { AppHeaderActions } from './AppHeaderActions';
 import { BottomNav } from './BottomNav';
 
 interface AppShellProps {
@@ -6,10 +7,11 @@ interface AppShellProps {
   title?: string;
   /** @deprecated No longer used — kept so older call sites compile. */
   showSettings?: boolean;
-  headerActions?: ReactNode;
+  /** Pass `null` to hide header actions on a page. */
+  headerActions?: ReactNode | null;
 }
 
-export function AppShell({ children, headerActions }: AppShellProps) {
+export function AppShell({ children, headerActions = <AppHeaderActions /> }: AppShellProps) {
   return (
     <div className="app-root">
       <header className="app-header border-b border-border bg-background">
@@ -18,7 +20,7 @@ export function AppShell({ children, headerActions }: AppShellProps) {
           <h1 className="justify-self-center font-display text-xl tracking-wide text-neon-lime">
             RNKX
           </h1>
-          <div className="flex min-w-0 justify-end gap-1 sm:gap-2">{headerActions}</div>
+          <div className="flex min-w-0 justify-end gap-1 sm:gap-2">{headerActions ?? null}</div>
         </div>
       </header>
       <main className="app-content px-4 py-4">{children}</main>

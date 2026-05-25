@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import type { LucideIcon } from 'lucide-react';
 import { Shield, UserRound } from 'lucide-react';
-import { NavLink, Outlet } from 'react-router-dom';
+import { Link, NavLink, Outlet } from 'react-router-dom';
 import { AppShell } from '@/components/app/AppShell';
 import { PremiumGate } from '@/components/PremiumGate';
 import { supabase } from '@/services/supabase';
@@ -40,6 +40,13 @@ export default function SocialPage() {
     <AppShell>
       <PremiumGate athleteId={athleteId} userId={authUserId}>
         <div className="mx-auto max-w-lg space-y-4">
+          <p className="text-center text-xs text-muted-foreground">
+            Friends, private leagues, and{' '}
+            <Link to="/app/chat" className="font-medium text-neon-lime hover:underline">
+              messages
+            </Link>{' '}
+            are included with Premium.
+          </p>
           <nav
             className="grid grid-cols-2 border-b border-border"
             aria-label="Social sections"

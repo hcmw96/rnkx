@@ -3,11 +3,11 @@ import { useParams, Link } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { ArrowLeft, Send, Image, Users } from "lucide-react";
+import { ArrowLeft, Send, Users } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
-import { MessageReaction } from "@/components/chat/MessageReaction";
-import { GifPicker } from "@/components/chat/GifPicker";
+import { ChatPremiumGate } from "@/components/chat/ChatPremiumGate";
+import { resolveAthleteId } from "@/lib/resolveAthleteId";
 
 interface Message {
   id: string;
@@ -24,23 +24,15 @@ interface Member {
   avatar_url: string | null;
 }
 
-interface ReactionData {
-  message_id: string;
-  emoji: string;
-  athlete_id: string;
-}
-
 export default function GroupChatThread() {
   const { conversationId } = useParams<{ conversationId: string }>();
   const [messages, setMessages] = useState<Message[]>([]);
-  const [reactions, setReactions] = useState<Map<string, ReactionData[]>>(new Map());
   const [members, setMembers] = useState<Map<string, Member>>(new Map());
   const [groupName, setGroupName] = useState("");
   const [memberCount, setMemberCount] = useState(0);
   const [newMsg, setNewMsg] = useState("");
   const [myAthleteId, setMyAthleteId] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
-  const [gifOpen, setGifOpen] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -52,14 +44,10 @@ export default function GroupChatThread() {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return;
 
-    const { data: athlete } = await supabase
-      .from("athletes")
-      .select("id")
-      .eq("user_id", user.id)
-      .single();
-    if (!athlete) return;
+    const aid = await resolveAthleteId(user.id);
+    if (!aid) return;
 
-    setMyAthleteId(athlete.id);
+    setMyAthleteId(aid);
 
     // Load conversation info
     const { data: conv } = await supabase
@@ -89,7 +77,6 @@ export default function GroupChatThread() {
     }
 
     await loadMessages();
-    await loadReactions();
   }
 
   useEffect(() => {
@@ -106,11 +93,6 @@ export default function GroupChatThread() {
             setMessages((prev) => [...prev, msg]);
           }
         }
-      )
-      .on(
-        "postgres_changes",
-        { event: "*", schema: "public", table: "message_reactions" },
-        () => loadReactions()
       )
       .subscribe();
 
@@ -129,39 +111,6 @@ export default function GroupChatThread() {
       .order("created_at", { ascending: true })
       .limit(200);
     setMessages((data as Message[]) || []);
-  }
-
-  async function loadReactions() {
-    const { data: msgs } = await supabase
-      .from("direct_messages")
-      .select("id")
-      .eq("conversation_id", conversationId!);
-    if (!msgs?.length) return;
-
-    const { data: rxns } = await supabase
-      .from("message_reactions")
-      .select("message_id, emoji, athlete_id")
-      .in("message_id", msgs.map((m) => m.id));
-
-    const map = new Map<string, ReactionData[]>();
-    for (const r of rxns || []) {
-      const existing = map.get(r.message_id) || [];
-      existing.push(r);
-      map.set(r.message_id, existing);
-    }
-    setReactions(map);
-  }
-
-  function getReactionsForMessage(messageId: string) {
-    const rxns = reactions.get(messageId) || [];
-    const emojiMap = new Map<string, { count: number; myReaction: boolean }>();
-    for (const r of rxns) {
-      const existing = emojiMap.get(r.emoji) || { count: 0, myReaction: false };
-      existing.count++;
-      if (r.athlete_id === myAthleteId) existing.myReaction = true;
-      emojiMap.set(r.emoji, existing);
-    }
-    return Array.from(emojiMap.entries()).map(([emoji, data]) => ({ emoji, ...data }));
   }
 
   async function handleSend(msgContent?: string, type: string = "text", gifUrl?: string) {
@@ -187,6 +136,7 @@ export default function GroupChatThread() {
   }
 
   return (
+    <ChatPremiumGate>
     <div className="app-root">
       <header className="app-header border-b border-border bg-background">
         <div className="flex h-14 items-center gap-3 px-4">
@@ -207,7 +157,6 @@ export default function GroupChatThread() {
         {messages.map((msg) => {
           const isMine = msg.sender_id === myAthleteId;
           const sender = members.get(msg.sender_id);
-          const msgReactions = getReactionsForMessage(msg.id);
           return (
             <div key={msg.id} className="group">
               {!isMine && (
@@ -248,15 +197,6 @@ export default function GroupChatThread() {
                   </p>
                 </div>
               </div>
-              {myAthleteId && (
-                <MessageReaction
-                  messageId={msg.id}
-                  athleteId={myAthleteId}
-                  reactions={msgReactions}
-                  isMine={isMine}
-                  onToggle={loadReactions}
-                />
-              )}
             </div>
           );
         })}
@@ -267,13 +207,6 @@ export default function GroupChatThread() {
           onSubmit={(e) => { e.preventDefault(); handleSend(); }}
           className="flex gap-2 items-center"
         >
-          <button
-            type="button"
-            onClick={() => setGifOpen(true)}
-            className="text-muted-foreground hover:text-foreground transition-colors"
-          >
-            <Image className="h-5 w-5" />
-          </button>
           <Input
             value={newMsg}
             onChange={(e) => setNewMsg(e.target.value)}
@@ -292,7 +225,7 @@ export default function GroupChatThread() {
         </form>
       </div>
 
-      <GifPicker open={gifOpen} onClose={() => setGifOpen(false)} onSelect={(url) => handleSend("GIF", "gif", url)} />
     </div>
+    </ChatPremiumGate>
   );
 }
