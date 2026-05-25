@@ -76,8 +76,10 @@ export default function Dashboard() {
   const [wearables, setWearables] = useState<string[] | null>(null);
   const [syncReminderDismissed, setSyncReminderDismissed] = useState(false);
 
-  const loadDashboard = useCallback(async () => {
-    setLoading(true);
+  const loadDashboard = useCallback(async (options?: { silent?: boolean }) => {
+    if (!options?.silent) {
+      setLoading(true);
+    }
     setError(null);
 
       const [{ data: userData, error: userError }, { data: seasonResult, error: seasonError }] =
@@ -187,6 +189,8 @@ export default function Dashboard() {
     void loadDashboard();
   }, [loadDashboard]);
 
+  const refreshDashboard = useCallback(() => loadDashboard({ silent: true }), [loadDashboard]);
+
   useEffect(() => {
     void supabase.auth.getUser().then(({ data }) => {
       const uid = data.user?.id;
@@ -194,7 +198,7 @@ export default function Dashboard() {
     });
   }, []);
 
-  const { isRefreshing, pullDistance, pullHandlers } = usePullToRefresh(loadDashboard);
+  const { isRefreshing, pullDistance, pullHandlers } = usePullToRefresh(refreshDashboard);
 
   const daysRemaining = useMemo(() => {
     if (!season?.ends_at) return undefined;
