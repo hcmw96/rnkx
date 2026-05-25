@@ -139,7 +139,7 @@ export function InviteFriendModal({ open, onOpenChange, leagueId, leagueName, on
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="border-border bg-card">
         <DialogHeader>
-          <DialogTitle className="font-display text-foreground">Add Friend to League</DialogTitle>
+          <DialogTitle className="font-sans text-lg font-semibold text-foreground">Add Friend to League</DialogTitle>
         </DialogHeader>
         <div className="space-y-3 pt-2">
           <div className="relative">

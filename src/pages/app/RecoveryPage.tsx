@@ -170,7 +170,7 @@ export default function RecoveryPage({ embedded = false }: RecoveryPageProps) {
           <div>
             <p
               className={cn(
-                'font-display text-lg font-semibold',
+                'font-sans text-lg font-semibold',
                 readiness.status === 'ready' && 'text-neon-lime',
                 readiness.status === 'moderate' && 'text-amber-400',
                 readiness.status === 'rest' && 'text-red-400',
@@ -191,7 +191,7 @@ export default function RecoveryPage({ embedded = false }: RecoveryPageProps) {
             <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">RHR</p>
             <p className="text-sm text-foreground">
               Resting Heart Rate ·{' '}
-              <span className="font-display text-xl text-muted-foreground">
+              <span className="font-sans text-xl text-muted-foreground">
                 {summary.avgIntensity != null ? Math.max(48, summary.avgIntensity - 35) : '--'}
               </span>{' '}
               <span className="text-sm text-muted-foreground">
@@ -209,7 +209,7 @@ export default function RecoveryPage({ embedded = false }: RecoveryPageProps) {
       <div className="rounded-xl border border-border/80 bg-[hsla(0,0%,10%,1)] p-4">
         <div className="flex items-start justify-between gap-3">
           <div>
-            <h2 className="font-display text-base font-semibold text-foreground">Activity Load</h2>
+            <h2 className="font-sans text-base font-semibold text-foreground">Activity Load</h2>
             <p className="mt-0.5 text-xs text-muted-foreground">
               {loadRange === 'week'
                 ? 'Your activity summary from the past week'
@@ -242,19 +242,19 @@ export default function RecoveryPage({ embedded = false }: RecoveryPageProps) {
         <dl className="mt-4 grid grid-cols-2 gap-x-4 gap-y-3">
           <div>
             <dt className="text-xs text-muted-foreground">Exercise Time</dt>
-            <dd className="font-display text-lg text-foreground tabular-nums">
+            <dd className="font-sans text-lg text-foreground tabular-nums">
               {displayMinutes > 0 ? displayMinutes : '--'} min
             </dd>
           </div>
           <div>
             <dt className="text-xs text-muted-foreground">Scored Points</dt>
-            <dd className="font-display text-lg text-foreground tabular-nums">
+            <dd className="font-sans text-lg text-foreground tabular-nums">
               {displayPts > 0 ? displayPts.toLocaleString() : '--'}
             </dd>
           </div>
           <div>
             <dt className="text-xs text-muted-foreground">Sessions</dt>
-            <dd className="font-display text-lg text-foreground tabular-nums">
+            <dd className="font-sans text-lg text-foreground tabular-nums">
               {displaySessions > 0 ? displaySessions : '--'}
             </dd>
           </div>
@@ -279,7 +279,7 @@ export default function RecoveryPage({ embedded = false }: RecoveryPageProps) {
 
       {/* Activity trend — line chart */}
       <div className="rounded-xl border border-border/80 bg-[hsla(0,0%,10%,1)] p-4">
-        <h2 className="font-display text-base font-semibold text-foreground">Activity Trend</h2>
+        <h2 className="font-sans text-base font-semibold text-foreground">Activity Trend</h2>
         <p className="text-[11px] text-muted-foreground">Daily scoring output</p>
         {summary.weekSessions > 0 ? (
           <InsightsLineChart
@@ -303,7 +303,7 @@ export default function RecoveryPage({ embedded = false }: RecoveryPageProps) {
 
       {/* Load vs recovery */}
       <div className="rounded-xl border border-border/80 bg-[hsla(0,0%,10%,1)] p-4 pb-5">
-        <h2 className="font-display text-base font-semibold text-foreground">Load vs Recovery</h2>
+        <h2 className="font-sans text-base font-semibold text-foreground">Load vs Recovery</h2>
         <p className="text-[11px] text-muted-foreground">Derived from your recent training pattern</p>
         <div className="relative mt-5">
           <div className="h-3 overflow-hidden rounded-full bg-muted">
@@ -313,7 +313,7 @@ export default function RecoveryPage({ embedded = false }: RecoveryPageProps) {
               aria-hidden
             />
           </div>
-          <span className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 font-display text-sm font-bold text-foreground tabular-nums">
+          <span className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 font-sans text-sm font-bold text-foreground tabular-nums">
             {loadRecoveryPct != null ? `${loadRecoveryPct}%` : '--'}
           </span>
         </div>
@@ -333,7 +333,7 @@ export default function RecoveryPage({ embedded = false }: RecoveryPageProps) {
       {/* Volume mini chart */}
       {summary.weekSessions > 0 ? (
         <div className="rounded-xl border border-border/80 bg-[hsla(0,0%,10%,1)] p-4">
-          <h2 className="font-display text-base font-semibold text-foreground">Weekly volume</h2>
+          <h2 className="font-sans text-base font-semibold text-foreground">Weekly volume</h2>
           <p className="text-[11px] text-muted-foreground">Training minutes by day</p>
           <InsightsLineChart
             className="mt-3"

@@ -112,7 +112,7 @@ export default function PrivateLeaguesPage({ embedded = false }: PrivateLeaguesP
         {!embedded ? (
           <h1 className="font-display text-xl text-foreground">Private leagues</h1>
         ) : (
-          <h2 className="font-display text-lg text-foreground">Leagues</h2>
+          <h2 className="font-sans text-lg font-semibold text-foreground">Leagues</h2>
         )}
         {athleteId ? <CreateLeagueModal athleteId={athleteId} onCreated={() => void load()} /> : null}
       </div>

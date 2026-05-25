@@ -12,7 +12,6 @@ import PrivateLeaguesPage from './pages/app/PrivateLeaguesPage';
 import LeaguePage from './pages/app/LeaguePage';
 import FriendsPage from './pages/app/FriendsPage';
 import SocialPage from './pages/app/SocialPage';
-import RecoveryPage from './pages/app/RecoveryPage';
 import Dashboard from './pages/app/Dashboard';
 import JoinLeaguePage from './pages/JoinLeaguePage';
 import AthleteAuth from './pages/AthleteAuth';
@@ -332,22 +331,22 @@ function SessionRoutes() {
           <Route index element={<Navigate to="friends" replace />} />
           <Route path="friends" element={<FriendsPage embedded />} />
           <Route path="leagues" element={<PrivateLeaguesPage embedded />} />
-          <Route path="recovery" element={<RecoveryPage embedded />} />
+          <Route path="recovery" element={<Navigate to="/app/profile#recovery" replace />} />
         </Route>
-        <Route path="/app/friends" element={<Navigate to="/app/social/friends" replace />} />
-        <Route path="/app/leagues" element={<Navigate to="/app/social/leagues" replace />} />
         <Route
-          path="/app/recovery"
+          path="/app/friends"
           element={
             !session ? (
               <Navigate to="/auth" replace />
             ) : !profileComplete ? (
               <Navigate to="/onboarding" replace />
             ) : (
-              <RecoveryPage />
+              <FriendsPage />
             )
           }
         />
+        <Route path="/app/leagues" element={<Navigate to="/app/social/leagues" replace />} />
+        <Route path="/app/recovery" element={<Navigate to="/app/profile#recovery" replace />} />
         <Route
           path="/app/leagues/:leagueId"
           element={

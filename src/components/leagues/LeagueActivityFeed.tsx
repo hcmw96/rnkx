@@ -81,7 +81,7 @@ export function LeagueActivityFeed({ memberIds, leagueType, seasonId }: LeagueAc
   if (loading) {
     return (
       <div className="space-y-2">
-        <h2 className="font-display px-1 text-sm uppercase tracking-wider text-muted-foreground">Recent Activity</h2>
+        <h2 className="font-sans px-1 text-sm font-semibold uppercase tracking-wider text-muted-foreground">Recent Activity</h2>
         {[...Array(3)].map((_, i) => (
           <Skeleton key={i} className="h-14 w-full rounded-lg" />
         ))}
@@ -93,7 +93,7 @@ export function LeagueActivityFeed({ memberIds, leagueType, seasonId }: LeagueAc
 
   return (
     <div className="space-y-2">
-      <h2 className="font-display px-1 text-sm uppercase tracking-wider text-muted-foreground">Recent Activity</h2>
+      <h2 className="font-sans px-1 text-sm font-semibold uppercase tracking-wider text-muted-foreground">Recent Activity</h2>
       {activities.map((a) => (
         <div key={a.id} className="flex items-center gap-3 rounded-lg border border-border bg-card p-3">
           <div className="flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-full bg-muted">

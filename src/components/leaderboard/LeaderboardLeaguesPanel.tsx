@@ -102,7 +102,7 @@ export function LeaderboardLeaguesPanel() {
   return (
     <div className="space-y-3 pb-4">
       <div className="flex items-center justify-between gap-3">
-        <h3 className="font-display text-lg uppercase tracking-wide text-foreground">Your Leagues</h3>
+        <h3 className="font-sans text-lg font-semibold text-foreground">Your Leagues</h3>
         {athleteId ? (
           <CreateLeagueModal
             athleteId={athleteId}

@@ -188,8 +188,6 @@ export default function GroupChatThread() {
 
   return (
     <div className="app-root">
-      <div className="safe-area-top" />
-
       <header className="app-header border-b border-border bg-background">
         <div className="flex h-14 items-center gap-3 px-4">
           <Link to="/app/chat" className="text-muted-foreground hover:text-foreground">
@@ -199,7 +197,7 @@ export default function GroupChatThread() {
             <Users className="h-4 w-4 text-muted-foreground" />
           </div>
           <div>
-            <h1 className="font-display text-lg text-foreground leading-tight">{groupName}</h1>
+            <h1 className="font-sans text-lg font-semibold text-foreground leading-tight">{groupName}</h1>
             <p className="text-[10px] text-muted-foreground">{memberCount} members</p>
           </div>
         </div>
@@ -295,7 +293,6 @@ export default function GroupChatThread() {
       </div>
 
       <GifPicker open={gifOpen} onClose={() => setGifOpen(false)} onSelect={(url) => handleSend("GIF", "gif", url)} />
-      <div className="safe-area-bottom" />
     </div>
   );
 }

@@ -50,7 +50,7 @@ export function WelcomeModal({ athleteId, greetingName, onDismiss }: WelcomeModa
               <Trophy className="h-8 w-8 text-[#ADFF2F]" aria-hidden />
               <span
                 id="welcome-modal-title"
-                className="font-display text-lg tracking-wide text-white sm:text-xl"
+                className="font-sans text-lg font-semibold tracking-wide text-white sm:text-xl"
               >
                 Welcome to RNKX
               </span>
@@ -75,7 +75,7 @@ export function WelcomeModal({ athleteId, greetingName, onDismiss }: WelcomeModa
             type="button"
             size="lg"
             disabled={busy}
-            className="h-14 w-full rounded-xl bg-[#ADFF2F] font-display text-lg font-bold tracking-wide text-zinc-900 shadow-[0_0_28px_rgba(173,255,47,0.28)] hover:bg-[#9EF01A]"
+            className="h-14 w-full rounded-xl bg-[#ADFF2F] font-sans text-lg font-bold tracking-wide text-zinc-900 shadow-[0_0_28px_rgba(173,255,47,0.28)] hover:bg-[#9EF01A]"
             onClick={() => void dismiss()}
           >
             Got it, let's go! 🚀

@@ -28,9 +28,11 @@ import {
   UserPlus,
   Users,
 } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import { AppShell } from '@/components/app/AppShell';
+import { PremiumGate } from '@/components/PremiumGate';
+import RecoveryPage from '@/pages/app/RecoveryPage';
 import { Button } from '@/components/ui/button';
 import {
   AlertDialog,
@@ -209,6 +211,7 @@ function twoLetterAvatar(username: string | null, displayName: string | null): s
 
 export default function ProfilePage() {
   const navigate = useNavigate();
+  const location = useLocation();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [athlete, setAthlete] = useState<AthleteRow | null>(null);
   const [rank, setRank] = useState<number | null>(null);
@@ -370,6 +373,16 @@ export default function ProfilePage() {
   useEffect(() => {
     void loadFriendsMini();
   }, [loadFriendsMini]);
+
+  useEffect(() => {
+    if (!athlete || location.hash !== '#recovery') return;
+    const el = document.getElementById('recovery');
+    if (!el) return;
+    const timer = window.setTimeout(() => {
+      el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }, 150);
+    return () => window.clearTimeout(timer);
+  }, [athlete, location.hash]);
 
   const refreshWhoopConnection = useCallback(async () => {
     if (!athlete?.id) return;
@@ -1083,7 +1096,7 @@ export default function ProfilePage() {
             <Dialog open={assistantOpen} onOpenChange={setAssistantOpen}>
               <DialogContent className="max-w-md border-border bg-card">
                 <DialogHeader>
-                  <DialogTitle className="font-display text-lg">Ask the Assistant</DialogTitle>
+                  <DialogTitle className="font-sans text-lg font-semibold">Ask the Assistant</DialogTitle>
                 </DialogHeader>
                 <Input
                   placeholder="Ask about scoring, leagues, or fair play…"
@@ -1428,7 +1441,7 @@ export default function ProfilePage() {
             <article className="space-y-4 rounded-xl border border-border bg-card p-4">
               <div className="flex items-center gap-2 border-b border-border/60 pb-3">
                 <User className="h-5 w-5 text-neon-lime" aria-hidden />
-                <h2 className="font-display text-sm uppercase tracking-wide text-foreground">Account</h2>
+                <h2 className="font-sans text-sm font-semibold uppercase tracking-wide text-foreground">Account</h2>
               </div>
               <div className="space-y-1 border-b border-border/40 pb-3">
                 <p className="text-xs uppercase tracking-wide text-muted-foreground">Email</p>
@@ -1542,7 +1555,7 @@ export default function ProfilePage() {
             <article className="space-y-3 rounded-xl border border-border bg-card p-4">
               <div className="flex items-center gap-2">
                 <Activity className="h-5 w-5 text-neon-lime" aria-hidden />
-                <h2 className="font-display text-sm uppercase tracking-wide text-foreground">Competition Leagues</h2>
+                <h2 className="font-sans text-sm font-semibold uppercase tracking-wide text-foreground">Competition Leagues</h2>
               </div>
               <p className="text-xs leading-relaxed text-muted-foreground">
                 Select one or both leagues to compete in. You can change this anytime.
@@ -1642,7 +1655,7 @@ export default function ProfilePage() {
               <div className="flex items-center justify-between gap-2">
                 <div className="flex items-center gap-2">
                   <Users className="h-5 w-5 text-neon-lime" aria-hidden />
-                  <h2 className="font-display text-sm uppercase tracking-wide text-foreground">Friends</h2>
+                  <h2 className="font-sans text-sm font-semibold uppercase tracking-wide text-foreground">Friends</h2>
                 </div>
                 <Button
                   type="button"
@@ -1676,11 +1689,28 @@ export default function ProfilePage() {
               )}
             </article>
 
+            {/* RECOVERY */}
+            <article id="recovery" className="space-y-3 rounded-xl border border-border bg-card p-4">
+              <div className="flex items-center gap-2">
+                <Heart className="h-5 w-5 text-neon-lime" aria-hidden />
+                <h2 className="font-sans text-sm font-semibold uppercase tracking-wide text-foreground">Recovery</h2>
+              </div>
+              <PremiumGate
+                athleteId={athlete.id}
+                userId={athlete.user_id ?? undefined}
+                badge="PREMIUM"
+                title="Recovery insights"
+                description="Trend charts, load guidance, and readiness — included with RNKX Premium"
+              >
+                <RecoveryPage embedded />
+              </PremiumGate>
+            </article>
+
             {/* HEALTH DATA */}
             <article className="space-y-3 rounded-xl border border-border bg-card p-4">
               <div className="flex items-center gap-2">
                 <Heart className="h-5 w-5 text-neon-lime" aria-hidden />
-                <h2 className="font-display text-sm uppercase tracking-wide text-foreground">Health Data</h2>
+                <h2 className="font-sans text-sm font-semibold uppercase tracking-wide text-foreground">Health Data</h2>
               </div>
               <div className="flex items-start justify-between gap-4">
                 <div className="min-w-0">
@@ -1700,7 +1730,7 @@ export default function ProfilePage() {
             <article className="space-y-3 rounded-xl border border-border bg-card p-4">
               <div className="flex items-center gap-2">
                 <Shield className="h-5 w-5 text-neon-lime" aria-hidden />
-                <h2 className="font-display text-sm uppercase tracking-wide text-foreground">Privacy</h2>
+                <h2 className="font-sans text-sm font-semibold uppercase tracking-wide text-foreground">Privacy</h2>
               </div>
               <div className="flex items-start justify-between gap-4">
                 <div className="min-w-0">
@@ -1720,7 +1750,7 @@ export default function ProfilePage() {
             <article className="space-y-4 rounded-xl border border-border bg-card p-4">
               <div className="flex items-center gap-2">
                 <CreditCard className="h-5 w-5 text-neon-lime" aria-hidden />
-                <h2 className="font-display text-sm uppercase tracking-wide text-foreground">Subscription</h2>
+                <h2 className="font-sans text-sm font-semibold uppercase tracking-wide text-foreground">Subscription</h2>
               </div>
               <div className="flex items-center justify-between rounded-lg border border-border/60 bg-zinc-950/40 px-3 py-2">
                 <span className="text-sm text-muted-foreground">Current Plan</span>
@@ -1777,7 +1807,7 @@ export default function ProfilePage() {
             <article className="space-y-3 rounded-xl border border-border bg-card p-4">
               <div className="flex items-center gap-2">
                 <MessageCircle className="h-5 w-5 text-neon-lime" aria-hidden />
-                <h2 className="font-display text-sm uppercase tracking-wide text-foreground">Contact Support</h2>
+                <h2 className="font-sans text-sm font-semibold uppercase tracking-wide text-foreground">Contact Support</h2>
               </div>
               <p className="text-sm text-muted-foreground">Need help? Send us a message</p>
               <Textarea
@@ -1801,7 +1831,7 @@ export default function ProfilePage() {
             <article className="space-y-2 rounded-xl border border-border bg-card p-4">
               <div className="flex items-center gap-2 pb-2">
                 <FileText className="h-5 w-5 text-neon-lime" aria-hidden />
-                <h2 className="font-display text-sm uppercase tracking-wide text-foreground">Legal</h2>
+                <h2 className="font-sans text-sm font-semibold uppercase tracking-wide text-foreground">Legal</h2>
               </div>
               {(
                 [

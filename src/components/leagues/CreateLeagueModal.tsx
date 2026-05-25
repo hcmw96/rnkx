@@ -161,7 +161,7 @@ export function CreateLeagueModal({
       </DialogTrigger>
       <DialogContent className="border-border bg-card">
         <DialogHeader>
-          <DialogTitle className="font-display text-foreground">Create Private League</DialogTitle>
+          <DialogTitle className="font-sans text-lg font-semibold text-foreground">Create Private League</DialogTitle>
         </DialogHeader>
         <div className="space-y-4 pt-2">
           <div className="flex justify-center">

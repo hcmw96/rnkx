@@ -19,6 +19,14 @@ type ScopeTab = 'open' | 'overall' | 'friends' | 'leagues';
 /** Marketing subtitle under active season title (until DB exposes a subtitle field). */
 const SEASON_TAGLINE = 'Spring Push';
 
+/** Display "Season 1" only — strip suffixes like " - Spring 2026" from DB season names. */
+function seasonShortLabel(name: string | null | undefined): string {
+  if (!name?.trim()) return 'Season 1';
+  const trimmed = name.trim();
+  const sep = trimmed.indexOf(' - ');
+  return sep > 0 ? trimmed.slice(0, sep).trim() : trimmed;
+}
+
 interface LeaderboardViewRow {
   id: string;
   display_name: string;
@@ -116,19 +124,16 @@ function buildRowsForLeague(merged: MergedAthlete[], league: League): Leaderboar
 
 function LeaderboardSkeleton() {
   return (
-    <ul className="space-y-3 px-0.5">
-      {Array.from({ length: 8 }).map((_, i) => (
+    <ul className="space-y-1.5 px-0.5">
+      {Array.from({ length: 10 }).map((_, i) => (
         <li
           key={i}
-          className="flex items-center gap-3 rounded-xl border border-border bg-[hsla(0,0%,10%,1)] px-3 py-3.5 sm:gap-4"
+          className="flex items-center gap-2.5 rounded-lg border border-border bg-[hsla(0,0%,10%,1)] px-2.5 py-2"
         >
-          <Skeleton className="h-12 w-8 shrink-0 rounded-md bg-muted" />
-          <Skeleton className="h-14 w-14 shrink-0 rounded-full bg-muted" />
-          <div className="min-w-0 flex-1 space-y-2">
-            <Skeleton className="h-5 w-36 rounded bg-muted" />
-            <Skeleton className="h-3 w-24 rounded bg-muted" />
-          </div>
-          <Skeleton className="h-10 w-16 shrink-0 rounded bg-muted" />
+          <Skeleton className="h-6 w-7 shrink-0 rounded bg-muted" />
+          <Skeleton className="h-10 w-10 shrink-0 rounded-full bg-muted" />
+          <Skeleton className="h-4 min-w-0 flex-1 rounded bg-muted" />
+          <Skeleton className="h-8 w-12 shrink-0 rounded bg-muted" />
         </li>
       ))}
     </ul>
@@ -283,7 +288,7 @@ export default function LeaderboardPage() {
 
   const rows = useMemo(() => buildRowsForLeague(merged, activeLeague), [merged, activeLeague]);
 
-  const bannerSeasonLabel = seasonName ?? 'Season 1';
+  const seasonLabel = seasonShortLabel(seasonName);
 
   const scopeTabs: { id: ScopeTab; label: string }[] = [
     { id: 'open', label: 'Open' },
@@ -305,17 +310,17 @@ export default function LeaderboardPage() {
         <div className="flex items-center gap-2 rounded-xl border border-neon-lime/35 bg-[hsla(72,35%,12%,0.45)] px-3.5 py-2.5">
           <Zap className="h-4 w-4 shrink-0 text-neon-lime" aria-hidden />
           <p className="text-[13px] font-medium leading-snug text-neon-lime">
-            <span className="font-semibold">{bannerSeasonLabel} is LIVE</span>
+            <span className="font-semibold">{seasonLabel} is LIVE</span>
             <span className="text-neon-lime/85"> · Rankings update weekly</span>
           </p>
         </div>
 
         {/* Season title */}
-        <div className="space-y-0.5">
-          <h2 className="font-display text-3xl uppercase tracking-[0.04em] text-foreground md:text-[2rem]">
-            {bannerSeasonLabel}
+        <div className="space-y-1 text-center">
+          <h2 className="font-display text-2xl font-normal normal-case tracking-normal text-foreground">
+            {seasonLabel}
           </h2>
-          <p className="text-[15px] text-muted-foreground">{SEASON_TAGLINE}</p>
+          <p className="text-sm text-muted-foreground">{SEASON_TAGLINE}</p>
         </div>
 
         {/* ENGINE | RUN segmented control */}
@@ -327,7 +332,7 @@ export default function LeaderboardPage() {
               setActiveLeague('engine');
             }}
             className={cn(
-              'flex-1 rounded-lg px-4 py-3 font-display text-sm font-bold uppercase tracking-wide transition-colors',
+              'flex-1 rounded-lg px-4 py-3 font-sans text-sm font-semibold tracking-wide transition-colors',
               activeLeague === 'engine'
                 ? 'bg-neon-lime text-black shadow-sm'
                 : 'bg-transparent text-muted-foreground hover:text-foreground'
@@ -342,7 +347,7 @@ export default function LeaderboardPage() {
               setActiveLeague('run');
             }}
             className={cn(
-              'flex-1 rounded-lg px-4 py-3 font-display text-sm font-bold uppercase tracking-wide transition-colors',
+              'flex-1 rounded-lg px-4 py-3 font-sans text-sm font-semibold tracking-wide transition-colors',
               activeLeague === 'run'
                 ? 'bg-neon-lime text-black shadow-sm'
                 : 'bg-transparent text-muted-foreground hover:text-foreground'
@@ -380,7 +385,7 @@ export default function LeaderboardPage() {
 
         {/* Filter row */}
         <div className="flex gap-2">
-          <FakeDropdown label={seasonName ?? 'Season 1'} />
+          <FakeDropdown label={seasonLabel} />
           <FakeDropdown icon={Globe} label="All" />
           <FakeDropdown icon={Users} label="All" />
         </div>
@@ -416,7 +421,7 @@ export default function LeaderboardPage() {
           </p>
         ) : (
           !error && (
-            <ul className="flex flex-col gap-2.5 px-0.5 pb-6">
+            <ul className="flex flex-col gap-1.5 px-0.5 pb-6">
               {rows.map((item) => {
                 const isSelf = currentUserId != null && item.id === currentUserId;
                 const initial = (item.username || item.displayName || '?').trim().charAt(0).toUpperCase() || '?';
@@ -428,47 +433,50 @@ export default function LeaderboardPage() {
                   <li
                     key={item.id}
                     className={cn(
-                      'flex items-center gap-3 rounded-xl border bg-[hsla(0,0%,10%,1)] px-3 py-3.5 shadow-sm sm:gap-4',
+                      'flex items-center gap-2.5 rounded-lg border bg-[hsla(0,0%,10%,1)] px-2.5 py-2 shadow-sm',
                       isSelf ? 'border-neon-lime/50 ring-1 ring-neon-lime/20' : 'border-border/70'
                     )}
                   >
                     <span
                       className={cn(
-                        'flex w-8 shrink-0 justify-center tabular-nums leading-none sm:w-11',
-                        isFirst
-                          ? 'font-display text-4xl font-bold text-neon-lime sm:text-[2.75rem]'
-                          : 'font-display text-[1.85rem] font-bold text-muted-foreground sm:text-4xl'
+                        'w-8 shrink-0 text-center font-display text-xl font-bold tabular-nums leading-none',
+                        isFirst ? 'text-neon-lime' : 'text-muted-foreground',
                       )}
                       aria-label={`Rank ${item.rank}`}
                     >
                       {item.rank}
                     </span>
 
-                    <div className="relative h-14 w-14 shrink-0 overflow-hidden rounded-full border border-border/80 bg-[hsla(0,0%,14%,1)]">
+                    <div className="relative h-10 w-10 shrink-0 overflow-hidden rounded-full border border-border/80 bg-[hsla(0,0%,14%,1)]">
                       {item.avatarUrl ? (
                         <img src={item.avatarUrl} alt="" className="h-full w-full object-cover" />
                       ) : (
-                        <span className="flex h-full w-full items-center justify-center font-display text-lg font-bold text-muted-foreground">
+                        <span className="flex h-full w-full items-center justify-center font-sans text-sm font-semibold text-muted-foreground">
                           {initial}
                         </span>
                       )}
                     </div>
 
-                    <div className="min-w-0 flex-1">
-                      <p className="truncate text-[15px] font-semibold text-foreground">{item.username}</p>
-                      <div className="mt-0.5 flex items-center gap-1 text-[13px] text-muted-foreground">
-                        {flag ? <span className="text-[15px] leading-none">{flag}</span> : null}
-                        {item.country ? <span className="truncate">{item.country}</span> : null}
-                      </div>
-                    </div>
+                    <p className="min-w-0 flex-1 truncate text-sm font-medium text-foreground">
+                      {item.username}
+                    </p>
+
+                    {flag ? (
+                      <span className="shrink-0 text-base leading-none" aria-hidden>
+                        {flag}
+                      </span>
+                    ) : null}
 
                     <div className="flex shrink-0 flex-col items-end gap-0.5 text-right">
-                      <span className="font-display text-[1.85rem] font-bold leading-none text-neon-lime tabular-nums sm:text-[2rem]">
+                      <span
+                        className={cn(
+                          'font-display text-2xl font-bold leading-none tabular-nums',
+                          isFirst ? 'text-neon-lime' : 'text-foreground',
+                        )}
+                      >
                         {pointsInt.toLocaleString()}
                       </span>
-                      <span className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
-                        pts
-                      </span>
+                      <span className="text-xs lowercase text-muted-foreground">pts</span>
                     </div>
                   </li>
                 );

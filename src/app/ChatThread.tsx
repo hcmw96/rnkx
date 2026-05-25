@@ -221,8 +221,6 @@ export default function ChatThread() {
 
   return (
     <div className="app-root">
-      <div className="safe-area-top" />
-
       <header className="app-header border-b border-border bg-background">
         <div className="flex h-14 items-center gap-3 px-4">
           <Link to="/app/chat" className="text-muted-foreground hover:text-foreground">
@@ -237,7 +235,7 @@ export default function ChatThread() {
               </span>
             )}
           </div>
-          <h1 className="font-display text-lg text-foreground">{friendName}</h1>
+          <h1 className="font-sans text-lg font-semibold text-foreground">{friendName}</h1>
         </div>
       </header>
 
@@ -323,7 +321,6 @@ export default function ChatThread() {
       </div>
 
       <GifPicker open={gifOpen} onClose={() => setGifOpen(false)} onSelect={handleGifSelect} />
-      <div className="safe-area-bottom" />
     </div>
   );
 }

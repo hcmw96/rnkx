@@ -100,7 +100,7 @@ export default function AthleteAuth() {
               <img src={rnkxLogo} alt="RNKX" className="h-9 w-auto shrink-0 sm:h-11" />
             </div>
 
-            <h1 className="font-display text-[clamp(1.75rem,6vw,2.75rem)] leading-tight text-white">
+            <h1 className="font-sans text-[clamp(1.75rem,6vw,2.75rem)] font-bold leading-tight text-white">
               Train with purpose
             </h1>
 
@@ -119,7 +119,7 @@ export default function AthleteAuth() {
 
             <div className="mt-2 grid w-full max-w-xl grid-cols-1 gap-3 sm:mt-4 sm:grid-cols-2 sm:gap-4">
               <div className="rounded-xl border border-white/10 bg-black/45 p-3 text-left shadow-lg backdrop-blur-sm sm:p-4">
-                <p className="font-display text-[10px] uppercase tracking-wider text-white/50 sm:text-xs">
+                <p className="font-sans text-[10px] font-semibold uppercase tracking-wider text-white/50 sm:text-xs">
                   Run league
                 </p>
                 <p className="font-display text-sm text-neon-lime sm:text-base">Season 1</p>
@@ -129,10 +129,10 @@ export default function AthleteAuth() {
                       key={row.rank}
                       className="grid grid-cols-[1.25rem_1.25rem_1fr_auto] items-center gap-2 text-xs sm:text-sm"
                     >
-                      <span className="text-white/60">{row.rank}</span>
+                      <span className="font-display tabular-nums text-white/60">{row.rank}</span>
                       <span className="text-base leading-none">{row.flag}</span>
-                      <span className="truncate text-white/90">{row.name}</span>
-                      <span className="shrink-0 font-semibold tabular-nums text-electric-cyan">{row.score}</span>
+                      <span className="truncate font-sans text-white/90">{row.name}</span>
+                      <span className="shrink-0 font-display tabular-nums text-electric-cyan">{row.score}</span>
                     </div>
                   ))}
                 </div>
@@ -140,7 +140,7 @@ export default function AthleteAuth() {
 
               <div className="rounded-xl border border-white/10 bg-black/45 p-3 text-left shadow-lg backdrop-blur-sm sm:p-4">
                 <div className="flex items-start gap-3">
-                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-white/15 font-display text-lg text-white">
+                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-white/15 font-sans text-lg font-semibold text-white">
                     JR
                   </div>
                   <div className="min-w-0 flex-1">
@@ -175,7 +175,7 @@ export default function AthleteAuth() {
                 setAuthStep('signup');
                 setAuthError(null);
               }}
-              className="h-12 w-full rounded-lg bg-neon-lime font-display text-lg tracking-wide text-black shadow-[0_0_24px_hsl(72_100%_50%/0.35)] hover:bg-neon-lime/90"
+              className="h-12 w-full rounded-lg bg-neon-lime font-sans text-lg font-semibold tracking-wide text-black shadow-[0_0_24px_hsl(72_100%_50%/0.35)] hover:bg-neon-lime/90"
             >
               Create Profile →
             </Button>
@@ -196,8 +196,8 @@ export default function AthleteAuth() {
   }
 
   return (
-    <div className="min-h-screen bg-background text-foreground">
-      <div className="mx-auto flex min-h-screen w-full max-w-lg flex-col px-4 pb-10 pt-8">
+    <div className="min-h-app bg-background text-foreground">
+      <div className="mx-auto flex min-h-full w-full max-w-lg flex-col px-4 pb-10 pt-4">
         <header className="mb-6 flex flex-col items-center gap-2 pt-6">
           <h1 className="font-display text-4xl tracking-wide text-primary">RNKX</h1>
           <p className="text-center text-sm text-muted-foreground">Train. Compete. Rise.</p>

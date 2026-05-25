@@ -92,7 +92,7 @@ export function DashboardInsights({ activities, stats }: DashboardInsightsProps)
   return (
     <div className="space-y-5">
       <div>
-        <h3 className="font-display text-sm font-semibold uppercase tracking-wide text-foreground">Insights</h3>
+        <h3 className="font-sans text-sm font-semibold uppercase tracking-wide text-foreground">Insights</h3>
         <p className="mt-1 text-xs text-muted-foreground">
           Your performance story — scoring trends, intensity, and standout sessions.
         </p>
@@ -119,7 +119,7 @@ export function DashboardInsights({ activities, stats }: DashboardInsightsProps)
       <div className="rounded-xl border border-border/70 bg-[hsla(0,0%,10%,1)] p-4">
         <div className="flex items-start justify-between gap-2">
           <div>
-            <p className="font-display text-sm font-semibold text-foreground">Scoring momentum</p>
+            <p className="font-sans text-sm font-semibold text-foreground">Scoring momentum</p>
             <p className="text-[11px] text-muted-foreground">Daily points · last 14 days</p>
           </div>
           {summary.weekDelta !== 0 ? (
@@ -155,7 +155,7 @@ export function DashboardInsights({ activities, stats }: DashboardInsightsProps)
 
       {/* Season points curve */}
       <div className="rounded-xl border border-border/70 bg-[hsla(0,0%,10%,1)] p-4">
-        <p className="font-display text-sm font-semibold text-foreground">Season points curve</p>
+        <p className="font-sans text-sm font-semibold text-foreground">Season points curve</p>
         <p className="text-[11px] text-muted-foreground">Cumulative scored points this fortnight</p>
         {hasChartData ? (
           <InsightsLineChart
@@ -174,7 +174,7 @@ export function DashboardInsights({ activities, stats }: DashboardInsightsProps)
       <div className="grid gap-4 sm:grid-cols-2">
         {/* Training volume */}
         <div className="rounded-xl border border-border/70 bg-[hsla(0,0%,10%,1)] p-4">
-          <p className="font-display text-sm font-semibold text-foreground">Training volume</p>
+          <p className="font-sans text-sm font-semibold text-foreground">Training volume</p>
           <p className="text-[11px] text-muted-foreground">Minutes per day</p>
           {hasChartData ? (
             <InsightsLineChart
@@ -192,7 +192,7 @@ export function DashboardInsights({ activities, stats }: DashboardInsightsProps)
 
         {/* HR intensity */}
         <div className="rounded-xl border border-border/70 bg-[hsla(0,0%,10%,1)] p-4">
-          <p className="font-display text-sm font-semibold text-foreground">Engine intensity</p>
+          <p className="font-sans text-sm font-semibold text-foreground">Engine intensity</p>
           <p className="text-[11px] text-muted-foreground">Avg % of max HR</p>
           {intensityData.length > 0 ? (
             <InsightsLineChart
@@ -225,7 +225,7 @@ export function DashboardInsights({ activities, stats }: DashboardInsightsProps)
                 <div className="flex min-w-0 items-center gap-2">
                   <span
                     className={cn(
-                      'flex h-6 w-6 shrink-0 items-center justify-center rounded-full font-display text-xs font-bold',
+                      'flex h-6 w-6 shrink-0 items-center justify-center rounded-full font-sans text-xs font-semibold',
                       i === 0 ? 'bg-neon-lime/20 text-neon-lime' : 'bg-muted text-muted-foreground',
                     )}
                   >

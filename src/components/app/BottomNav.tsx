@@ -1,12 +1,12 @@
 import { Link, useLocation } from "react-router-dom";
-import { Heart, Home, Trophy, User } from "lucide-react";
+import { Home, Trophy, User, Users } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { haptic } from "@/lib/haptics";
 
 const navItems = [
   { path: "/app", icon: Home, label: "Dashboard" },
   { path: "/app/leaderboard", icon: Trophy, label: "Leaderboard" },
-  { path: "/app/recovery", icon: Heart, label: "Recovery" },
+  { path: "/app/friends", icon: Users, label: "Friends" },
   { path: "/app/profile", icon: User, label: "Profile" },
 ];
 
@@ -15,12 +15,12 @@ export function BottomNav() {
 
   return (
     <nav className="app-footer border-t border-border bg-background">
-      <div
-        className="flex h-16 items-center justify-around px-4"
-        style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}
-      >
+      <div className="flex h-16 items-center justify-around px-4">
         {navItems.map(({ path, icon: Icon, label }) => {
-          const isActive = location.pathname === path;
+          const isActive =
+            path === "/app"
+              ? location.pathname === "/app"
+              : location.pathname === path || location.pathname.startsWith(`${path}/`);
           return (
             <Link
               key={path}

@@ -49,7 +49,7 @@ export function MomentumBlock({
     <Card className="card-elevated p-3 space-y-3">
       <div className="flex items-center justify-between">
         <div>
-          <h3 className="font-display text-base text-foreground uppercase">Momentum</h3>
+          <h3 className="font-sans text-base font-semibold text-foreground uppercase">Momentum</h3>
           <span className="text-xs text-muted-foreground">{division} Division</span>
         </div>
         <span

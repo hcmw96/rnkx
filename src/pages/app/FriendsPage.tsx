@@ -280,7 +280,12 @@ export default function FriendsPage({ embedded = false }: FriendsPageProps) {
                       </div>
                       <div className="shrink-0 text-right text-xs text-muted-foreground">
                         <div>Rank {f.rank != null ? `#${f.rank}` : '—'}</div>
-                        <div className="font-display text-foreground">{f.total_score.toLocaleString()} pts</div>
+                        <div className="text-xs text-muted-foreground">
+                          <span className="font-display text-base text-foreground tabular-nums">
+                            {f.total_score.toLocaleString()}
+                          </span>{' '}
+                          pts
+                        </div>
                       </div>
                     </div>
                   </li>

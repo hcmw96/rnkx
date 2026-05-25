@@ -306,7 +306,7 @@ export default function LeaguePage() {
 
               {league.conversation_id ? (
                 <div id="chat" className="space-y-2 rounded-xl border border-border bg-card p-3">
-                  <h2 className="font-display text-sm uppercase tracking-wider text-muted-foreground">Group chat</h2>
+                  <h2 className="font-sans text-sm font-semibold uppercase tracking-wider text-muted-foreground">Group chat</h2>
                   <div className="max-h-64 space-y-2 overflow-y-auto">
                     {messages.map((m) => (
                       <div key={m.id} className="text-sm">

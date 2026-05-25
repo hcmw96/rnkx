@@ -252,7 +252,7 @@ export default function PrivateLeaguePage() {
 
             {/* Standings */}
             <div className="space-y-2">
-              <h2 className="font-display text-sm text-muted-foreground uppercase tracking-wider px-1">Standings</h2>
+              <h2 className="font-sans text-sm font-semibold text-muted-foreground uppercase tracking-wider px-1">Standings</h2>
               {members.length === 0 ? (
                 <div className="text-center py-8 text-muted-foreground text-sm">No scores yet — go log a workout!</div>
               ) : (

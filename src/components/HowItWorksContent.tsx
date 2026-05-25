@@ -5,7 +5,7 @@ export function HowItWorksScrollBody() {
   return (
     <div className="mx-auto max-w-lg space-y-8 pb-6">
       <section className="space-y-3">
-        <h2 className="flex items-center gap-2 font-display text-sm uppercase tracking-wider text-zinc-300">
+        <h2 className="flex items-center gap-2 font-sans text-sm font-semibold uppercase tracking-wider text-zinc-300">
           <span aria-hidden className="text-[#ADFF2F]">
             ⚡
           </span>
@@ -46,7 +46,7 @@ export function HowItWorksScrollBody() {
       </section>
 
       <section className="space-y-3">
-        <h2 className="flex items-center gap-2 font-display text-sm uppercase tracking-wider text-zinc-300">
+        <h2 className="flex items-center gap-2 font-sans text-sm font-semibold uppercase tracking-wider text-zinc-300">
           <span className="text-base" aria-hidden>
             📅
           </span>
@@ -61,7 +61,7 @@ export function HowItWorksScrollBody() {
       </section>
 
       <section className="space-y-3">
-        <h2 className="flex items-center gap-2 font-display text-sm uppercase tracking-wider text-zinc-300">
+        <h2 className="flex items-center gap-2 font-sans text-sm font-semibold uppercase tracking-wider text-zinc-300">
           <span className="text-base" aria-hidden>
             🛡️
           </span>
@@ -100,7 +100,7 @@ export function HowItWorksScrollBody() {
               <Trophy className="h-5 w-5 text-amber-300" aria-hidden />
             </div>
             <div className="space-y-1">
-              <p className="font-display text-xs uppercase tracking-wider text-orange-200/90">Pro Tip</p>
+              <p className="font-sans text-xs font-semibold uppercase tracking-wider text-orange-200/90">Pro Tip</p>
               <p className="text-sm text-orange-50/95">
                 Train consistently each week to earn <span className="font-semibold text-[#FBBF24]">bonus points</span>
                 !

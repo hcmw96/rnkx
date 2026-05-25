@@ -349,7 +349,12 @@ export default function Dashboard() {
                       >
                         {leagueType === 'run' ? 'Run' : 'Engine'}
                       </span>
-                      <p className="mt-1 text-sm font-semibold text-foreground">{score.toLocaleString()} pts</p>
+                      <p className="mt-1 text-xs text-muted-foreground">
+                        <span className="font-display text-base tabular-nums text-foreground">
+                          {score.toLocaleString()}
+                        </span>{' '}
+                        pts
+                      </p>
                     </div>
                   </div>
                 );

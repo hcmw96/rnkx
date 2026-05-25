@@ -112,14 +112,14 @@ export function LeagueHighlights({ memberIds, leagueType, seasonId }: LeagueHigh
 
   return (
     <div className="space-y-2">
-      <h2 className="font-display px-1 text-sm uppercase tracking-wider text-muted-foreground">This Week</h2>
+      <h2 className="font-sans px-1 text-sm font-semibold uppercase tracking-wider text-muted-foreground">This Week</h2>
       <div className="grid grid-cols-3 gap-2">
         {highlights.map((h) => (
           <div key={h.label} className="space-y-1 rounded-lg border border-border bg-card p-3 text-center">
             <div className="flex items-center justify-center">{h.icon}</div>
             <div className="text-[10px] uppercase tracking-wider text-muted-foreground">{h.label}</div>
             <div className="truncate text-xs font-medium text-foreground">{h.username}</div>
-            <div className="font-display text-xs text-primary">{h.value}</div>
+            <div className="font-sans text-xs font-semibold text-primary">{h.value}</div>
           </div>
         ))}
       </div>
