@@ -149,7 +149,7 @@ stable
 security definer
 set search_path = public
 as $$
-  select m.id, m.athlete_id, m.body, m.created_at
+  select m.id, m.athlete_id, m.content, m.created_at
   from public.conversation_messages m
   where m.conversation_id = p_conversation_id
     and exists (
@@ -183,7 +183,7 @@ as $$
       friend_a.username as friend_username,
       friend_a.avatar_url as friend_avatar_url,
       (
-        select msg.body
+        select msg.content
         from public.conversation_messages msg
         where msg.conversation_id = c.id
         order by msg.created_at desc
