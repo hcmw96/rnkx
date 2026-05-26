@@ -23,8 +23,8 @@ type LeaderboardRowsProps = {
 };
 
 const LEAGUE_SCORE_CLASS: Record<LeaderboardLeague, string> = {
-  engine: 'text-neon-lime',
-  run: 'text-electric-cyan',
+  engine: 'text-primary',
+  run: 'text-secondary',
 };
 
 const LEAGUE_SELF_BORDER: Record<LeaderboardLeague, string> = {
@@ -50,11 +50,15 @@ export function LeaderboardRows({ rows, league, currentUserId, friendIds }: Lead
           : null;
         const pointsInt = Number.isFinite(item.score) ? Math.round(item.score) : 0;
         const canViewProfile = friendIds.has(item.id) && !isSelf;
+        const isFirst = item.rank === 1;
 
         const rowInner = (
           <>
             <span
-              className="type-display-rank w-7 shrink-0 text-center text-muted-foreground"
+              className={cn(
+                'w-9 shrink-0 text-center font-sans text-2xl font-bold tabular-nums leading-none',
+                isFirst ? 'text-neon-lime' : 'text-muted-foreground',
+              )}
               aria-label={`Rank ${item.rank}`}
             >
               {item.rank}
@@ -69,13 +73,13 @@ export function LeaderboardRows({ rows, league, currentUserId, friendIds }: Lead
               )}
             </div>
             <div className="min-w-0 flex-1">
-              <p className="truncate text-sm font-semibold text-foreground">@{item.username}</p>
+              <p className="truncate text-base font-semibold text-white">{item.username}</p>
               <p className="mt-0.5 truncate text-xs text-muted-foreground">
                 {countryLabel ?? '—'}
               </p>
             </div>
-            <div className="shrink-0 pl-2 text-right">
-              <p className={cn('type-display-score leading-none', scoreClass)}>
+            <div className="shrink-0 pr-4 pl-2 text-right">
+              <p className={cn('font-sans text-2xl font-bold tabular-nums leading-none', scoreClass)}>
                 {pointsInt.toLocaleString()}
               </p>
               <p className="mt-0.5 text-xs text-muted-foreground">pts</p>
