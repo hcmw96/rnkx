@@ -45,9 +45,9 @@ export function LeaderboardRows({ rows, league, currentUserId, friendIds }: Lead
       {rows.map((item) => {
         const isSelf = currentUserId != null && item.id === currentUserId;
         const initial = (item.username || item.displayName || '?').trim().charAt(0).toUpperCase() || '?';
-        const countryInfo = item.country ? getCountryByName(item.country) : null;
-        const flag = countryInfo?.flag ?? '';
-        const countryLabel = countryInfo?.name ?? item.country ?? '';
+        const countryLabel = item.country
+          ? (getCountryByName(item.country)?.name ?? item.country)
+          : null;
         const pointsInt = Number.isFinite(item.score) ? Math.round(item.score) : 0;
         const canViewProfile = friendIds.has(item.id) && !isSelf;
 
@@ -70,24 +70,15 @@ export function LeaderboardRows({ rows, league, currentUserId, friendIds }: Lead
             </div>
             <div className="min-w-0 flex-1">
               <p className="truncate text-sm font-semibold text-foreground">@{item.username}</p>
-              <p className="mt-0.5 flex min-w-0 items-center gap-1 text-xs text-muted-foreground">
-                {flag ? (
-                  <span className="shrink-0 text-sm leading-none" aria-hidden>
-                    {flag}
-                  </span>
-                ) : null}
-                {countryLabel ? (
-                  <span className="min-w-0 truncate">{countryLabel}</span>
-                ) : (
-                  <span className="text-muted-foreground/70">—</span>
-                )}
-                <span className="shrink-0 text-muted-foreground/50" aria-hidden>
-                  ·
-                </span>
-                <span className={cn('shrink-0 font-display text-sm font-bold tabular-nums', scoreClass)}>
-                  {pointsInt.toLocaleString()} pts
-                </span>
+              <p className="mt-0.5 truncate text-xs text-muted-foreground">
+                {countryLabel ?? '—'}
               </p>
+            </div>
+            <div className="shrink-0 pl-2 text-right">
+              <p className={cn('type-display-score leading-none', scoreClass)}>
+                {pointsInt.toLocaleString()}
+              </p>
+              <p className="mt-0.5 text-xs text-muted-foreground">pts</p>
             </div>
           </>
         );
