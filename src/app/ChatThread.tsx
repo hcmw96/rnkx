@@ -29,6 +29,7 @@ export default function ChatThread() {
   const [conversationId, setConversationId] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
   const [initError, setInitError] = useState<string | null>(null);
+  const [threadReady, setThreadReady] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
 
   const loadMessages = useCallback(async (cid: string) => {
@@ -44,6 +45,10 @@ export default function ChatThread() {
     if (!friendId) return;
 
     async function init() {
+      setThreadReady(false);
+      setConversationId(null);
+      setMessages([]);
+      setMyAthleteId(null);
       setInitError(null);
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) {
@@ -85,6 +90,7 @@ export default function ChatThread() {
 
       setConversationId(cid);
       await loadMessages(cid);
+      setThreadReady(true);
     }
 
     void init();
@@ -130,7 +136,7 @@ export default function ChatThread() {
 
   async function handleSend() {
     const content = newMsg.trim();
-    if (!content || !myAthleteId || !conversationId || sending) return;
+    if (!content || !myAthleteId || !conversationId || !threadReady || sending) return;
     setSending(true);
     try {
       const { message: inserted, error } = await sendConversationMessage(
@@ -240,12 +246,12 @@ export default function ChatThread() {
             placeholder="Message…"
             className="flex-1"
             maxLength={500}
-            disabled={!conversationId || !!initError}
+            disabled={!threadReady || !conversationId || !!initError}
           />
           <Button
             type="submit"
             size="icon"
-            disabled={!newMsg.trim() || sending || !conversationId || !!initError}
+            disabled={!newMsg.trim() || sending || !threadReady || !conversationId || !!initError}
             className="bg-primary text-primary-foreground hover:bg-primary/90"
           >
             <Send className="h-4 w-4" />

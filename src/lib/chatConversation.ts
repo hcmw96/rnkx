@@ -1,5 +1,12 @@
 import { supabase } from '@/services/supabase';
 
+/** PostgREST may return a uuid scalar as string or JSON-encoded value. */
+function parseRpcUuid(data: unknown): string | null {
+  if (typeof data === 'string' && data.length > 0) return data;
+  if (typeof data === 'number' || typeof data === 'bigint') return String(data);
+  return null;
+}
+
 /** Find or create a 1:1 conversation (is_group = false) between two athletes. */
 export async function getOrCreateDmConversation(
   myAthleteId: string,
@@ -16,7 +23,7 @@ export async function getOrCreateDmConversation(
     return { conversationId: null, error: error.message };
   }
 
-  const conversationId = typeof data === 'string' ? data : null;
+  const conversationId = parseRpcUuid(data);
   if (!conversationId) {
     return { conversationId: null, error: 'Could not start conversation' };
   }

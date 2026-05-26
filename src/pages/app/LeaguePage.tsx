@@ -10,6 +10,7 @@ import { LeagueHighlights } from '@/components/leagues/LeagueHighlights';
 import { LeagueActivityFeed } from '@/components/leagues/LeagueActivityFeed';
 import { EditLeagueModal } from '@/components/leagues/EditLeagueModal';
 import { listConversationMessages, sendConversationMessage, chatMessageText } from '@/lib/chatMessages';
+import { resolveAthleteId } from '@/lib/resolveAthleteId';
 import { invokePushNotify } from '@/lib/pushNotify';
 import { supabase } from '@/services/supabase';
 import { toast } from 'sonner';
@@ -70,11 +71,7 @@ export default function LeaguePage() {
       return;
     }
     setAuthUserId(uid);
-    const [byUserId, byId] = await Promise.all([
-      supabase.from('athletes').select('id').eq('user_id', uid).not('username', 'is', null).maybeSingle(),
-      supabase.from('athletes').select('id').eq('id', uid).not('username', 'is', null).maybeSingle(),
-    ]);
-    const aid = (byUserId.data?.id ?? byId.data?.id) as string | undefined;
+    const aid = await resolveAthleteId(uid);
     setAthleteId(aid);
 
     const { data: leagueRow, error: leagueErr } = await supabase

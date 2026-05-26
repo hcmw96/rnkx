@@ -18,6 +18,37 @@ interface CreateLeagueModalProps {
 
 type ClubVisibility = 'private' | 'public';
 
+const UPLOAD_TIMEOUT_MS = 25_000;
+
+async function uploadClubImage(
+  athleteId: string,
+  leagueId: string,
+  file: File,
+): Promise<{ publicUrl: string | null; error: string | null }> {
+  const ext =
+    file.name.split('.').pop()?.toLowerCase() ||
+    (file.type === 'image/png' ? 'png' : file.type === 'image/webp' ? 'webp' : 'jpg');
+  const path = `${athleteId}/league-${leagueId}.${ext}`;
+
+  const uploadPromise = supabase.storage.from('avatars').upload(path, file, {
+    upsert: true,
+    contentType: file.type || 'image/jpeg',
+    cacheControl: '3600',
+  });
+
+  const timeoutPromise = new Promise<{ data: null; error: { message: string } }>((resolve) => {
+    setTimeout(() => resolve({ data: null, error: { message: 'Upload timed out' } }), UPLOAD_TIMEOUT_MS);
+  });
+
+  const { error: uploadError } = await Promise.race([uploadPromise, timeoutPromise]);
+  if (uploadError) {
+    return { publicUrl: null, error: uploadError.message };
+  }
+
+  const { data: pub } = supabase.storage.from('avatars').getPublicUrl(path);
+  return { publicUrl: pub.publicUrl, error: null };
+}
+
 export function CreateLeagueModal({
   athleteId,
   onCreated,
@@ -60,6 +91,7 @@ export function CreateLeagueModal({
   const handleCreate = async () => {
     if (!name.trim()) return;
     setLoading(true);
+    setUploading(false);
     try {
       const {
         data: { user },
@@ -74,29 +106,31 @@ export function CreateLeagueModal({
       });
       if (linkErr) throw new Error(`Profile link failed: ${linkErr.message}`);
 
-      let imageUrl: string | null = null;
-      if (imageFile) {
-        setUploading(true);
-        const fileExt = imageFile.name.split('.').pop();
-        const fileName = `${user.id}/league-${crypto.randomUUID()}.${fileExt}`;
-        const { error: uploadError } = await supabase.storage
-          .from('avatars')
-          .upload(fileName, imageFile, { cacheControl: '3600', upsert: true });
-        if (uploadError) throw uploadError;
-        const { data: pub } = supabase.storage.from('avatars').getPublicUrl(fileName);
-        imageUrl = pub.publicUrl;
-        setUploading(false);
-      }
-
       const { data: leagueId, error: createErr } = await supabase.rpc('create_private_club', {
         p_athlete_id: athleteId,
         p_name: name.trim(),
         p_league_type: leagueType,
         p_is_public: visibility === 'public',
-        p_image_url: imageUrl,
+        p_image_url: null,
       });
       if (createErr) throw new Error(createErr.message);
       if (!leagueId) throw new Error('Failed to create club');
+
+      if (imageFile) {
+        setUploading(true);
+        const { publicUrl, error: uploadErr } = await uploadClubImage(athleteId, leagueId, imageFile);
+        if (uploadErr || !publicUrl) {
+          toast.error(uploadErr ?? 'Image upload failed — club was created without a photo.');
+        } else {
+          const { error: imageUpdateErr } = await supabase
+            .from('private_leagues')
+            .update({ image_url: publicUrl })
+            .eq('id', leagueId);
+          if (imageUpdateErr) {
+            toast.error('Club created but photo could not be saved.');
+          }
+        }
+      }
 
       toast.success(`"${name.trim()}" is ready!`);
       resetForm();
