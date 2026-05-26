@@ -116,7 +116,7 @@ export default function ChatPage() {
     for (const convo of convos) {
       const { data: lastMsgs } = await supabase
         .from("conversation_messages")
-        .select("body, created_at")
+        .select("content, created_at")
         .eq("conversation_id", convo.id)
         .order("created_at", { ascending: false })
         .limit(1);
@@ -134,7 +134,7 @@ export default function ChatPage() {
         type: "group",
         name: convo.name || "Group Chat",
         avatar: league?.image_url || null,
-        lastMessage: lastMsg?.body || "No messages yet",
+        lastMessage: lastMsg?.content || "No messages yet",
         lastMessageAt: lastMsg?.created_at || new Date(0).toISOString(),
         unread: false,
         link: `/app/chat/group/${convo.id}`,

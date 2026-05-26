@@ -121,7 +121,7 @@ export default function PrivateLeaguesPage({ embedded = false }: PrivateLeaguesP
         <p className="text-sm text-muted-foreground">Loading…</p>
       ) : leagues.length === 0 ? (
         <p className="rounded-lg border border-dashed border-border p-6 text-center text-sm text-muted-foreground">
-          No clubs yet. Create one to compete with friends.
+          No clubs yet. Create private and public clubs in social tab.
         </p>
       ) : (
         <ul className="space-y-2">

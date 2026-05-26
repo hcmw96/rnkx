@@ -8,14 +8,13 @@ import { cn } from "@/lib/utils";
 import { format } from "date-fns";
 import { ChatPremiumGate } from "@/components/chat/ChatPremiumGate";
 import { resolveAthleteId } from "@/lib/resolveAthleteId";
+import {
+  chatMessageText,
+  listConversationMessages,
+  sendConversationMessage,
+  type ChatMessageRow,
+} from "@/lib/chatMessages";
 import { toast } from "sonner";
-
-interface Message {
-  id: string;
-  athlete_id: string;
-  body: string;
-  created_at: string;
-}
 
 interface Member {
   id: string;
@@ -25,7 +24,7 @@ interface Member {
 
 export default function GroupChatThread() {
   const { conversationId } = useParams<{ conversationId: string }>();
-  const [messages, setMessages] = useState<Message[]>([]);
+  const [messages, setMessages] = useState<ChatMessageRow[]>([]);
   const [members, setMembers] = useState<Map<string, Member>>(new Map());
   const [groupName, setGroupName] = useState("");
   const [memberCount, setMemberCount] = useState(0);
@@ -36,18 +35,12 @@ export default function GroupChatThread() {
 
   const loadMessages = useCallback(async () => {
     if (!conversationId) return;
-    const { data, error } = await supabase
-      .from("conversation_messages")
-      .select("id, athlete_id, body, created_at")
-      .eq("conversation_id", conversationId)
-      .order("created_at", { ascending: true })
-      .limit(200);
-
+    const { messages: rows, error } = await listConversationMessages(conversationId, 200);
     if (error) {
-      toast.error(error.message);
+      toast.error(error);
       return;
     }
-    setMessages((data as Message[]) ?? []);
+    setMessages(rows);
   }, [conversationId]);
 
   useEffect(() => {
@@ -109,7 +102,13 @@ export default function GroupChatThread() {
           filter: `conversation_id=eq.${conversationId}`,
         },
         (payload) => {
-          const msg = payload.new as Message;
+          const raw = payload.new as ChatMessageRow & { body?: string };
+          const msg: ChatMessageRow = {
+            id: raw.id,
+            athlete_id: raw.athlete_id,
+            content: chatMessageText(raw),
+            created_at: raw.created_at,
+          };
           setMessages((prev) => {
             if (prev.some((m) => m.id === msg.id)) return prev;
             return [...prev, msg];
@@ -132,23 +131,19 @@ export default function GroupChatThread() {
     if (!content || !myAthleteId || !conversationId || sending) return;
     setSending(true);
     try {
-      const { data: inserted, error } = await supabase
-        .from("conversation_messages")
-        .insert({
-          conversation_id: conversationId,
-          athlete_id: myAthleteId,
-          body: content,
-        })
-        .select("id, athlete_id, body, created_at")
-        .single();
+      const { message: inserted, error } = await sendConversationMessage(
+        conversationId,
+        myAthleteId,
+        content,
+      );
 
-      if (error) throw error;
+      if (error) throw new Error(error);
 
       setNewMsg("");
       if (inserted) {
         setMessages((prev) => {
           if (prev.some((m) => m.id === inserted.id)) return prev;
-          return [...prev, inserted as Message];
+          return [...prev, inserted];
         });
       }
     } catch (err) {
@@ -209,7 +204,7 @@ export default function GroupChatThread() {
                       : "bg-card border border-border text-foreground rounded-bl-md"
                   )}
                 >
-                  <p className="text-sm break-words">{msg.body}</p>
+                  <p className="text-sm break-words">{msg.content}</p>
                   <p className={cn(
                     "text-xs mt-1",
                     isMine ? "text-primary-foreground/60" : "text-muted-foreground"

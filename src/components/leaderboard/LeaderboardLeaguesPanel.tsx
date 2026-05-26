@@ -117,7 +117,7 @@ export function LeaderboardLeaguesPanel() {
         <p className="text-sm text-muted-foreground">Loading clubs…</p>
       ) : leagues.length === 0 ? (
         <p className="rounded-xl border border-dashed border-border/70 bg-[hsla(0,0%,10%,1)] px-4 py-10 text-center text-sm text-muted-foreground">
-          No clubs yet. Create one to compete with friends.
+          No clubs yet. Create private and public clubs in social tab.
         </p>
       ) : (
         <ul className="space-y-2.5">

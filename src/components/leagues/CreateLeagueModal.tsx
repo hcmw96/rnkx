@@ -88,60 +88,15 @@ export function CreateLeagueModal({
         setUploading(false);
       }
 
-      const { data: convRow, error: convError } = await supabase
-        .from('conversations')
-        .insert({ is_group: true, name: name.trim(), created_by: athleteId })
-        .select('id')
-        .single();
-      if (convError) throw new Error(`Chat setup failed: ${convError.message}`);
-
-      const conversationId = convRow.id as string;
-
-      const { error: memberConvError } = await supabase
-        .from('conversation_members')
-        .insert({ conversation_id: conversationId, athlete_id: athleteId });
-      if (memberConvError) throw new Error(`Club member setup failed: ${memberConvError.message}`);
-
-      let inviteCode: string;
-      let leagueRow: { id: string } | null = null;
-      let leagueError: Error | null = null;
-      for (let attempt = 0; attempt < 8; attempt++) {
-        inviteCode = Math.random().toString(36).substring(2, 10);
-        const ins = await supabase
-          .from('private_leagues')
-          .insert({
-            name: name.trim(),
-            created_by: athleteId,
-            league_type: leagueType,
-            conversation_id: conversationId,
-            image_url: imageUrl,
-            invite_code: inviteCode,
-            is_public: visibility === 'public',
-          })
-          .select('id')
-          .single();
-        if (!ins.error) {
-          leagueRow = ins.data as { id: string };
-          leagueError = null;
-          break;
-        }
-        if (ins.error.code === '23505') {
-          leagueError = new Error(ins.error.message);
-          continue;
-        }
-        leagueError = new Error(ins.error.message);
-        break;
-      }
-      if (leagueError || !leagueRow) throw leagueError ?? new Error('Failed to create club');
-
-      const leagueId = leagueRow.id as string;
-
-      const { error: memberError } = await supabase.from('private_league_members').insert({
-        league_id: leagueId,
-        athlete_id: athleteId,
-        status: 'accepted',
+      const { data: leagueId, error: createErr } = await supabase.rpc('create_private_club', {
+        p_athlete_id: athleteId,
+        p_name: name.trim(),
+        p_league_type: leagueType,
+        p_is_public: visibility === 'public',
+        p_image_url: imageUrl,
       });
-      if (memberError) throw memberError;
+      if (createErr) throw new Error(createErr.message);
+      if (!leagueId) throw new Error('Failed to create club');
 
       toast.success(`"${name.trim()}" is ready!`);
       resetForm();

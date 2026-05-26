@@ -10,18 +10,17 @@ import { format } from "date-fns";
 import { ChatPremiumGate } from "@/components/chat/ChatPremiumGate";
 import { resolveAthleteId } from "@/lib/resolveAthleteId";
 import { getOrCreateDmConversation } from "@/lib/chatConversation";
+import {
+  chatMessageText,
+  listConversationMessages,
+  sendConversationMessage,
+  type ChatMessageRow,
+} from "@/lib/chatMessages";
 import { toast } from "sonner";
-
-interface Message {
-  id: string;
-  athlete_id: string;
-  body: string;
-  created_at: string;
-}
 
 export default function ChatThread() {
   const { friendId } = useParams<{ friendId: string }>();
-  const [messages, setMessages] = useState<Message[]>([]);
+  const [messages, setMessages] = useState<ChatMessageRow[]>([]);
   const [newMsg, setNewMsg] = useState("");
   const [myAthleteId, setMyAthleteId] = useState<string | null>(null);
   const [myDisplayName, setMyDisplayName] = useState("");
@@ -33,16 +32,12 @@ export default function ChatThread() {
   const scrollRef = useRef<HTMLDivElement>(null);
 
   const loadMessages = useCallback(async (cid: string) => {
-    const { data, error } = await supabase.rpc("list_conversation_messages", {
-      p_conversation_id: cid,
-      p_limit: 200,
-    });
-
+    const { messages: rows, error } = await listConversationMessages(cid, 200);
     if (error) {
-      toast.error(error.message);
+      toast.error(error);
       return;
     }
-    setMessages((data as Message[]) ?? []);
+    setMessages(rows);
   }, []);
 
   useEffect(() => {
@@ -109,7 +104,13 @@ export default function ChatThread() {
           filter: `conversation_id=eq.${conversationId}`,
         },
         (payload) => {
-          const msg = payload.new as Message;
+          const raw = payload.new as ChatMessageRow & { body?: string };
+          const msg: ChatMessageRow = {
+            id: raw.id,
+            athlete_id: raw.athlete_id,
+            content: chatMessageText(raw),
+            created_at: raw.created_at,
+          };
           setMessages((prev) => {
             if (prev.some((m) => m.id === msg.id)) return prev;
             return [...prev, msg];
@@ -132,23 +133,19 @@ export default function ChatThread() {
     if (!content || !myAthleteId || !conversationId || sending) return;
     setSending(true);
     try {
-      const { data: inserted, error } = await supabase
-        .from("conversation_messages")
-        .insert({
-          conversation_id: conversationId,
-          athlete_id: myAthleteId,
-          body: content,
-        })
-        .select("id, athlete_id, body, created_at")
-        .single();
+      const { message: inserted, error } = await sendConversationMessage(
+        conversationId,
+        myAthleteId,
+        content,
+      );
 
-      if (error) throw error;
+      if (error) throw new Error(error);
 
       setNewMsg("");
       if (inserted) {
         setMessages((prev) => {
           if (prev.some((m) => m.id === inserted.id)) return prev;
-          return [...prev, inserted as Message];
+          return [...prev, inserted];
         });
       }
 
@@ -216,7 +213,7 @@ export default function ChatThread() {
                       : "bg-card border border-border text-foreground rounded-bl-md"
                   )}
                 >
-                  <p className="text-sm break-words">{msg.body}</p>
+                  <p className="text-sm break-words">{msg.content}</p>
                   <div className={cn("flex items-center gap-1 mt-1", isMine ? "justify-end" : "")}>
                     <span className={cn(
                       "text-xs",

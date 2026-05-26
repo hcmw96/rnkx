@@ -9,6 +9,7 @@ import { LeaguePodium } from '@/components/leagues/LeaguePodium';
 import { LeagueHighlights } from '@/components/leagues/LeagueHighlights';
 import { LeagueActivityFeed } from '@/components/leagues/LeagueActivityFeed';
 import { EditLeagueModal } from '@/components/leagues/EditLeagueModal';
+import { listConversationMessages, sendConversationMessage, chatMessageText } from '@/lib/chatMessages';
 import { invokePushNotify } from '@/lib/pushNotify';
 import { supabase } from '@/services/supabase';
 import { toast } from 'sonner';
@@ -34,7 +35,7 @@ type MemberRow = {
 
 type ChatMessage = {
   id: string;
-  body: string;
+  content: string;
   created_at: string;
   athlete_id: string;
   athletes?: { username: string | null } | null;
@@ -99,6 +100,7 @@ export default function LeaguePage() {
       .eq('status', 'accepted');
 
     let memberIds: string[] = [];
+    let memberList: MemberRow[] = [];
     if (memErr) {
       toast.error(memErr.message);
       setMembers([]);
@@ -107,13 +109,12 @@ export default function LeaguePage() {
         athlete_id: string;
         athletes?: MemberRow['athletes'] | MemberRow['athletes'][] | null;
       }[];
-      memberIds = raw.map((r) => r.athlete_id);
-      setMembers(
-        raw.map((r) => ({
-          athlete_id: r.athlete_id,
-          athletes: Array.isArray(r.athletes) ? r.athletes[0] ?? null : r.athletes ?? null,
-        })),
-      );
+      memberList = raw.map((r) => ({
+        athlete_id: r.athlete_id,
+        athletes: Array.isArray(r.athletes) ? r.athletes[0] ?? null : r.athletes ?? null,
+      }));
+      memberIds = memberList.map((r) => r.athlete_id);
+      setMembers(memberList);
     }
 
     const { data: season } = await supabase.from('seasons').select('id').eq('is_active', true).maybeSingle();
@@ -137,25 +138,21 @@ export default function LeaguePage() {
 
     const cid = leagueRow.conversation_id as string | null;
     if (cid) {
-      const { data: msgs } = await supabase
-        .from('conversation_messages')
-        .select('id, body, created_at, athlete_id, athletes(username)')
-        .eq('conversation_id', cid)
-        .order('created_at', { ascending: true })
-        .limit(200);
-      const mraw = (msgs ?? []) as unknown as {
-        id: string;
-        body: string;
-        created_at: string;
-        athlete_id: string;
-        athletes?: ChatMessage['athletes'] | ChatMessage['athletes'][] | null;
-      }[];
-      setMessages(
-        mraw.map((m) => ({
-          ...m,
-          athletes: Array.isArray(m.athletes) ? m.athletes[0] ?? null : m.athletes ?? null,
-        })),
-      );
+      const { messages: msgs, error: msgErr } = await listConversationMessages(cid, 200);
+      if (msgErr) {
+        toast.error(msgErr);
+        setMessages([]);
+      } else {
+        const usernames = new Map(
+          memberList.map((m) => [m.athlete_id, m.athletes?.username ?? null] as const),
+        );
+        setMessages(
+          msgs.map((m) => ({
+            ...m,
+            athletes: { username: usernames.get(m.athlete_id) ?? null },
+          })),
+        );
+      }
     } else {
       setMessages([]);
     }
@@ -184,7 +181,14 @@ export default function LeaguePage() {
           filter: `conversation_id=eq.${cid}`,
         },
         (payload) => {
-          const row = payload.new as ChatMessage;
+          const raw = payload.new as ChatMessage & { body?: string };
+          const row: ChatMessage = {
+            id: raw.id,
+            athlete_id: raw.athlete_id,
+            content: chatMessageText(raw),
+            created_at: raw.created_at,
+            athletes: raw.athletes,
+          };
           setMessages((prev) => {
             if (prev.some((m) => m.id === row.id)) return prev;
             const uname =
@@ -246,13 +250,9 @@ export default function LeaguePage() {
     const conversationId = league?.conversation_id;
     const currentAthleteId = athleteId;
     if (!messageBody || !conversationId || !currentAthleteId) return;
-    const { error } = await supabase.from('conversation_messages').insert({
-      conversation_id: conversationId,
-      athlete_id: currentAthleteId,
-      body: messageBody,
-    });
+    const { error } = await sendConversationMessage(conversationId, currentAthleteId, messageBody);
     if (error) {
-      toast.error(error.message);
+      toast.error(error);
       return;
     }
     setChatInput('');
@@ -327,7 +327,7 @@ export default function LeaguePage() {
                         <span className="font-medium text-foreground">
                           {m.athletes?.username ?? usernameByAthleteId[m.athlete_id] ?? 'Member'}:{' '}
                         </span>
-                        <span className="text-muted-foreground">{m.body}</span>
+                        <span className="text-muted-foreground">{m.content}</span>
                       </div>
                     ))}
                     {!messages.length ? (
