@@ -9,13 +9,8 @@ export async function resolveAthleteId(authUserId: string): Promise<string | und
   ]);
   const athleteId = (byUserId.data?.id ?? byId.data?.id) as string | undefined;
 
-  // Self-heal: if found via id = auth uid but user_id is still NULL, backfill it so RLS works
-  if (athleteId && !byUserId.data?.id && byId.data?.id) {
-    await supabase
-      .from('athletes')
-      .update({ user_id: authUserId })
-      .eq('id', athleteId)
-      .is('user_id', null);
+  if (athleteId) {
+    await supabase.rpc('ensure_athlete_user_id', { p_athlete_id: athleteId });
   }
 
   return athleteId;

@@ -33,12 +33,10 @@ export default function ChatThread() {
   const scrollRef = useRef<HTMLDivElement>(null);
 
   const loadMessages = useCallback(async (cid: string) => {
-    const { data, error } = await supabase
-      .from("conversation_messages")
-      .select("id, athlete_id, body, created_at")
-      .eq("conversation_id", cid)
-      .order("created_at", { ascending: true })
-      .limit(200);
+    const { data, error } = await supabase.rpc("list_conversation_messages", {
+      p_conversation_id: cid,
+      p_limit: 200,
+    });
 
     if (error) {
       toast.error(error.message);

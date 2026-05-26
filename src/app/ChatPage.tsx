@@ -24,19 +24,6 @@ interface ChatItem {
   link: string;
 }
 
-type ConvoRow = {
-  id: string;
-  name: string | null;
-  is_group: boolean;
-};
-
-type MessageRow = {
-  conversation_id: string;
-  body: string;
-  created_at: string;
-  athlete_id: string;
-};
-
 export default function ChatPage() {
   const [items, setItems] = useState<ChatItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -76,62 +63,35 @@ export default function ChatPage() {
   const { isRefreshing, pullDistance, pullHandlers } = usePullToRefresh(loadAll);
 
   async function loadDMs(athleteId: string): Promise<ChatItem[]> {
-    const { data: memberships } = await supabase
-      .from("conversation_members")
-      .select("conversation_id")
-      .eq("athlete_id", athleteId);
+    const { data, error } = await supabase.rpc("list_dm_inbox", {
+      p_athlete_id: athleteId,
+    });
 
-    const convoIds = (memberships ?? []).map((m) => m.conversation_id as string);
-    if (!convoIds.length) return [];
-
-    const { data: convos } = await supabase
-      .from("conversations")
-      .select("id, name, is_group")
-      .in("id", convoIds)
-      .eq("is_group", false);
-
-    if (!convos?.length) return [];
-
-    const results: ChatItem[] = [];
-
-    for (const convo of convos as ConvoRow[]) {
-      const { data: memberRows } = await supabase
-        .from("conversation_members")
-        .select("athlete_id")
-        .eq("conversation_id", convo.id);
-
-      const memberIds = (memberRows ?? []).map((m) => m.athlete_id as string);
-      const friendId = memberIds.find((id) => id !== athleteId);
-      if (!friendId) continue;
-
-      const { data: lastMsgs } = await supabase
-        .from("conversation_messages")
-        .select("body, created_at, athlete_id")
-        .eq("conversation_id", convo.id)
-        .order("created_at", { ascending: false })
-        .limit(1);
-
-      const lastMsg = lastMsgs?.[0] as MessageRow | undefined;
-
-      const { data: friend } = await supabase
-        .from("athletes")
-        .select("id, username, avatar_url")
-        .eq("id", friendId)
-        .maybeSingle();
-
-      results.push({
-        id: `dm-${friendId}`,
-        type: "dm",
-        name: friend?.username || convo.name || "Unknown",
-        avatar: friend?.avatar_url || null,
-        lastMessage: lastMsg?.body || "No messages yet",
-        lastMessageAt: lastMsg?.created_at || new Date(0).toISOString(),
-        unread: false,
-        link: `/app/chat/${friendId}`,
-      });
+    if (error) {
+      console.error("list_dm_inbox:", error.message);
+      return [];
     }
 
-    return results;
+    const rows = (Array.isArray(data) ? data : []) as Record<string, unknown>[];
+    return rows.map((row) => {
+      const r = row as {
+        friend_id: string;
+        friend_username: string | null;
+        friend_avatar_url: string | null;
+        last_message: string | null;
+        last_message_at: string | null;
+      };
+      return {
+        id: `dm-${r.friend_id}`,
+        type: "dm" as const,
+        name: r.friend_username || "Unknown",
+        avatar: r.friend_avatar_url || null,
+        lastMessage: r.last_message || "No messages yet",
+        lastMessageAt: r.last_message_at || new Date(0).toISOString(),
+        unread: false,
+        link: `/app/chat/${r.friend_id}`,
+      };
+    });
   }
 
   async function loadGroupChats(athleteId: string): Promise<ChatItem[]> {

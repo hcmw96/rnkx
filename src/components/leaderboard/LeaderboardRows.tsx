@@ -11,29 +11,7 @@ export type LeaderboardRowData = {
   username: string;
   country: string | null;
   avatarUrl: string | null;
-  wearables?: string[] | null;
 };
-
-const WEARABLE_LABELS: Record<string, string> = {
-  apple_watch: 'Apple Watch',
-  apple: 'Apple Watch',
-  whoop: 'WHOOP',
-  garmin: 'Garmin',
-  polar: 'Polar',
-  fitbit: 'Fitbit',
-  suunto: 'Suunto',
-  coros: 'COROS',
-};
-
-function primaryDevice(wearables: string[] | null | undefined): string | null {
-  if (!wearables?.length) return null;
-  for (const w of wearables) {
-    const key = w.trim().toLowerCase();
-    const label = WEARABLE_LABELS[key];
-    if (label) return label;
-  }
-  return null;
-}
 
 type LeaderboardLeague = 'engine' | 'run';
 
@@ -73,13 +51,14 @@ export function LeaderboardRows({ rows, league, currentUserId, friendIds }: Lead
         const pointsInt = Number.isFinite(item.score) ? Math.round(item.score) : 0;
         const canViewProfile = friendIds.has(item.id) && !isSelf;
         const isFirst = item.rank === 1;
-        const device = primaryDevice(item.wearables);
-        const subline = [countryLabel, device].filter(Boolean).join(' · ');
 
         const rowInner = (
           <>
             <span
-              className={cn('type-rank w-9 shrink-0 text-center', isFirst && 'text-neon-lime')}
+              className={cn(
+                'type-rank w-9 shrink-0 text-center',
+                isFirst ? 'text-neon-lime' : '!text-foreground',
+              )}
               aria-label={`Rank ${item.rank}`}
             >
               {item.rank}
@@ -93,13 +72,20 @@ export function LeaderboardRows({ rows, league, currentUserId, friendIds }: Lead
                 </span>
               )}
             </div>
-            <div className="min-w-0 flex-1">
-              <p className="type-heading truncate">{item.username}</p>
-              <p className="type-meta mt-0.5 truncate">{subline || '—'}</p>
-            </div>
-            <div className="shrink-0 pr-4 pl-2 text-right">
-              <p className={cn('type-stat text-lg', scoreClass)}>{pointsInt.toLocaleString()}</p>
-              <p className="type-stat-unit mt-0.5">pts</p>
+            <div className="flex min-w-0 flex-1 items-center justify-between gap-3 pr-1">
+              <div className="min-w-0">
+                <p className="type-heading truncate">{item.username}</p>
+                <p className="type-meta mt-0.5 truncate">{countryLabel ?? '—'}</p>
+              </div>
+              <p
+                className={cn(
+                  'shrink-0 whitespace-nowrap text-right tabular-nums leading-tight',
+                  scoreClass,
+                )}
+              >
+                <span className="text-lg font-bold">{pointsInt.toLocaleString()}</span>
+                <span className="ml-1 text-xs font-medium text-muted-foreground">pts</span>
+              </p>
             </div>
           </>
         );

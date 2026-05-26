@@ -58,7 +58,6 @@ interface AthleteExtra {
   country: string | null;
   avatar_url: string | null;
   gender: string | null;
-  wearables: string[] | null;
 }
 
 interface AthleteStatExtra {
@@ -77,7 +76,6 @@ interface MergedAthlete {
   country: string | null;
   avatar_url: string | null;
   gender: 'male' | 'female' | null;
-  wearables: string[] | null;
   engine_score: number;
   run_score: number;
   engine_rank: number | null;
@@ -92,12 +90,18 @@ interface LeaderboardRow {
   username: string;
   country: string | null;
   avatarUrl: string | null;
-  wearables: string[] | null;
 }
 
 function num(v: number | string | null | undefined): number {
   if (v === null || v === undefined) return 0;
   return typeof v === 'number' ? v : Number(v);
+}
+
+/** Re-assign ranks 1..n by score after client-side filters (gender, country, division, friends). */
+function reRankByScore(rows: LeaderboardRow[]): LeaderboardRow[] {
+  return [...rows]
+    .sort((a, b) => b.score - a.score)
+    .map((r, i) => ({ ...r, rank: i + 1 }));
 }
 
 function buildRowsForLeague(merged: MergedAthlete[], league: League): LeaderboardRow[] {
@@ -119,7 +123,6 @@ function buildRowsForLeague(merged: MergedAthlete[], league: League): Leaderboar
           username,
           country: m.country,
           avatarUrl: m.avatar_url,
-          wearables: m.wearables,
         };
       })
       .sort((a, b) => a.rank - b.rank);
@@ -133,7 +136,6 @@ function buildRowsForLeague(merged: MergedAthlete[], league: League): Leaderboar
       username: m.username || m.display_name || 'Athlete',
       country: m.country,
       avatarUrl: m.avatar_url,
-      wearables: m.wearables,
     }))
     .sort((a, b) => b.score - a.score)
     .map((r, i) => ({
@@ -144,7 +146,6 @@ function buildRowsForLeague(merged: MergedAthlete[], league: League): Leaderboar
       username: r.username,
       country: r.country,
       avatarUrl: r.avatarUrl,
-      wearables: r.wearables,
     }));
 }
 
@@ -210,7 +211,7 @@ function LeaderboardSkeleton() {
 }
 
 const LEADERBOARD_COLUMNS = 'id,display_name,total_score,rank';
-const ATHLETE_ENRICH_COLUMNS = 'id,username,country,avatar_url,gender,wearables';
+const ATHLETE_ENRICH_COLUMNS = 'id,username,country,avatar_url,gender';
 const ATHLETE_STATS_COLUMNS = 'athlete_id,season_id,category,score,rank';
 
 async function fetchMergedLeaderboard(
@@ -280,7 +281,6 @@ async function fetchMergedLeaderboard(
       country: a?.country ?? null,
       avatar_url: a?.avatar_url ?? null,
       gender: normalizeGender(a?.gender),
-      wearables: a?.wearables ?? null,
       engine_score: s?.engine_score ?? 0,
       run_score: s?.run_score ?? 0,
       engine_rank: s?.engine_rank ?? null,
@@ -427,14 +427,30 @@ export default function LeaderboardPage() {
     }
 
     if (scopeTab === 'friends') {
-      base = base
-        .filter((r) => friendIds.has(r.id) || r.id === myAthleteId)
-        .sort((a, b) => b.score - a.score)
-        .map((r, i) => ({ ...r, rank: i + 1 }));
+      base = base.filter((r) => friendIds.has(r.id) || r.id === myAthleteId);
+    }
+
+    const clientFiltered =
+      effectiveDivision != null ||
+      countryFilter !== 'all' ||
+      genderFilter !== 'all' ||
+      scopeTab === 'friends';
+
+    if (clientFiltered) {
+      base = reRankByScore(base);
     }
 
     return base;
-  }, [merged, activeLeague, scopeTab, effectiveDivision, countryFilter, genderFilter, friendIds]);
+  }, [
+    merged,
+    activeLeague,
+    scopeTab,
+    effectiveDivision,
+    countryFilter,
+    genderFilter,
+    friendIds,
+    myAthleteId,
+  ]);
 
   const countryFilterLabel =
     countryOptions.find((o) => o.value === countryFilter)?.label ?? 'All';

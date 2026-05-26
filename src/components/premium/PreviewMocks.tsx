@@ -21,7 +21,7 @@ export function FriendsPreview() {
           className="flex items-center gap-3 rounded-lg border border-border bg-zinc-900/80 p-3"
           aria-hidden
         >
-          <span className="type-rank w-8 shrink-0 text-center">{i + 1}</span>
+          <span className="type-rank w-8 shrink-0 text-center text-muted-foreground">{i + 1}</span>
           <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-border bg-muted text-xs font-semibold text-muted-foreground">
             {row.initials}
           </div>

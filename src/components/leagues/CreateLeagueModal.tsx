@@ -69,12 +69,10 @@ export function CreateLeagueModal({
         return;
       }
 
-      // Ensure athletes.user_id is populated so RLS policies pass
-      await supabase
-        .from('athletes')
-        .update({ user_id: user.id })
-        .eq('id', athleteId)
-        .is('user_id', null);
+      const { error: linkErr } = await supabase.rpc('ensure_athlete_user_id', {
+        p_athlete_id: athleteId,
+      });
+      if (linkErr) throw new Error(`Profile link failed: ${linkErr.message}`);
 
       let imageUrl: string | null = null;
       if (imageFile) {
@@ -95,14 +93,14 @@ export function CreateLeagueModal({
         .insert({ is_group: true, name: name.trim(), created_by: athleteId })
         .select('id')
         .single();
-      if (convError) throw convError;
+      if (convError) throw new Error(`Chat setup failed: ${convError.message}`);
 
       const conversationId = convRow.id as string;
 
       const { error: memberConvError } = await supabase
         .from('conversation_members')
         .insert({ conversation_id: conversationId, athlete_id: athleteId });
-      if (memberConvError) throw memberConvError;
+      if (memberConvError) throw new Error(`Club member setup failed: ${memberConvError.message}`);
 
       let inviteCode: string;
       let leagueRow: { id: string } | null = null;

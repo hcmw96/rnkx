@@ -364,15 +364,7 @@ export default function ProfilePage() {
       setAppleError(null);
       setSeasonStats(null);
     } else {
-      // Self-heal: if found via id = auth uid but user_id column is NULL, backfill it.
-      // This is required for RLS policies (avatars, clubs, etc.) that check athletes.user_id = auth.uid().
-      if (!athleteRow.user_id) {
-        await supabase
-          .from('athletes')
-          .update({ user_id: uid })
-          .eq('id', athleteRow.id)
-          .is('user_id', null);
-      }
+      await supabase.rpc('ensure_athlete_user_id', { p_athlete_id: athleteRow.id });
 
       const row = athleteRow as AthleteRow;
       setAthlete({
