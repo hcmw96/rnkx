@@ -11,7 +11,29 @@ export type LeaderboardRowData = {
   username: string;
   country: string | null;
   avatarUrl: string | null;
+  wearables?: string[] | null;
 };
+
+const WEARABLE_LABELS: Record<string, string> = {
+  apple_watch: 'Apple Watch',
+  apple: 'Apple Watch',
+  whoop: 'WHOOP',
+  garmin: 'Garmin',
+  polar: 'Polar',
+  fitbit: 'Fitbit',
+  suunto: 'Suunto',
+  coros: 'COROS',
+};
+
+function primaryDevice(wearables: string[] | null | undefined): string | null {
+  if (!wearables?.length) return null;
+  for (const w of wearables) {
+    const key = w.trim().toLowerCase();
+    const label = WEARABLE_LABELS[key];
+    if (label) return label;
+  }
+  return null;
+}
 
 type LeaderboardLeague = 'engine' | 'run';
 
@@ -51,14 +73,13 @@ export function LeaderboardRows({ rows, league, currentUserId, friendIds }: Lead
         const pointsInt = Number.isFinite(item.score) ? Math.round(item.score) : 0;
         const canViewProfile = friendIds.has(item.id) && !isSelf;
         const isFirst = item.rank === 1;
+        const device = primaryDevice(item.wearables);
+        const subline = [countryLabel, device].filter(Boolean).join(' · ');
 
         const rowInner = (
           <>
             <span
-              className={cn(
-                'w-9 shrink-0 text-center font-sans text-2xl font-bold tabular-nums leading-none',
-                isFirst ? 'text-neon-lime' : 'text-muted-foreground',
-              )}
+              className={cn('type-rank w-9 shrink-0 text-center', isFirst && 'text-neon-lime')}
               aria-label={`Rank ${item.rank}`}
             >
               {item.rank}
@@ -67,22 +88,18 @@ export function LeaderboardRows({ rows, league, currentUserId, friendIds }: Lead
               {item.avatarUrl ? (
                 <img src={item.avatarUrl} alt="" className="h-full w-full object-cover" />
               ) : (
-                <span className="flex h-full w-full items-center justify-center font-sans text-xs font-semibold text-muted-foreground">
+                <span className="flex h-full w-full items-center justify-center text-xs font-semibold text-muted-foreground">
                   {initial}
                 </span>
               )}
             </div>
             <div className="min-w-0 flex-1">
-              <p className="truncate text-base font-semibold text-white">{item.username}</p>
-              <p className="mt-0.5 truncate text-xs text-muted-foreground">
-                {countryLabel ?? '—'}
-              </p>
+              <p className="type-heading truncate">{item.username}</p>
+              <p className="type-meta mt-0.5 truncate">{subline || '—'}</p>
             </div>
             <div className="shrink-0 pr-4 pl-2 text-right">
-              <p className={cn('font-sans text-2xl font-bold tabular-nums leading-none', scoreClass)}>
-                {pointsInt.toLocaleString()}
-              </p>
-              <p className="mt-0.5 text-xs text-muted-foreground">pts</p>
+              <p className={cn('type-stat text-lg', scoreClass)}>{pointsInt.toLocaleString()}</p>
+              <p className="type-stat-unit mt-0.5">pts</p>
             </div>
           </>
         );

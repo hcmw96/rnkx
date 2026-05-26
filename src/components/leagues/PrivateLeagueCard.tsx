@@ -48,9 +48,9 @@ export function PrivateLeagueCard({
         <div className="min-w-0 flex-1">
           <div className="type-card-title truncate">{name}</div>
           {description ? (
-            <div className="truncate text-xs text-muted-foreground">{description}</div>
+            <div className="type-meta truncate">{description}</div>
           ) : (
-            <div className="text-xs text-muted-foreground">
+            <div className="type-meta">
               {memberCount} member{memberCount !== 1 ? 's' : ''}
             </div>
           )}

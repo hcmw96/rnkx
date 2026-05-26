@@ -5,11 +5,13 @@ import { ChatPremiumGate } from "@/components/chat/ChatPremiumGate";
 import { NewMessageModal } from "@/components/chat/NewMessageModal";
 import { supabase } from "@/services/supabase";
 import { resolveAthleteId } from "@/lib/resolveAthleteId";
+import { getOrCreateDmConversation } from "@/lib/chatConversation";
 import { Skeleton } from "@/components/ui/skeleton";
 import { MessageCircle, Users, PenSquare } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { Button } from "@/components/ui/button";
 import { usePullToRefresh } from "@/hooks/usePullToRefresh";
+import { toast } from "sonner";
 
 interface ChatItem {
   id: string;
@@ -21,6 +23,19 @@ interface ChatItem {
   unread: boolean;
   link: string;
 }
+
+type ConvoRow = {
+  id: string;
+  name: string | null;
+  is_group: boolean;
+};
+
+type MessageRow = {
+  conversation_id: string;
+  body: string;
+  created_at: string;
+  athlete_id: string;
+};
 
 export default function ChatPage() {
   const [items, setItems] = useState<ChatItem[]>([]);
@@ -61,51 +76,65 @@ export default function ChatPage() {
   const { isRefreshing, pullDistance, pullHandlers } = usePullToRefresh(loadAll);
 
   async function loadDMs(athleteId: string): Promise<ChatItem[]> {
-    const { data: messages } = await supabase
-      .from("direct_messages")
-      .select("id, sender_id, receiver_id, content, created_at, read_at, message_type")
-      .is("conversation_id", null)
-      .or(`sender_id.eq.${athleteId},receiver_id.eq.${athleteId}`)
-      .order("created_at", { ascending: false });
+    const { data: memberships } = await supabase
+      .from("conversation_members")
+      .select("conversation_id")
+      .eq("athlete_id", athleteId);
 
-    if (!messages?.length) return [];
+    const convoIds = (memberships ?? []).map((m) => m.conversation_id as string);
+    if (!convoIds.length) return [];
 
-    const convMap = new Map<string, { lastMsg: typeof messages[0]; unread: boolean }>();
-    for (const msg of messages) {
-      const friendId = msg.sender_id === athleteId ? msg.receiver_id : msg.sender_id;
-      if (!convMap.has(friendId)) {
-        convMap.set(friendId, {
-          lastMsg: msg,
-          unread: msg.receiver_id === athleteId && !msg.read_at,
-        });
-      }
+    const { data: convos } = await supabase
+      .from("conversations")
+      .select("id, name, is_group")
+      .in("id", convoIds)
+      .eq("is_group", false);
+
+    if (!convos?.length) return [];
+
+    const results: ChatItem[] = [];
+
+    for (const convo of convos as ConvoRow[]) {
+      const { data: memberRows } = await supabase
+        .from("conversation_members")
+        .select("athlete_id")
+        .eq("conversation_id", convo.id);
+
+      const memberIds = (memberRows ?? []).map((m) => m.athlete_id as string);
+      const friendId = memberIds.find((id) => id !== athleteId);
+      if (!friendId) continue;
+
+      const { data: lastMsgs } = await supabase
+        .from("conversation_messages")
+        .select("body, created_at, athlete_id")
+        .eq("conversation_id", convo.id)
+        .order("created_at", { ascending: false })
+        .limit(1);
+
+      const lastMsg = lastMsgs?.[0] as MessageRow | undefined;
+
+      const { data: friend } = await supabase
+        .from("athletes")
+        .select("id, username, avatar_url")
+        .eq("id", friendId)
+        .maybeSingle();
+
+      results.push({
+        id: `dm-${friendId}`,
+        type: "dm",
+        name: friend?.username || convo.name || "Unknown",
+        avatar: friend?.avatar_url || null,
+        lastMessage: lastMsg?.body || "No messages yet",
+        lastMessageAt: lastMsg?.created_at || new Date(0).toISOString(),
+        unread: false,
+        link: `/app/chat/${friendId}`,
+      });
     }
 
-    const friendIds = Array.from(convMap.keys());
-    const { data: friends } = await supabase
-      .from("athletes")
-      .select("id, username, avatar_url")
-      .in("id", friendIds);
-
-    const friendMap = new Map((friends || []).map(f => [f.id, f]));
-
-    return Array.from(convMap.entries()).map(([fid, { lastMsg, unread }]) => {
-      const friend = friendMap.get(fid);
-      return {
-        id: `dm-${fid}`,
-        type: "dm" as const,
-        name: friend?.username || "Unknown",
-        avatar: friend?.avatar_url || null,
-        lastMessage: lastMsg.message_type === "gif" ? "🖼 GIF" : lastMsg.content,
-        lastMessageAt: lastMsg.created_at,
-        unread,
-        link: `/app/chat/${fid}`,
-      };
-    });
+    return results;
   }
 
   async function loadGroupChats(athleteId: string): Promise<ChatItem[]> {
-    // Get conversations the athlete is a member of
     const { data: memberships } = await supabase
       .from("conversation_members")
       .select("conversation_id")
@@ -113,9 +142,8 @@ export default function ChatPage() {
 
     if (!memberships?.length) return [];
 
-    const convoIds = memberships.map(m => m.conversation_id);
+    const convoIds = memberships.map((m) => m.conversation_id as string);
 
-    // Get group conversations only
     const { data: convos } = await supabase
       .from("conversations")
       .select("id, name")
@@ -124,19 +152,17 @@ export default function ChatPage() {
 
     if (!convos?.length) return [];
 
-    // Get the latest message for each group conversation
     const results: ChatItem[] = [];
     for (const convo of convos) {
       const { data: lastMsgs } = await supabase
-        .from("direct_messages")
-        .select("content, created_at, message_type, sender_id")
+        .from("conversation_messages")
+        .select("body, created_at")
         .eq("conversation_id", convo.id)
         .order("created_at", { ascending: false })
         .limit(1);
 
       const lastMsg = lastMsgs?.[0];
 
-      // Try to get league image for the conversation
       const { data: league } = await supabase
         .from("private_leagues")
         .select("image_url")
@@ -148,9 +174,7 @@ export default function ChatPage() {
         type: "group",
         name: convo.name || "Group Chat",
         avatar: league?.image_url || null,
-        lastMessage: lastMsg
-          ? lastMsg.message_type === "gif" ? "🖼 GIF" : lastMsg.content
-          : "No messages yet",
+        lastMessage: lastMsg?.body || "No messages yet",
         lastMessageAt: lastMsg?.created_at || new Date(0).toISOString(),
         unread: false,
         link: `/app/chat/group/${convo.id}`,
@@ -160,10 +184,9 @@ export default function ChatPage() {
     return results;
   }
 
-  // Collect existing DM friend IDs to exclude from new message modal
   const existingDmFriendIds = items
-    .filter(i => i.type === "dm")
-    .map(i => i.id.replace("dm-", ""));
+    .filter((i) => i.type === "dm")
+    .map((i) => i.id.replace("dm-", ""));
 
   return (
     <AppShell>
@@ -240,8 +263,17 @@ export default function ChatPage() {
           onClose={() => setNewMsgOpen(false)}
           myAthleteId={athleteId}
           existingDmFriendIds={existingDmFriendIds}
-          onSelect={(friendId) => {
+          onSelect={async (friendId) => {
             setNewMsgOpen(false);
+            const { conversationId, error } = await getOrCreateDmConversation(athleteId, friendId);
+            if (error) {
+              toast.error(error);
+              return;
+            }
+            if (!conversationId) {
+              toast.error("Could not start conversation");
+              return;
+            }
             navigate(`/app/chat/${friendId}`);
           }}
         />

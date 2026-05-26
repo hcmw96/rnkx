@@ -4,7 +4,7 @@ function LegalDoc({ title, children }: { title: string; children: ReactNode }) {
   return (
     <div className="min-h-screen bg-background px-4 py-10 text-foreground">
       <article className="mx-auto max-w-lg space-y-4">
-        <h1 className="font-display text-2xl text-neon-lime">{title}</h1>
+        <h1 className="type-page-title text-neon-lime">{title}</h1>
         <div className="space-y-3 text-sm leading-relaxed text-muted-foreground">{children}</div>
       </article>
     </div>

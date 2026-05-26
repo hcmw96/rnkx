@@ -58,7 +58,7 @@ export function SeasonCard({
           {seasonName?.includes(' - ') ? seasonName.split(' - ')[0] : seasonName}
         </h2>
         {seasonName?.includes(' - ') && (
-          <p className="text-sm text-muted-foreground">
+          <p className="type-meta">
             {seasonName.split(' - ')[1]}
           </p>
         )}
@@ -97,7 +97,7 @@ export function SeasonCard({
         {showEngine && (
           <div className="text-center p-3 rounded-lg bg-surface border border-border">
             <span className="text-xs uppercase tracking-wider text-muted-foreground">Engine</span>
-            <div className="type-display-score mt-1 text-primary">
+            <div className="type-stat mt-1 text-primary">
               {formatRank(engineRank)}
             </div>
             <div className="text-sm text-muted-foreground mt-1">
@@ -109,7 +109,7 @@ export function SeasonCard({
         {showRun && (
           <div className="text-center p-3 rounded-lg bg-surface border border-border">
             <span className="text-xs uppercase tracking-wider text-muted-foreground">Run</span>
-            <div className="type-display-score mt-1 text-secondary">
+            <div className="type-stat mt-1 text-secondary">
               {formatRank(runRank)}
             </div>
             <div className="text-sm text-muted-foreground mt-1">

@@ -58,7 +58,7 @@ export function WorkoutShareDialog({ open, onOpenChange, payload }: WorkoutShare
     >
       <DialogContent className="max-h-[92dvh] overflow-y-auto border-border bg-card sm:max-w-md">
         <DialogHeader>
-          <DialogTitle className="font-display text-xl">Workout scored!</DialogTitle>
+          <DialogTitle className="type-page-title">Workout scored!</DialogTitle>
           <DialogDescription>Share your result — portrait 9:16 for Stories.</DialogDescription>
         </DialogHeader>
 

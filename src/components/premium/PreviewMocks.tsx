@@ -21,16 +21,17 @@ export function FriendsPreview() {
           className="flex items-center gap-3 rounded-lg border border-border bg-zinc-900/80 p-3"
           aria-hidden
         >
-          <span className="w-8 shrink-0 text-center font-mono text-sm text-muted-foreground">{i + 1}</span>
-          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-border bg-muted text-sm font-semibold text-muted-foreground">
+          <span className="type-rank w-8 shrink-0 text-center">{i + 1}</span>
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-border bg-muted text-xs font-semibold text-muted-foreground">
             {row.initials}
           </div>
           <div className="min-w-0 flex-1">
             <div className="h-4 w-28 rounded bg-muted/80" />
             <div className="mt-1.5 h-3 w-20 rounded bg-muted/50" />
           </div>
-          <div className="shrink-0 text-right">
-            <span className="text-sm font-semibold text-muted-foreground">{row.pts}</span>
+          <div className="shrink-0 pr-2 text-right">
+            <div className="h-6 w-14 rounded bg-muted/70" />
+            <div className="mt-1 h-3 w-6 rounded bg-muted/40" />
           </div>
         </div>
       ))}

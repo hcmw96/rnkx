@@ -170,7 +170,7 @@ export default function RecoveryPage({ embedded = false }: RecoveryPageProps) {
           <div>
             <p
               className={cn(
-                'font-sans text-base font-semibold',
+                'type-heading',
                 readiness.status === 'ready' && 'text-neon-lime',
                 readiness.status === 'moderate' && 'text-amber-400',
                 readiness.status === 'rest' && 'text-red-400',
@@ -178,7 +178,7 @@ export default function RecoveryPage({ embedded = false }: RecoveryPageProps) {
             >
               {readiness.title}
             </p>
-            <p className="mt-0.5 text-sm text-muted-foreground">{readiness.subtitle}</p>
+            <p className="type-meta mt-0.5">{readiness.subtitle}</p>
           </div>
         </div>
       </div>
@@ -188,15 +188,13 @@ export default function RecoveryPage({ embedded = false }: RecoveryPageProps) {
         <div className="flex items-center gap-3">
           <Heart className="h-6 w-6 shrink-0 text-red-500" strokeWidth={1.75} aria-hidden />
           <div>
-            <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">RHR</p>
-            <p className="text-sm text-foreground">
+            <p className="type-section-label">RHR</p>
+            <p className="type-body mt-1">
               Resting Heart Rate ·{' '}
-              <span className="font-sans text-title font-semibold tabular-nums text-muted-foreground">
+              <span className="type-stat text-foreground">
                 {summary.avgIntensity != null ? Math.max(48, summary.avgIntensity - 35) : '--'}
               </span>{' '}
-              <span className="text-sm text-muted-foreground">
-                {summary.avgIntensity != null ? 'bpm est.' : 'bpm'}
-              </span>
+              <span className="type-meta">{summary.avgIntensity != null ? 'bpm est.' : 'bpm'}</span>
             </p>
             {summary.avgIntensity == null ? (
               <p className="text-xs text-muted-foreground">Connect WHOOP for live resting HR</p>
@@ -209,8 +207,8 @@ export default function RecoveryPage({ embedded = false }: RecoveryPageProps) {
       <div className="rounded-xl border border-border/80 bg-[hsla(0,0%,10%,1)] p-4">
         <div className="flex items-start justify-between gap-3">
           <div>
-            <h2 className="font-sans text-base font-semibold text-foreground">Activity Load</h2>
-            <p className="mt-0.5 text-xs text-muted-foreground">
+            <h2 className="type-heading">Activity Load</h2>
+            <p className="type-meta mt-0.5">
               {loadRange === 'week'
                 ? 'Your activity summary from the past week'
                 : "Today's activity summary"}
@@ -241,25 +239,25 @@ export default function RecoveryPage({ embedded = false }: RecoveryPageProps) {
         </div>
         <dl className="mt-4 grid grid-cols-2 gap-x-4 gap-y-3">
           <div>
-            <dt className="text-xs text-muted-foreground">Exercise Time</dt>
-            <dd className="font-sans text-base font-semibold text-foreground tabular-nums">
-              {displayMinutes > 0 ? displayMinutes : '--'} min
+            <dt className="type-meta">Exercise Time</dt>
+            <dd className="type-stat text-foreground">
+              {displayMinutes > 0 ? displayMinutes : '--'} <span className="type-stat-unit">min</span>
             </dd>
           </div>
           <div>
-            <dt className="text-xs text-muted-foreground">Scored Points</dt>
-            <dd className="font-sans text-base font-semibold text-foreground tabular-nums">
+            <dt className="type-meta">Scored Points</dt>
+            <dd className="type-stat text-primary">
               {displayPts > 0 ? displayPts.toLocaleString() : '--'}
             </dd>
           </div>
           <div>
-            <dt className="text-xs text-muted-foreground">Sessions</dt>
-            <dd className="font-sans text-base font-semibold text-foreground tabular-nums">
+            <dt className="type-meta">Sessions</dt>
+            <dd className="type-stat text-foreground">
               {displaySessions > 0 ? displaySessions : '--'}
             </dd>
           </div>
           <div>
-            <dt className="text-xs text-muted-foreground">Load Status</dt>
+            <dt className="type-meta">Load Status</dt>
             <dd>
               <span
                 className={cn(
@@ -279,7 +277,7 @@ export default function RecoveryPage({ embedded = false }: RecoveryPageProps) {
 
       {/* Activity trend — line chart */}
       <div className="rounded-xl border border-border/80 bg-[hsla(0,0%,10%,1)] p-4">
-        <h2 className="font-sans text-base font-semibold text-foreground">Activity Trend</h2>
+        <h2 className="type-section-label">Activity Trend</h2>
         <p className="text-xs text-muted-foreground">Daily scoring output</p>
         {summary.weekSessions > 0 ? (
           <InsightsLineChart
@@ -303,7 +301,7 @@ export default function RecoveryPage({ embedded = false }: RecoveryPageProps) {
 
       {/* Load vs recovery */}
       <div className="rounded-xl border border-border/80 bg-[hsla(0,0%,10%,1)] p-4 pb-5">
-        <h2 className="font-sans text-base font-semibold text-foreground">Load vs Recovery</h2>
+        <h2 className="type-section-label">Load vs Recovery</h2>
         <p className="text-xs text-muted-foreground">Derived from your recent training pattern</p>
         <div className="relative mt-5">
           <div className="h-3 overflow-hidden rounded-full bg-muted">
@@ -333,7 +331,7 @@ export default function RecoveryPage({ embedded = false }: RecoveryPageProps) {
       {/* Volume mini chart */}
       {summary.weekSessions > 0 ? (
         <div className="rounded-xl border border-border/80 bg-[hsla(0,0%,10%,1)] p-4">
-          <h2 className="font-sans text-base font-semibold text-foreground">Weekly volume</h2>
+          <h2 className="type-section-label">Weekly volume</h2>
           <p className="text-xs text-muted-foreground">Training minutes by day</p>
           <InsightsLineChart
             className="mt-3"

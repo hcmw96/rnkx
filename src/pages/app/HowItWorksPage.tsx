@@ -15,7 +15,7 @@ export default function HowItWorksPage() {
           Back
         </Button>
         <header className="space-y-1">
-          <h1 className="font-display text-xl text-foreground">How it works</h1>
+          <h1 className="type-page-title">How it works</h1>
           <p className="text-sm text-muted-foreground">Scoring rules & fair play guidelines</p>
         </header>
         <HowItWorksScrollBody />

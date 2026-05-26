@@ -41,7 +41,7 @@ export function ChatPremiumGate({ children }: ChatPremiumGateProps) {
     return (
       <div className="mx-auto flex max-w-lg flex-col items-center gap-4 px-4 py-16 text-center">
         <Lock className="h-10 w-10 text-neon-lime" aria-hidden />
-        <h1 className="font-display text-xl text-foreground">Premium messaging</h1>
+        <h1 className="type-page-title">Premium messaging</h1>
         <p className="text-sm text-muted-foreground">
           Direct and group chat are included with RNKX Premium alongside friends and clubs.
         </p>

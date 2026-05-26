@@ -110,7 +110,7 @@ export default function PrivateLeaguesPage({ embedded = false }: PrivateLeaguesP
     <section className="mx-auto max-w-lg space-y-4">
       <div className="flex items-center justify-between gap-3">
         {!embedded ? (
-          <h1 className="font-display text-xl text-foreground">Clubs</h1>
+          <h1 className="type-page-title">Clubs</h1>
         ) : (
           <h2 className="type-card-title">Clubs</h2>
         )}

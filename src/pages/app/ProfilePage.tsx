@@ -60,7 +60,6 @@ import {
   WhoopLogo,
 } from '@/components/BrandLogos';
 import { providerLabel } from '@/components/terra/TerraWearableProviders';
-import { getCountryByName } from '@/data/countries';
 import { isDespiaIphoneUa } from '@/lib/despiaPlatform';
 import {
   extractHealthkitWorkoutsArray,
@@ -135,7 +134,86 @@ const WHOOP_OAUTH_AUTHORIZE_BASE =
 
 function numScore(v: number | string | null | undefined): number {
   if (v === null || v === undefined) return 0;
-  return typeof v === 'number' ? v : Number(v);
+  const n = typeof v === 'number' ? v : Number(v);
+  return Number.isFinite(n) ? n : 0;
+}
+
+function seasonShortLabel(name: string | null | undefined): string {
+  if (!name?.trim()) return 'Season 1';
+  const trimmed = name.trim();
+  const sep = trimmed.indexOf(' - ');
+  return sep > 0 ? trimmed.slice(0, sep).trim() : trimmed;
+}
+
+type ProfileSeasonStats = {
+  seasonLabel: string;
+  engineScore: number;
+  runScore: number;
+  engineRank: number | null;
+  runRank: number | null;
+};
+
+async function fetchProfileSeasonStats(athleteId: string): Promise<ProfileSeasonStats> {
+  const empty: ProfileSeasonStats = {
+    seasonLabel: 'Season 1',
+    engineScore: 0,
+    runScore: 0,
+    engineRank: null,
+    runRank: null,
+  };
+
+  const { data: season } = await supabase
+    .from('seasons')
+    .select('id, name')
+    .eq('is_active', true)
+    .maybeSingle();
+
+  if (!season?.id) return empty;
+
+  const seasonId = String(season.id);
+  const label = seasonShortLabel(typeof season.name === 'string' ? season.name : null);
+  const { data: rows, error } = await supabase
+    .from('athlete_stats')
+    .select('category, score, rank')
+    .eq('athlete_id', athleteId)
+    .eq('season_id', seasonId)
+    .in('category', ['engine', 'run']);
+
+  if (error || !rows?.length) {
+    return { ...empty, seasonLabel: label };
+  }
+
+  let engineScore = 0;
+  let runScore = 0;
+  let engineRank: number | null = null;
+  let runRank: number | null = null;
+
+  for (const row of rows as { category: string; score: number | string | null; rank: number | string | null }[]) {
+    const pts = numScore(row.score);
+    const r = row.rank != null ? numScore(row.rank) : null;
+    if (row.category === 'engine') {
+      engineScore = pts;
+      engineRank = r != null && r > 0 ? Math.round(r) : null;
+    } else if (row.category === 'run') {
+      runScore = pts;
+      runRank = r != null && r > 0 ? Math.round(r) : null;
+    }
+  }
+
+  return { seasonLabel: label, engineScore, runScore, engineRank, runRank };
+}
+
+function seasonStatCaption(
+  seasonLabel: string,
+  part: 'combined' | 'engine' | 'run',
+  showEngine: boolean,
+  showRun: boolean,
+): string {
+  if (part === 'engine') return `${seasonLabel} • Engine`;
+  if (part === 'run') return `${seasonLabel} • Run`;
+  if (showEngine && showRun) return `${seasonLabel} • Engine + Run`;
+  if (showEngine) return `${seasonLabel} • Engine`;
+  return `${seasonLabel} • Run`;
 }
 
 const WEARABLE_LOGO_BY_CODE: Record<string, ComponentType<{ className?: string }>> = {
@@ -216,7 +294,7 @@ export default function ProfilePage() {
   const location = useLocation();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [athlete, setAthlete] = useState<AthleteRow | null>(null);
-  const [rank, setRank] = useState<number | null>(null);
+  const [seasonStats, setSeasonStats] = useState<ProfileSeasonStats | null>(null);
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
   const [syncing, setSyncing] = useState(false);
@@ -262,7 +340,7 @@ export default function ProfilePage() {
       setTerraConnections([]);
       setWhoopConnection(null);
       setAppleHkLiveOk(null);
-      setRank(null);
+      setSeasonStats(null);
       setUserEmail(null);
       setLoading(false);
       return;
@@ -270,8 +348,7 @@ export default function ProfilePage() {
 
     setUserEmail(auth.user.email ?? null);
     const uid = auth.user.id;
-    const [{ data: rankRow, error: rankErr }, byUserId, byId] = await Promise.all([
-      supabase.from('leaderboard').select('rank').eq('id', uid).maybeSingle(),
+    const [byUserId, byId] = await Promise.all([
       supabase.from('athletes').select(ATHLETE_COLUMNS).eq('user_id', uid).maybeSingle(),
       supabase.from('athletes').select(ATHLETE_COLUMNS).eq('id', uid).maybeSingle(),
     ]);
@@ -285,7 +362,18 @@ export default function ProfilePage() {
       setWhoopConnection(null);
       setAppleHkLiveOk(null);
       setAppleError(null);
+      setSeasonStats(null);
     } else {
+      // Self-heal: if found via id = auth uid but user_id column is NULL, backfill it.
+      // This is required for RLS policies (avatars, clubs, etc.) that check athletes.user_id = auth.uid().
+      if (!athleteRow.user_id) {
+        await supabase
+          .from('athletes')
+          .update({ user_id: uid })
+          .eq('id', athleteRow.id)
+          .is('user_id', null);
+      }
+
       const row = athleteRow as AthleteRow;
       setAthlete({
         ...row,
@@ -309,12 +397,8 @@ export default function ProfilePage() {
         setWhoopConnection((whoopRes.data as WhoopConnectionRow | null) ?? null);
       }
       setAppleError(null);
-    }
-
-    if (rankErr) {
-      setRank(null);
-    } else {
-      setRank((rankRow as { rank: number } | null)?.rank ?? null);
+      const stats = await fetchProfileSeasonStats(athleteRow.id);
+      setSeasonStats(stats);
     }
 
     setLoading(false);
@@ -1017,9 +1101,18 @@ export default function ProfilePage() {
     navigate('/app/how-it-works');
   }
 
-  const countryInfo = athlete?.country ? getCountryByName(athlete.country) : null;
-  const score = athlete ? numScore(athlete.total_score) : 0;
   const initials = athlete ? twoLetterAvatar(athlete.username, athlete.display_name) : '??';
+  const selectedLeagues = athlete?.selected_leagues ?? ['engine', 'run'];
+  const showEngineLeague =
+    selectedLeagues.length === 0 || selectedLeagues.includes('engine');
+  const showRunLeague = selectedLeagues.length === 0 || selectedLeagues.includes('run');
+  const showBothLeagues = showEngineLeague && showRunLeague;
+  const seasonLabel = seasonStats?.seasonLabel ?? 'Season 1';
+  const engineScore = seasonStats?.engineScore ?? 0;
+  const runScore = seasonStats?.runScore ?? 0;
+  const seasonTotalScore = engineScore + runScore;
+  const engineRank = seasonStats?.engineRank ?? null;
+  const runRank = seasonStats?.runRank ?? null;
   const inDespiaWebView = isDespiaWebView();
   const wearsApple = athleteWearsApple(athlete?.wearables ?? null);
   const appleConnected =
@@ -1126,16 +1219,9 @@ export default function ProfilePage() {
                   ) : null}
                 </button>
                 <div className="space-y-1">
-                  <h1 className="text-title font-bold text-white">{athlete.display_name}</h1>
-                  <p className="text-sm font-medium text-neon-lime">@{athlete.username ?? '—'}</p>
-                  <div className="flex flex-wrap items-center justify-center gap-2 pt-1 text-sm text-muted-foreground">
-                    {countryInfo?.flag ? (
-                      <span className="text-xl leading-none" aria-hidden>
-                        {countryInfo.flag}
-                      </span>
-                    ) : null}
-                    <span>{athlete.country ?? 'No country set'}</span>
-                  </div>
+                  <h1 className="type-heading">{athlete.display_name}</h1>
+                  <p className="type-meta text-neon-lime">{athlete.username ?? '—'}</p>
+                  <p className="type-meta pt-1">{athlete.country ?? 'No country set'}</p>
                 </div>
                 <Button
                   type="button"
@@ -1149,16 +1235,56 @@ export default function ProfilePage() {
               </div>
             </article>
 
-            <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-3">
               <div className="rounded-xl border border-border bg-card px-4 py-3">
-                <p className="text-xs uppercase tracking-wide text-muted-foreground">Rank</p>
-                <p className="type-display-score mt-1 text-foreground">{rank != null ? `#${rank}` : '—'}</p>
-              </div>
-              <div className="rounded-xl border border-border bg-card px-4 py-3">
-                <p className="text-xs uppercase tracking-wide text-muted-foreground">Score</p>
-                <p className="type-display-score mt-1 text-neon-lime">
-                  {score.toLocaleString(undefined, { maximumFractionDigits: 1 })}
+                <p className="type-section-label">Season Score</p>
+                <p className="type-stat mt-1 text-neon-lime">
+                  {seasonTotalScore.toLocaleString()}
                 </p>
+                <p className="type-meta mt-1">
+                  {seasonStatCaption(seasonLabel, 'combined', showEngineLeague, showRunLeague)}
+                </p>
+              </div>
+
+              {showBothLeagues ? (
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="rounded-xl border border-border bg-card px-4 py-3">
+                    <p className="type-section-label">Engine</p>
+                    <p className="type-stat mt-1 text-primary">{engineScore.toLocaleString()}</p>
+                    <p className="type-meta mt-1">{seasonStatCaption(seasonLabel, 'engine', true, true)}</p>
+                  </div>
+                  <div className="rounded-xl border border-border bg-card px-4 py-3">
+                    <p className="type-section-label">Run</p>
+                    <p className="type-stat mt-1 text-secondary">{runScore.toLocaleString()}</p>
+                    <p className="type-meta mt-1">{seasonStatCaption(seasonLabel, 'run', true, true)}</p>
+                  </div>
+                </div>
+              ) : null}
+
+              <div
+                className={cn(
+                  'grid gap-3',
+                  showEngineLeague && showRunLeague ? 'grid-cols-2' : 'grid-cols-1',
+                )}
+              >
+                {showEngineLeague ? (
+                  <div className="rounded-xl border border-border bg-card px-4 py-3">
+                    <p className="type-section-label">Rank</p>
+                    <p className="type-stat mt-1 text-foreground">
+                      {engineRank != null ? `#${engineRank.toLocaleString()}` : '—'}
+                    </p>
+                    <p className="type-meta mt-1">{seasonStatCaption(seasonLabel, 'engine', true, showRunLeague)}</p>
+                  </div>
+                ) : null}
+                {showRunLeague ? (
+                  <div className="rounded-xl border border-border bg-card px-4 py-3">
+                    <p className="type-section-label">Rank</p>
+                    <p className="type-stat mt-1 text-foreground">
+                      {runRank != null ? `#${runRank.toLocaleString()}` : '—'}
+                    </p>
+                    <p className="type-meta mt-1">{seasonStatCaption(seasonLabel, 'run', showEngineLeague, true)}</p>
+                  </div>
+                ) : null}
               </div>
             </div>
 
@@ -1200,12 +1326,12 @@ export default function ProfilePage() {
               </div>
               {!maxHrEditing ? (
                 <div className="mt-3 space-y-1">
-                  <p className="type-display-score text-foreground tabular-nums">
+                  <p className="type-stat text-foreground tabular-nums">
                     {parseMaxHrDisplay(athlete.max_hr) != null
                       ? `${parseMaxHrDisplay(athlete.max_hr)} bpm`
                       : 'Not set'}
                   </p>
-                  <p className="text-xs text-muted-foreground">
+                  <p className="type-meta">
                     {labelForMaxHrSource(athlete.max_hr_source) ||
                       (parseMaxHrDisplay(athlete.max_hr) != null ? '—' : '')}
                   </p>
@@ -1263,7 +1389,7 @@ export default function ProfilePage() {
                       </div>
                       <div className="min-w-0 flex-1">
                         <p className="font-medium text-foreground">WHOOP</p>
-                        <p className="text-xs text-muted-foreground">Direct connection</p>
+                        <p className="type-meta">Direct connection</p>
                       </div>
                       {whoopConnection ? <ConnectedBadge /> : null}
                     </div>
@@ -1319,7 +1445,7 @@ export default function ProfilePage() {
                         </div>
                         <div className="min-w-0 flex-1">
                           <p className="font-medium text-foreground">Apple Watch</p>
-                          <p className="text-xs text-muted-foreground">HealthKit</p>
+                          <p className="type-meta">HealthKit</p>
                         </div>
                         {appleCardConnected ? <ConnectedBadge /> : null}
                       </div>
@@ -1396,7 +1522,7 @@ export default function ProfilePage() {
 
                 {!hasAnyDevice ? (
                   <div className="rounded-lg border border-dashed border-border bg-muted/10 px-3 py-6 text-center">
-                    <p className="text-sm font-medium text-foreground">No devices connected</p>
+                    <p className="type-heading">No devices connected</p>
                     <p className="mt-1 text-xs text-muted-foreground">Connect devices to sync your workouts</p>
                   </div>
                 ) : null}
@@ -1426,15 +1552,15 @@ export default function ProfilePage() {
             <article className="space-y-4 rounded-xl border border-border bg-card p-4">
               <div className="flex items-center gap-2 border-b border-border/60 pb-3">
                 <User className="h-5 w-5 text-neon-lime" aria-hidden />
-                <h2 className="font-sans text-sm font-semibold uppercase tracking-wide text-foreground">Account</h2>
+                <h2 className="type-section-label">Account</h2>
               </div>
               <div className="space-y-1 border-b border-border/40 pb-3">
-                <p className="text-xs uppercase tracking-wide text-muted-foreground">Email</p>
+                <p className="type-meta uppercase tracking-wide">Email</p>
                 <p className="text-sm text-foreground">{userEmail ?? '—'}</p>
               </div>
               <div className="space-y-2 border-b border-border/40 pb-3">
                 <div className="flex items-center justify-between gap-2">
-                  <p className="text-xs uppercase tracking-wide text-muted-foreground">Name</p>
+                  <p className="type-meta uppercase tracking-wide">Name</p>
                   {!nameEditing ? (
                     <Button
                       type="button"
@@ -1451,7 +1577,7 @@ export default function ProfilePage() {
                   ) : null}
                 </div>
                 {!nameEditing ? (
-                  <p className="text-sm font-medium text-foreground">{athlete.display_name}</p>
+                  <p className="type-heading">{athlete.display_name}</p>
                 ) : (
                   <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
                     <Input
@@ -1473,7 +1599,7 @@ export default function ProfilePage() {
               </div>
               <div className="space-y-2 border-b border-border/40 pb-3">
                 <div className="flex items-center justify-between gap-2">
-                  <p className="text-xs uppercase tracking-wide text-muted-foreground">Username</p>
+                  <p className="type-meta uppercase tracking-wide">Username</p>
                   {!usernameEditing ? (
                     <Button
                       type="button"
@@ -1490,7 +1616,7 @@ export default function ProfilePage() {
                   ) : null}
                 </div>
                 {!usernameEditing ? (
-                  <p className="text-sm font-medium text-foreground">@{athlete.username ?? '—'}</p>
+                  <p className="type-meta">{athlete.username ?? '—'}</p>
                 ) : (
                   <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
                     <Input
@@ -1523,7 +1649,7 @@ export default function ProfilePage() {
               </div>
               <div className="flex items-start justify-between gap-3 pt-1">
                 <div>
-                  <p className="text-xs uppercase tracking-wide text-muted-foreground">Password</p>
+                  <p className="type-meta uppercase tracking-wide">Password</p>
                   <p className="mt-1 text-xs text-muted-foreground">Secure your account via email reset</p>
                 </div>
                 <button
@@ -1540,7 +1666,7 @@ export default function ProfilePage() {
             <article className="space-y-3 rounded-xl border border-border bg-card p-4">
               <div className="flex items-center gap-2">
                 <Activity className="h-5 w-5 text-neon-lime" aria-hidden />
-                <h2 className="font-sans text-sm font-semibold uppercase tracking-wide text-foreground">Competition Leagues</h2>
+                <h2 className="type-section-label">Competition Leagues</h2>
               </div>
               <p className="text-xs leading-relaxed text-muted-foreground">
                 Select one or both leagues to compete in. You can change this anytime.
@@ -1612,7 +1738,7 @@ export default function ProfilePage() {
               </div>
               <div className="min-w-0 flex-1">
                 <p className="font-semibold text-foreground">How It Works</p>
-                <p className="text-xs text-muted-foreground">View scoring rules & fair play guidelines</p>
+                <p className="type-meta">View scoring rules & fair play guidelines</p>
               </div>
               <ChevronRight className="h-5 w-5 shrink-0 text-muted-foreground" aria-hidden />
             </button>
@@ -1628,7 +1754,7 @@ export default function ProfilePage() {
               </div>
               <div className="min-w-0 flex-1">
                 <p className="font-semibold text-foreground">Ask the Assistant</p>
-                <p className="text-xs text-muted-foreground">Get help with scoring & rules</p>
+                <p className="type-meta">Get help with scoring & rules</p>
               </div>
               <div className="flex h-9 w-9 items-center justify-center rounded-full bg-emerald-500/15 text-emerald-400 ring-1 ring-emerald-500/30">
                 <MessageCircle className="h-4 w-4" aria-hidden />
@@ -1640,7 +1766,7 @@ export default function ProfilePage() {
               <div className="flex items-center justify-between gap-2">
                 <div className="flex items-center gap-2">
                   <Users className="h-5 w-5 text-neon-lime" aria-hidden />
-                  <h2 className="font-sans text-sm font-semibold uppercase tracking-wide text-foreground">Friends</h2>
+                  <h2 className="type-section-label">Friends</h2>
                 </div>
                 <Button
                   type="button"
@@ -1654,7 +1780,7 @@ export default function ProfilePage() {
                 </Button>
               </div>
               {friendsMiniLoading ? (
-                <p className="text-xs text-muted-foreground">Loading friends…</p>
+                <p className="type-meta">Loading friends…</p>
               ) : friendsMini.length === 0 ? (
                 <p className="text-sm text-muted-foreground">No friends yet. Add friends to compare on leaderboards!</p>
               ) : (
@@ -1666,8 +1792,8 @@ export default function ProfilePage() {
                         className="flex items-center justify-between rounded-lg border border-border/60 bg-zinc-950/40 px-3 py-2 transition-colors hover:border-neon-lime/30 hover:bg-zinc-900/60"
                       >
                         <div className="min-w-0">
-                          <p className="truncate text-sm font-medium text-foreground">{f.display_name || f.username}</p>
-                          <p className="text-xs text-muted-foreground">@{f.username ?? '—'}</p>
+                          <p className="truncate type-heading">{f.display_name || f.username}</p>
+                          <p className="type-meta truncate">{f.username ?? '—'}</p>
                         </div>
                         <div className="shrink-0 text-right text-xs text-muted-foreground">
                           <span>#{f.rank ?? '—'}</span>
@@ -1683,7 +1809,7 @@ export default function ProfilePage() {
             <article id="recovery" className="space-y-3 rounded-xl border border-border bg-card p-4">
               <div className="flex items-center gap-2">
                 <Heart className="h-5 w-5 text-neon-lime" aria-hidden />
-                <h2 className="font-sans text-sm font-semibold uppercase tracking-wide text-foreground">Recovery</h2>
+                <h2 className="type-section-label">Recovery</h2>
               </div>
               <PremiumGate
                 athleteId={athlete.id}
@@ -1700,12 +1826,12 @@ export default function ProfilePage() {
             <article className="space-y-3 rounded-xl border border-border bg-card p-4">
               <div className="flex items-center gap-2">
                 <Heart className="h-5 w-5 text-neon-lime" aria-hidden />
-                <h2 className="font-sans text-sm font-semibold uppercase tracking-wide text-foreground">Health Data</h2>
+                <h2 className="type-section-label">Health Data</h2>
               </div>
               <div className="flex items-start justify-between gap-4">
                 <div className="min-w-0">
-                  <p className="text-sm font-medium text-foreground">Share health data</p>
-                  <p className="text-xs text-muted-foreground">Allow RNKX to sync your health metrics</p>
+                  <p className="type-heading">Share health data</p>
+                  <p className="type-meta">Allow RNKX to sync your health metrics</p>
                 </div>
                 <Switch
                   checked={athlete.health_data_enabled ?? true}
@@ -1720,12 +1846,12 @@ export default function ProfilePage() {
             <article className="space-y-3 rounded-xl border border-border bg-card p-4">
               <div className="flex items-center gap-2">
                 <Shield className="h-5 w-5 text-neon-lime" aria-hidden />
-                <h2 className="font-sans text-sm font-semibold uppercase tracking-wide text-foreground">Privacy</h2>
+                <h2 className="type-section-label">Privacy</h2>
               </div>
               <div className="flex items-start justify-between gap-4">
                 <div className="min-w-0">
-                  <p className="text-sm font-medium text-foreground">Public profile</p>
-                  <p className="text-xs text-muted-foreground">Others can see your rank on leaderboards</p>
+                  <p className="type-heading">Public profile</p>
+                  <p className="type-meta">Others can see your rank on leaderboards</p>
                 </div>
                 <Switch
                   checked={athlete.profile_public ?? true}
@@ -1740,7 +1866,7 @@ export default function ProfilePage() {
             <article className="space-y-4 rounded-xl border border-border bg-card p-4">
               <div className="flex items-center gap-2">
                 <CreditCard className="h-5 w-5 text-neon-lime" aria-hidden />
-                <h2 className="font-sans text-sm font-semibold uppercase tracking-wide text-foreground">Subscription</h2>
+                <h2 className="type-section-label">Subscription</h2>
               </div>
               <div className="flex items-center justify-between rounded-lg border border-border/60 bg-zinc-950/40 px-3 py-2">
                 <span className="text-sm text-muted-foreground">Current Plan</span>
@@ -1797,7 +1923,7 @@ export default function ProfilePage() {
             <article className="space-y-3 rounded-xl border border-border bg-card p-4">
               <div className="flex items-center gap-2">
                 <MessageCircle className="h-5 w-5 text-neon-lime" aria-hidden />
-                <h2 className="font-sans text-sm font-semibold uppercase tracking-wide text-foreground">Contact Support</h2>
+                <h2 className="type-section-label">Contact Support</h2>
               </div>
               <p className="text-sm text-muted-foreground">Need help? Send us a message</p>
               <Textarea
@@ -1821,7 +1947,7 @@ export default function ProfilePage() {
             <article className="space-y-2 rounded-xl border border-border bg-card p-4">
               <div className="flex items-center gap-2 pb-2">
                 <FileText className="h-5 w-5 text-neon-lime" aria-hidden />
-                <h2 className="font-sans text-sm font-semibold uppercase tracking-wide text-foreground">Legal</h2>
+                <h2 className="type-section-label">Legal</h2>
               </div>
               {(
                 [

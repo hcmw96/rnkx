@@ -81,7 +81,7 @@ export function LeagueActivityFeed({ memberIds, leagueType, seasonId }: LeagueAc
   if (loading) {
     return (
       <div className="space-y-2">
-        <h2 className="font-sans px-1 text-sm font-semibold uppercase tracking-wider text-muted-foreground">Recent Activity</h2>
+        <h2 className="type-section-label px-1">Recent Activity</h2>
         {[...Array(3)].map((_, i) => (
           <Skeleton key={i} className="h-14 w-full rounded-lg" />
         ))}
@@ -93,7 +93,7 @@ export function LeagueActivityFeed({ memberIds, leagueType, seasonId }: LeagueAc
 
   return (
     <div className="space-y-2">
-      <h2 className="font-sans px-1 text-sm font-semibold uppercase tracking-wider text-muted-foreground">Recent Activity</h2>
+      <h2 className="type-section-label px-1">Recent Activity</h2>
       {activities.map((a) => (
         <div key={a.id} className="flex items-center gap-3 rounded-lg border border-border bg-card p-3">
           <div className="flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-full bg-muted">
@@ -104,12 +104,12 @@ export function LeagueActivityFeed({ memberIds, leagueType, seasonId }: LeagueAc
             )}
           </div>
           <div className="min-w-0 flex-1">
-            <div className="truncate text-sm font-medium text-foreground">{a.username}</div>
-            <div className="text-xs text-muted-foreground">
+            <div className="truncate type-heading">{a.username}</div>
+            <div className="type-meta">
               {a.duration_minutes}min · {a.sessionScore.toLocaleString()} pts
             </div>
           </div>
-          <div className="whitespace-nowrap text-xs text-muted-foreground">
+          <div className="type-meta whitespace-nowrap">
             {formatDistanceToNow(new Date(`${a.activityDate}T12:00:00`), { addSuffix: true })}
           </div>
         </div>

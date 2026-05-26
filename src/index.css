@@ -209,7 +209,10 @@
     background: linear-gradient(180deg, hsl(0 0% 10%), hsl(0 0% 6%));
   }
 
-  /* Typography scale (prefer these over arbitrary text-[Npx]) */
+  /*
+   * RNKX type hierarchy (matches Leaderboard rows)
+   * page title → section label → primary name → meta → stat number → stat unit
+   */
   .type-page-title {
     @apply font-display text-2xl font-normal tracking-normal text-foreground;
   }
@@ -218,8 +221,19 @@
     @apply font-sans text-xs font-semibold uppercase tracking-wider text-muted-foreground;
   }
 
+  /** Primary line: usernames, card titles, dialog titles, list names */
+  .type-heading {
+    @apply font-sans text-base font-semibold leading-snug text-white;
+  }
+
+  /** Alias — same as type-heading */
   .type-card-title {
-    @apply font-sans text-base font-semibold leading-snug text-foreground;
+    @apply font-sans text-base font-semibold leading-snug text-white;
+  }
+
+  /** Secondary line: country, timestamps, helper copy under a name */
+  .type-meta {
+    @apply font-sans text-xs leading-snug text-muted-foreground;
   }
 
   .type-body {
@@ -234,12 +248,29 @@
     @apply font-sans text-xs leading-snug text-muted-foreground;
   }
 
-  .type-display-rank {
-    @apply font-display text-lg font-bold tabular-nums leading-none;
+  /** Large metrics: scores, ranks, key numbers */
+  .type-stat {
+    @apply font-sans text-2xl font-bold tabular-nums leading-none;
   }
 
+  /** Unit under a stat: "pts", "bpm", etc. */
+  .type-stat-unit {
+    @apply font-sans text-xs text-muted-foreground;
+  }
+
+  /** Rank column (#1 uses .text-neon-lime modifier) */
+  .type-rank {
+    @apply font-sans text-2xl font-bold tabular-nums leading-none text-muted-foreground;
+  }
+
+  /** @deprecated use .type-stat */
   .type-display-score {
-    @apply font-display text-xl font-bold tabular-nums leading-none;
+    @apply font-sans text-2xl font-bold tabular-nums leading-none;
+  }
+
+  /** @deprecated use .type-rank */
+  .type-display-rank {
+    @apply font-sans text-2xl font-bold tabular-nums leading-none text-muted-foreground;
   }
   
   .rank-gold {

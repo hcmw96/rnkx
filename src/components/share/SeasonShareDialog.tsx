@@ -63,10 +63,14 @@ export function SeasonShareDialog({ open, onOpenChange, athleteId }: SeasonShare
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[92dvh] overflow-y-auto border-border bg-card sm:max-w-md">
-        <DialogHeader>
-          <DialogTitle className="font-display text-xl">Season overview card</DialogTitle>
-          <DialogDescription>Portrait 9:16 — ready for Stories. Pick a background or use the default.</DialogDescription>
+      <DialogContent className="max-h-[92dvh] gap-5 overflow-y-auto border-border bg-[hsla(0,0%,8%,1)] p-5 sm:max-w-md sm:p-6">
+        <DialogHeader className="space-y-2 text-left">
+          <DialogTitle className="type-page-title text-neon-lime">
+            Season overview card
+          </DialogTitle>
+          <DialogDescription className="text-sm leading-relaxed text-muted-foreground">
+            Portrait 9:16 for Stories. Pick a photo background or use the default RNKX gradient.
+          </DialogDescription>
         </DialogHeader>
 
         {loading ? (
@@ -77,9 +81,9 @@ export function SeasonShareDialog({ open, onOpenChange, athleteId }: SeasonShare
         ) : !stats ? (
           <p className="text-sm text-destructive">Could not load card data.</p>
         ) : (
-          <>
+          <div className="flex flex-col gap-5">
             <div
-              className="relative mx-auto overflow-hidden rounded-xl border border-border bg-zinc-950"
+              className="relative mx-auto overflow-hidden rounded-xl border border-border/80 bg-black shadow-inner"
               style={{ height: previewHeight, width: '100%', maxWidth: 1080 * PREVIEW_SCALE }}
             >
               <div
@@ -94,10 +98,7 @@ export function SeasonShareDialog({ open, onOpenChange, athleteId }: SeasonShare
               </div>
             </div>
 
-            <div
-              className="pointer-events-none fixed left-[-10000px] top-0 opacity-0"
-              aria-hidden
-            >
+            <div className="pointer-events-none fixed left-[-10000px] top-0 opacity-0" aria-hidden>
               <div ref={captureRef}>
                 <SeasonOverviewCard stats={stats} backgroundImageUrl={backgroundImageUrl} />
               </div>
@@ -111,7 +112,7 @@ export function SeasonShareDialog({ open, onOpenChange, athleteId }: SeasonShare
 
             <Button
               type="button"
-              className="w-full bg-neon-lime font-semibold text-zinc-950 hover:bg-neon-lime/90"
+              className="h-11 w-full bg-neon-lime font-semibold text-black hover:bg-neon-lime/90"
               disabled={sharing}
               onClick={() => void handleShare()}
             >
@@ -120,9 +121,9 @@ export function SeasonShareDialog({ open, onOpenChange, athleteId }: SeasonShare
               ) : (
                 <Share2 className="mr-2 h-4 w-4" aria-hidden />
               )}
-              Share
+              Share card
             </Button>
-          </>
+          </div>
         )}
       </DialogContent>
     </Dialog>

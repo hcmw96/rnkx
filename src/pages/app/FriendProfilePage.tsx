@@ -168,7 +168,7 @@ export default function FriendProfilePage() {
               <ArrowLeft className="h-5 w-5" />
             </Link>
           </Button>
-          <h1 className="min-w-0 flex-1 truncate font-display text-xl text-foreground">{displayName}</h1>
+          <h1 className="type-page-title min-w-0 flex-1 truncate">{displayName}</h1>
           {friendId ? (
             <Button type="button" size="sm" className="shrink-0 gap-1.5 bg-neon-lime text-black hover:bg-neon-lime/90" asChild>
               <Link to={`/app/chat/${friendId}`}>
@@ -192,27 +192,22 @@ export default function FriendProfilePage() {
                 {friend.avatar_url ? (
                   <img src={friend.avatar_url} alt="" className="h-full w-full object-cover" />
                 ) : (
-                  <span className="flex h-full w-full items-center justify-center font-sans text-xl font-semibold text-muted-foreground">
+                  <span className="flex h-full w-full items-center justify-center text-xs font-semibold text-muted-foreground">
                     {initial}
                   </span>
                 )}
               </div>
               <div className="min-w-0 flex-1">
-                <p className="type-card-title truncate">{displayName}</p>
-                <p className="truncate text-sm text-muted-foreground">@{friend.username ?? '—'}</p>
-                <div className="mt-2 flex flex-wrap gap-3 text-sm">
-                  <span className="text-muted-foreground">
-                    Rank{' '}
-                    <span className="font-display text-base text-foreground tabular-nums">
-                      {rank != null ? `#${rank}` : '—'}
-                    </span>
+                <p className="type-heading truncate">{displayName}</p>
+                <p className="type-meta truncate">{friend.username ?? '—'}</p>
+                <div className="mt-2 flex flex-wrap items-baseline gap-4">
+                  <span className="type-meta">
+                    Rank <span className="type-stat text-foreground">{rank != null ? `#${rank}` : '—'}</span>
                   </span>
                   {totalScore != null ? (
-                    <span className="text-muted-foreground">
-                      Score{' '}
-                      <span className="font-display text-base text-neon-lime tabular-nums">
-                        {totalScore.toLocaleString()}
-                      </span>
+                    <span className="type-meta">
+                      Score <span className="type-stat text-primary">{totalScore.toLocaleString()}</span>
+                      <span className="type-stat-unit ml-1">pts</span>
                     </span>
                   ) : null}
                 </div>
@@ -220,9 +215,7 @@ export default function FriendProfilePage() {
             </div>
 
             <div className="rounded-xl border border-border bg-card p-4">
-              <h2 className="font-sans text-sm font-semibold uppercase tracking-wide text-muted-foreground">
-                Workout history
-              </h2>
+              <h2 className="type-section-label">Workout history</h2>
               {friend.profile_public === false ? (
                 <p className="mt-3 text-sm text-muted-foreground">This athlete keeps their profile private.</p>
               ) : !activities.length ? (
@@ -244,15 +237,13 @@ export default function FriendProfilePage() {
                         className="flex items-center justify-between rounded-lg border border-border/60 bg-zinc-950/40 px-3 py-2.5"
                       >
                         <div className="min-w-0">
-                          <p className="truncate text-sm font-medium text-foreground">
-                            {activityLabel(activity.activity_type, leagueType)}
-                          </p>
-                          <p className="text-xs text-muted-foreground">
+                          <p className="type-heading truncate">{activityLabel(activity.activity_type, leagueType)}</p>
+                          <p className="type-meta mt-0.5">
                             {new Date(`${activity.activity_date}T12:00:00`).toLocaleDateString()} · {duration}{' '}
                             min
                           </p>
                         </div>
-                        <div className="ml-3 shrink-0 text-right">
+                        <div className="ml-3 shrink-0 pr-2 text-right">
                           <span
                             className={cn(
                               'inline-flex rounded-full px-2 py-0.5 text-xs font-semibold uppercase tracking-wide',
@@ -263,9 +254,15 @@ export default function FriendProfilePage() {
                           >
                             {leagueType === 'run' ? 'Run' : 'Engine'}
                           </span>
-                          <p className="mt-1 font-display text-base tabular-nums text-foreground">
+                          <p
+                            className={cn(
+                              'type-stat mt-1',
+                              leagueType === 'run' ? 'text-secondary' : 'text-primary',
+                            )}
+                          >
                             {score.toLocaleString()}
                           </p>
+                          <p className="type-stat-unit">pts</p>
                         </div>
                       </li>
                     );

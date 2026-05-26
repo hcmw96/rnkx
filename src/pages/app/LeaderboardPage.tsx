@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useMemo, useState, type ComponentType } from 'react';
 import { Globe, Users, Zap } from 'lucide-react';
 import { AppShell } from '@/components/app/AppShell';
-import { LeaderboardLeaguesPanel } from '@/components/leaderboard/LeaderboardLeaguesPanel';
 import { LeaderboardRows } from '@/components/leaderboard/LeaderboardRows';
 import { PremiumGate } from '@/components/PremiumGate';
 import { FriendsPreview } from '@/components/premium/PreviewMocks';
@@ -16,8 +15,8 @@ import { cn } from '@/lib/utils';
 import { supabase } from '@/services/supabase';
 
 type League = 'engine' | 'run';
-type ScopeTab = 'open' | 'overall' | 'friends' | 'leagues';
-type DivisionFilter = 'all' | Division;
+type ScopeTab = 'open' | 'overall' | 'friends';
+type GenderFilter = 'all' | 'male' | 'female';
 
 interface SeasonOption {
   id: string;
@@ -25,16 +24,18 @@ interface SeasonOption {
   is_active: boolean;
 }
 
-const DIVISION_OPTIONS: { value: DivisionFilter; label: string }[] = [
+const GENDER_OPTIONS: { value: GenderFilter; label: string }[] = [
   { value: 'all', label: 'All' },
-  { value: 'Open', label: 'Open' },
-  { value: 'Challenger', label: 'Challenger' },
-  { value: 'Pro', label: 'Pro' },
-  { value: 'Elite', label: 'Elite' },
+  { value: 'male', label: 'Male' },
+  { value: 'female', label: 'Female' },
 ];
 
-/** Marketing subtitle under active season title (until DB exposes a subtitle field). */
-const SEASON_TAGLINE = 'Spring Push';
+function normalizeGender(value: string | null | undefined): 'male' | 'female' | null {
+  const g = value?.trim().toLowerCase();
+  if (g === 'male' || g === 'm') return 'male';
+  if (g === 'female' || g === 'f') return 'female';
+  return null;
+}
 
 /** Display "Season 1" only — strip suffixes like " - Spring 2026" from DB season names. */
 function seasonShortLabel(name: string | null | undefined): string {
@@ -56,6 +57,8 @@ interface AthleteExtra {
   username: string | null;
   country: string | null;
   avatar_url: string | null;
+  gender: string | null;
+  wearables: string[] | null;
 }
 
 interface AthleteStatExtra {
@@ -73,6 +76,8 @@ interface MergedAthlete {
   username: string | null;
   country: string | null;
   avatar_url: string | null;
+  gender: 'male' | 'female' | null;
+  wearables: string[] | null;
   engine_score: number;
   run_score: number;
   engine_rank: number | null;
@@ -87,6 +92,7 @@ interface LeaderboardRow {
   username: string;
   country: string | null;
   avatarUrl: string | null;
+  wearables: string[] | null;
 }
 
 function num(v: number | string | null | undefined): number {
@@ -113,6 +119,7 @@ function buildRowsForLeague(merged: MergedAthlete[], league: League): Leaderboar
           username,
           country: m.country,
           avatarUrl: m.avatar_url,
+          wearables: m.wearables,
         };
       })
       .sort((a, b) => a.rank - b.rank);
@@ -126,6 +133,7 @@ function buildRowsForLeague(merged: MergedAthlete[], league: League): Leaderboar
       username: m.username || m.display_name || 'Athlete',
       country: m.country,
       avatarUrl: m.avatar_url,
+      wearables: m.wearables,
     }))
     .sort((a, b) => b.score - a.score)
     .map((r, i) => ({
@@ -136,6 +144,7 @@ function buildRowsForLeague(merged: MergedAthlete[], league: League): Leaderboar
       username: r.username,
       country: r.country,
       avatarUrl: r.avatarUrl,
+      wearables: r.wearables,
     }));
 }
 
@@ -158,7 +167,13 @@ function LeaderboardFilterSelect({
     <Select value={value} onValueChange={onValueChange}>
       <SelectTrigger
         aria-label={ariaLabel}
-        className="flex h-auto flex-1 items-center justify-center gap-1.5 whitespace-nowrap rounded-lg border border-border bg-[hsla(0,0%,8%,1)] px-2 py-2.5 text-xs font-medium text-foreground shadow-sm sm:flex-initial sm:min-w-0 sm:px-3 [&>svg:last-child]:h-3.5 [&>svg:last-child]:w-3.5 [&>svg:last-child]:opacity-60"
+        className={cn(
+          'flex h-auto flex-1 items-center justify-center gap-1.5 whitespace-nowrap rounded-lg border border-border bg-[hsla(0,0%,8%,1)] px-2 py-2.5 text-xs font-medium text-foreground shadow-sm sm:flex-initial sm:min-w-0 sm:px-3',
+          'focus:ring-0 focus:ring-offset-0 focus-visible:ring-0 focus-visible:ring-offset-0',
+          'data-[state=open]:border-neon-lime/70 data-[state=open]:ring-1 data-[state=open]:ring-neon-lime/25',
+          'data-[state=closed]:focus-visible:border-neon-lime/70 data-[state=closed]:focus-visible:ring-1 data-[state=closed]:focus-visible:ring-neon-lime/25',
+          '[&>svg:last-child]:h-3.5 [&>svg:last-child]:w-3.5 [&>svg:last-child]:opacity-60',
+        )}
       >
         {Icon ? <Icon className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden /> : null}
         <span className="truncate">{label}</span>
@@ -195,7 +210,7 @@ function LeaderboardSkeleton() {
 }
 
 const LEADERBOARD_COLUMNS = 'id,display_name,total_score,rank';
-const ATHLETE_ENRICH_COLUMNS = 'id,username,country,avatar_url';
+const ATHLETE_ENRICH_COLUMNS = 'id,username,country,avatar_url,gender,wearables';
 const ATHLETE_STATS_COLUMNS = 'athlete_id,season_id,category,score,rank';
 
 async function fetchMergedLeaderboard(
@@ -264,6 +279,8 @@ async function fetchMergedLeaderboard(
       username: a?.username?.trim() || null,
       country: a?.country ?? null,
       avatar_url: a?.avatar_url ?? null,
+      gender: normalizeGender(a?.gender),
+      wearables: a?.wearables ?? null,
       engine_score: s?.engine_score ?? 0,
       run_score: s?.run_score ?? 0,
       engine_rank: s?.engine_rank ?? null,
@@ -280,7 +297,7 @@ export default function LeaderboardPage() {
   const [seasons, setSeasons] = useState<SeasonOption[]>([]);
   const [selectedSeasonId, setSelectedSeasonId] = useState<string | null>(null);
   const [countryFilter, setCountryFilter] = useState<string>('all');
-  const [divisionFilter, setDivisionFilter] = useState<DivisionFilter>('all');
+  const [genderFilter, setGenderFilter] = useState<GenderFilter>('all');
   const [merged, setMerged] = useState<MergedAthlete[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -389,10 +406,9 @@ export default function LeaderboardPage() {
   );
 
   const effectiveDivision = useMemo((): Division | null => {
-    if (divisionFilter !== 'all') return divisionFilter;
     if (scopeTab === 'open') return myDivision;
     return null;
-  }, [divisionFilter, scopeTab, myDivision]);
+  }, [scopeTab, myDivision]);
 
   const rows = useMemo(() => {
     let base = buildRowsForLeague(merged, activeLeague);
@@ -405,21 +421,25 @@ export default function LeaderboardPage() {
       base = base.filter((r) => r.country === countryFilter);
     }
 
+    if (genderFilter !== 'all') {
+      const genderById = new Map(merged.map((m) => [m.id, m.gender]));
+      base = base.filter((r) => genderById.get(r.id) === genderFilter);
+    }
+
     if (scopeTab === 'friends') {
       base = base
-        .filter((r) => friendIds.has(r.id))
+        .filter((r) => friendIds.has(r.id) || r.id === myAthleteId)
         .sort((a, b) => b.score - a.score)
         .map((r, i) => ({ ...r, rank: i + 1 }));
     }
 
     return base;
-  }, [merged, activeLeague, scopeTab, effectiveDivision, countryFilter, friendIds]);
+  }, [merged, activeLeague, scopeTab, effectiveDivision, countryFilter, genderFilter, friendIds]);
 
   const countryFilterLabel =
     countryOptions.find((o) => o.value === countryFilter)?.label ?? 'All';
 
-  const divisionFilterLabel =
-    DIVISION_OPTIONS.find((o) => o.value === divisionFilter)?.label ?? 'All';
+  const genderFilterLabel = GENDER_OPTIONS.find((o) => o.value === genderFilter)?.label ?? 'All';
 
   const scopeSubtitle = useMemo(() => {
     const leagueLabel = activeLeague === 'engine' ? 'Engine' : 'Run';
@@ -439,7 +459,7 @@ export default function LeaderboardPage() {
 
     parts.push(leagueLabel);
     if (countryFilter !== 'all') parts.push(countryFilterLabel);
-    if (divisionFilter !== 'all' && scopeTab !== 'open') parts.push(divisionFilterLabel);
+    if (genderFilter !== 'all') parts.push(genderFilterLabel);
 
     return parts.join(' · ');
   }, [
@@ -449,8 +469,8 @@ export default function LeaderboardPage() {
     myDivision,
     countryFilter,
     countryFilterLabel,
-    divisionFilter,
-    divisionFilterLabel,
+    genderFilter,
+    genderFilterLabel,
     seasonLabel,
   ]);
 
@@ -458,7 +478,6 @@ export default function LeaderboardPage() {
     { id: 'open', label: 'Open' },
     { id: 'overall', label: 'Overall' },
     { id: 'friends', label: 'Friends' },
-    { id: 'leagues', label: 'Clubs' },
   ];
 
   return (
@@ -477,12 +496,6 @@ export default function LeaderboardPage() {
             <span className="font-semibold">{seasonLabel} is LIVE</span>
             <span className="text-neon-lime/85"> · Rankings update weekly</span>
           </p>
-        </div>
-
-        {/* Season title */}
-        <div className="space-y-1 text-center">
-          <h2 className="type-page-title">{seasonLabel}</h2>
-          <p className="text-sm text-muted-foreground">{SEASON_TAGLINE}</p>
         </div>
 
         {/* ENGINE | RUN segmented control */}
@@ -521,7 +534,7 @@ export default function LeaderboardPage() {
 
         {/* Secondary scope tabs */}
         <div className="rounded-xl border border-border/60 bg-[hsla(0,0%,10%,1)] p-1">
-          <div className="grid grid-cols-4 gap-0.5">
+          <div className="grid grid-cols-3 gap-0.5">
             {scopeTabs.map((t) => (
               <button
                 key={t.id}
@@ -533,9 +546,7 @@ export default function LeaderboardPage() {
                 className={cn(
                   'rounded-lg py-2.5 text-center text-xs font-semibold transition-colors',
                   scopeTab === t.id
-                    ? t.id === 'leagues'
-                      ? 'border border-neon-lime/70 bg-muted/80 text-foreground shadow-sm'
-                      : 'bg-muted text-foreground shadow-sm'
+                    ? 'bg-muted text-foreground shadow-sm'
                     : 'text-muted-foreground hover:text-foreground/90',
                 )}
               >
@@ -546,8 +557,7 @@ export default function LeaderboardPage() {
         </div>
 
         {/* Filter row */}
-        {scopeTab !== 'leagues' ? (
-          <div className="flex gap-2">
+        <div className="flex gap-2">
             {seasonOptions.length > 0 && selectedSeasonId ? (
               <LeaderboardFilterSelect
                 aria-label="Season"
@@ -577,17 +587,16 @@ export default function LeaderboardPage() {
               options={countryOptions}
             />
             <LeaderboardFilterSelect
-              aria-label="Division"
+              aria-label="Gender"
               icon={Users}
-              value={divisionFilter}
+              value={genderFilter}
               onValueChange={(v) => {
                 haptic('light');
-                setDivisionFilter(v as DivisionFilter);
+                setGenderFilter(v as GenderFilter);
               }}
-              options={DIVISION_OPTIONS}
+              options={GENDER_OPTIONS}
             />
           </div>
-        ) : null}
 
         <p className="text-center text-xs text-muted-foreground">{scopeSubtitle}</p>
 
@@ -627,8 +636,6 @@ export default function LeaderboardPage() {
               />
             )}
           </PremiumGate>
-        ) : scopeTab === 'leagues' ? (
-          <LeaderboardLeaguesPanel />
         ) : !error && rows.length === 0 ? (
           <p className="rounded-xl border border-border bg-[hsla(0,0%,10%,1)] px-4 py-10 text-center text-sm text-muted-foreground">
             {merged.length === 0

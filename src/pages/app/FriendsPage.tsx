@@ -218,10 +218,8 @@ export default function FriendsPage({ embedded = false }: FriendsPageProps) {
                 {results.map((a) => (
                   <li key={a.id} className="flex items-center justify-between gap-2 rounded-md px-2 py-2">
                     <div className="min-w-0">
-                      <p className="truncate text-sm font-medium text-foreground">
-                        {a.display_name?.trim() || '—'}
-                      </p>
-                      <p className="truncate text-xs text-muted-foreground">@{a.username ?? '—'}</p>
+                      <p className="type-heading truncate">{a.display_name?.trim() || '—'}</p>
+                      <p className="type-meta truncate">{a.username ?? '—'}</p>
                     </div>
                     <Button type="button" size="sm" variant="secondary" onClick={() => void sendRequest(a.id)}>
                       <UserPlus className="mr-1 h-3 w-3" />
@@ -234,7 +232,7 @@ export default function FriendsPage({ embedded = false }: FriendsPageProps) {
           </div>
 
           <div className="space-y-2">
-            <h2 className="text-sm font-semibold text-foreground">Incoming requests</h2>
+            <h2 className="type-heading">Incoming requests</h2>
             {loading ? null : incoming.length === 0 ? (
               <p className="text-xs text-muted-foreground">No pending requests.</p>
             ) : (
@@ -245,10 +243,10 @@ export default function FriendsPage({ embedded = false }: FriendsPageProps) {
                     className="flex items-center justify-between gap-2 rounded-lg border border-border bg-card p-3"
                   >
                     <div className="min-w-0">
-                      <p className="truncate text-sm font-medium">
+                      <p className="type-heading truncate">
                         {r.requester.display_name || r.requester.username || 'Athlete'}
                       </p>
-                      <p className="text-xs text-muted-foreground">@{r.requester.username ?? '—'}</p>
+                      <p className="type-meta truncate">{r.requester.username ?? '—'}</p>
                     </div>
                     <div className="flex shrink-0 gap-1">
                       <Button type="button" size="icon" variant="default" onClick={() => void respond(r.id, true)}>
@@ -265,7 +263,7 @@ export default function FriendsPage({ embedded = false }: FriendsPageProps) {
           </div>
 
           <div className="space-y-2">
-            <h2 className="text-sm font-semibold text-foreground">Your friends</h2>
+            <h2 className="type-heading">Your friends</h2>
             {loading ? (
               <p className="text-xs text-muted-foreground">Loading…</p>
             ) : friends.length === 0 ? (
@@ -292,19 +290,15 @@ export default function FriendsPage({ embedded = false }: FriendsPageProps) {
                             )}
                           </div>
                           <div className="min-w-0 flex-1">
-                            <p className="truncate text-sm font-medium text-foreground">{name}</p>
-                            <p className="truncate text-xs text-muted-foreground">@{f.username ?? '—'}</p>
+                            <p className="type-heading truncate">{name}</p>
+                            <p className="type-meta truncate">{f.username ?? '—'}</p>
                           </div>
-                          <div className="hidden shrink-0 text-right sm:block">
-                            <p className="text-xs text-muted-foreground">
-                              Rank{' '}
-                              <span className="font-display text-sm text-foreground tabular-nums">
-                                {f.rank != null ? `#${f.rank}` : '—'}
-                              </span>
+                          <div className="hidden shrink-0 pr-2 text-right sm:block">
+                            <p className="type-meta">
+                              Rank {f.rank != null ? `#${f.rank}` : '—'}
                             </p>
-                            <p className="font-display text-base tabular-nums text-neon-lime">
-                              {f.total_score.toLocaleString()}
-                            </p>
+                            <p className="type-stat text-primary">{f.total_score.toLocaleString()}</p>
+                            <p className="type-stat-unit">pts</p>
                           </div>
                           <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden />
                         </Link>

@@ -1,23 +1,22 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { useParams, Link } from "react-router-dom";
 import { invokePushNotify } from "@/lib/pushNotify";
-import { supabase } from "@/integrations/supabase/client";
+import { supabase } from "@/services/supabase";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { ArrowLeft, Send, Check, CheckCheck } from "lucide-react";
+import { ArrowLeft, Send } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
 import { ChatPremiumGate } from "@/components/chat/ChatPremiumGate";
 import { resolveAthleteId } from "@/lib/resolveAthleteId";
+import { getOrCreateDmConversation } from "@/lib/chatConversation";
+import { toast } from "sonner";
 
 interface Message {
   id: string;
-  sender_id: string;
-  content: string;
+  athlete_id: string;
+  body: string;
   created_at: string;
-  read_at: string | null;
-  message_type: string;
-  gif_url: string | null;
 }
 
 export default function ChatThread() {
@@ -28,18 +27,42 @@ export default function ChatThread() {
   const [myDisplayName, setMyDisplayName] = useState("");
   const [friendName, setFriendName] = useState("");
   const [friendAvatar, setFriendAvatar] = useState<string | null>(null);
+  const [conversationId, setConversationId] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
+  const [initError, setInitError] = useState<string | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
+
+  const loadMessages = useCallback(async (cid: string) => {
+    const { data, error } = await supabase
+      .from("conversation_messages")
+      .select("id, athlete_id, body, created_at")
+      .eq("conversation_id", cid)
+      .order("created_at", { ascending: true })
+      .limit(200);
+
+    if (error) {
+      toast.error(error.message);
+      return;
+    }
+    setMessages((data as Message[]) ?? []);
+  }, []);
 
   useEffect(() => {
     if (!friendId) return;
 
     async function init() {
+      setInitError(null);
       const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
+      if (!user) {
+        setInitError("Sign in to send messages.");
+        return;
+      }
 
       const aid = await resolveAthleteId(user.id);
-      if (!aid) return;
+      if (!aid) {
+        setInitError("Complete your profile to use chat.");
+        return;
+      }
 
       const { data: athlete } = await supabase
         .from("athletes")
@@ -57,103 +80,90 @@ export default function ChatThread() {
         .single();
 
       if (friend) {
-        setFriendName(friend.username);
+        setFriendName(friend.username ?? "Friend");
         setFriendAvatar(friend.avatar_url);
       }
 
-      await loadMessages(aid);
+      const { conversationId: cid, error: dmErr } = await getOrCreateDmConversation(aid, friendId);
+      if (dmErr || !cid) {
+        setInitError(dmErr ?? "Could not open conversation.");
+        return;
+      }
 
-      await supabase
-        .from("direct_messages")
-        .update({ read_at: new Date().toISOString() })
-        .eq("sender_id", friendId)
-        .eq("receiver_id", aid)
-        .is("read_at", null);
+      setConversationId(cid);
+      await loadMessages(cid);
     }
 
-    init();
-  }, [friendId]);
+    void init();
+  }, [friendId, loadMessages]);
 
-  // Realtime: messages INSERT + UPDATE (for read ticks)
   useEffect(() => {
-    if (!myAthleteId || !friendId) return;
+    if (!conversationId) return;
 
     const channel = supabase
-      .channel(`chat-${myAthleteId}-${friendId}`)
+      .channel(`dm-${conversationId}`)
       .on(
         "postgres_changes",
-        { event: "INSERT", schema: "public", table: "direct_messages" },
+        {
+          event: "INSERT",
+          schema: "public",
+          table: "conversation_messages",
+          filter: `conversation_id=eq.${conversationId}`,
+        },
         (payload) => {
-          const msg = payload.new as Message & { receiver_id: string };
-          if (
-            (msg.sender_id === myAthleteId && msg.receiver_id === friendId) ||
-            (msg.sender_id === friendId && msg.receiver_id === myAthleteId)
-          ) {
-            setMessages((prev) => [...prev, msg]);
-            if (msg.sender_id === friendId) {
-              supabase
-                .from("direct_messages")
-                .update({ read_at: new Date().toISOString() })
-                .eq("id", msg.id)
-                .then();
-            }
-          }
-        }
-      )
-      .on(
-        "postgres_changes",
-        { event: "UPDATE", schema: "public", table: "direct_messages" },
-        (payload) => {
-          const updated = payload.new as Message;
-          setMessages((prev) =>
-            prev.map((m) => (m.id === updated.id ? { ...m, read_at: updated.read_at } : m))
-          );
-        }
+          const msg = payload.new as Message;
+          setMessages((prev) => {
+            if (prev.some((m) => m.id === msg.id)) return prev;
+            return [...prev, msg];
+          });
+        },
       )
       .subscribe();
 
-    return () => { supabase.removeChannel(channel); };
-  }, [myAthleteId, friendId]);
+    return () => {
+      void supabase.removeChannel(channel);
+    };
+  }, [conversationId]);
 
-  // Auto-scroll
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
   }, [messages]);
 
-  async function loadMessages(athleteId: string) {
-    const { data } = await supabase
-      .from("direct_messages")
-      .select("id, sender_id, content, created_at, read_at, message_type, gif_url")
-      .or(
-        `and(sender_id.eq.${athleteId},receiver_id.eq.${friendId}),and(sender_id.eq.${friendId},receiver_id.eq.${athleteId})`
-      )
-      .order("created_at", { ascending: true })
-      .limit(200);
-
-    setMessages((data as Message[]) || []);
-  }
-
-  async function handleSend(msgContent?: string, type: string = "text", gifUrl?: string) {
-    const content = msgContent?.trim() || newMsg.trim();
-    if (!content || !myAthleteId || !friendId || sending) return;
+  async function handleSend() {
+    const content = newMsg.trim();
+    if (!content || !myAthleteId || !conversationId || sending) return;
     setSending(true);
     try {
-      const { error } = await supabase.from("direct_messages").insert({
-        sender_id: myAthleteId,
-        receiver_id: friendId,
-        content,
-        message_type: type,
-        gif_url: gifUrl || null,
-      });
-      if (error) throw error;
-      if (type === "text") setNewMsg("");
+      const { data: inserted, error } = await supabase
+        .from("conversation_messages")
+        .insert({
+          conversation_id: conversationId,
+          athlete_id: myAthleteId,
+          body: content,
+        })
+        .select("id, athlete_id, body, created_at")
+        .single();
 
-      invokePushNotify("notify-new-message", {
-        receiver_athlete_id: friendId,
-        sender_name: myDisplayName || "Someone",
-        preview: type === "gif" ? "Sent a GIF" : content,
-      });
+      if (error) throw error;
+
+      setNewMsg("");
+      if (inserted) {
+        setMessages((prev) => {
+          if (prev.some((m) => m.id === inserted.id)) return prev;
+          return [...prev, inserted as Message];
+        });
+      }
+
+      if (friendId) {
+        invokePushNotify("notify-new-message", {
+          receiver_athlete_id: friendId,
+          sender_name: myDisplayName || "Someone",
+          preview: content,
+        });
+      }
     } catch (err) {
+      const message = err instanceof Error ? err.message : "Could not send message";
+      toast.error(message);
       console.error("Send error:", err);
     } finally {
       setSending(false);
@@ -172,7 +182,7 @@ export default function ChatThread() {
             {friendAvatar ? (
               <img src={friendAvatar} alt="" className="w-full h-full object-cover" />
             ) : (
-              <span className="text-sm font-medium text-muted-foreground">
+              <span className="type-meta">
                 {friendName.charAt(0).toUpperCase()}
               </span>
             )}
@@ -190,9 +200,13 @@ export default function ChatThread() {
         </div>
       </header>
 
+      {initError ? (
+        <p className="px-4 py-6 text-center text-sm text-destructive">{initError}</p>
+      ) : null}
+
       <div ref={scrollRef} className="app-content px-4 py-4 space-y-1">
         {messages.map((msg) => {
-          const isMine = msg.sender_id === myAthleteId;
+          const isMine = msg.athlete_id === myAthleteId;
           return (
             <div key={msg.id} className="group">
               <div className={cn("flex", isMine ? "justify-end" : "justify-start")}>
@@ -204,11 +218,7 @@ export default function ChatThread() {
                       : "bg-card border border-border text-foreground rounded-bl-md"
                   )}
                 >
-                  {msg.message_type === "gif" && msg.gif_url ? (
-                    <img src={msg.gif_url} alt="GIF" className="rounded-lg max-w-full" loading="lazy" />
-                  ) : (
-                    <p className="text-sm break-words">{msg.content}</p>
-                  )}
+                  <p className="text-sm break-words">{msg.body}</p>
                   <div className={cn("flex items-center gap-1 mt-1", isMine ? "justify-end" : "")}>
                     <span className={cn(
                       "text-xs",
@@ -216,13 +226,6 @@ export default function ChatThread() {
                     )}>
                       {format(new Date(msg.created_at), "HH:mm")}
                     </span>
-                    {isMine && (
-                      msg.read_at ? (
-                        <CheckCheck className={cn("h-3 w-3", "text-primary-foreground/60")} />
-                      ) : (
-                        <Check className={cn("h-3 w-3", "text-primary-foreground/40")} />
-                      )
-                    )}
                   </div>
                 </div>
               </div>
@@ -233,7 +236,7 @@ export default function ChatThread() {
 
       <div className="app-footer border-t border-border bg-background px-4 py-3">
         <form
-          onSubmit={(e) => { e.preventDefault(); handleSend(); }}
+          onSubmit={(e) => { e.preventDefault(); void handleSend(); }}
           className="flex gap-2 items-center"
         >
           <Input
@@ -242,11 +245,12 @@ export default function ChatThread() {
             placeholder="Message…"
             className="flex-1"
             maxLength={500}
+            disabled={!conversationId || !!initError}
           />
           <Button
             type="submit"
             size="icon"
-            disabled={!newMsg.trim() || sending}
+            disabled={!newMsg.trim() || sending || !conversationId || !!initError}
             className="bg-primary text-primary-foreground hover:bg-primary/90"
           >
             <Send className="h-4 w-4" />

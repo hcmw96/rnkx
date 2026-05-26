@@ -114,8 +114,8 @@ export function NewMessageModal({
                       )}
                     </div>
                     <div className="min-w-0 flex-1">
-                      <p className="truncate text-sm font-medium text-foreground">{label}</p>
-                      <p className="truncate text-xs text-muted-foreground">@{f.username ?? '—'}</p>
+                      <p className="truncate type-heading">{label}</p>
+                      <p className="type-meta truncate">{f.username ?? '—'}</p>
                     </div>
                     {hasThread ? (
                       <span className="shrink-0 text-xs uppercase tracking-wide text-muted-foreground">

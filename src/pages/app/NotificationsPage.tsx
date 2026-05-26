@@ -11,7 +11,7 @@ export default function NotificationsPage() {
           <Bell className="h-8 w-8 text-neon-lime" aria-hidden />
         </div>
         <div className="space-y-2">
-          <h1 className="font-display text-xl text-foreground">Notifications</h1>
+          <h1 className="type-page-title">Notifications</h1>
           <p className="text-sm text-muted-foreground">
             You&apos;re all caught up. Push alerts for scores, friend requests, and club activity are sent to your
             device when enabled in the RNKX app.

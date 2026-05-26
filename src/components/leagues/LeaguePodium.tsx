@@ -59,10 +59,10 @@ export function LeaguePodium({ members, leagueType }: LeaguePodiumProps) {
               </div>
               <span className="absolute -right-1 -top-1 text-sm">{rankEmoji[actualRank]}</span>
             </div>
-            <span className="max-w-full truncate text-xs font-medium text-foreground">{member.username}</span>
+            <span className="type-heading max-w-full truncate text-sm">{member.username}</span>
             <span
               className={cn(
-                'font-display text-xs font-bold',
+                'type-stat text-lg',
                 leagueType === 'engine' ? 'text-primary' : 'text-secondary',
               )}
             >

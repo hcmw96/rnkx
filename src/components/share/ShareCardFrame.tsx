@@ -35,28 +35,49 @@ export function ShareCardFrame({ backgroundImageUrl, children, className }: Shar
           }}
         />
       ) : (
-        <div
-          style={{
-            position: 'absolute',
-            inset: 0,
-            background: 'linear-gradient(165deg, #0a0a0a 0%, #121212 45%, #1a1a1a 100%)',
-          }}
-        />
+        <>
+          <div
+            style={{
+              position: 'absolute',
+              inset: 0,
+              background: 'linear-gradient(180deg, #050505 0%, #0a0a0a 35%, #0d1208 70%, #0a0f06 100%)',
+            }}
+          />
+          <div
+            style={{
+              position: 'absolute',
+              inset: 0,
+              background:
+                'radial-gradient(ellipse 90% 55% at 50% 0%, rgba(190, 242, 100, 0.22) 0%, transparent 55%)',
+              pointerEvents: 'none',
+            }}
+          />
+          <div
+            style={{
+              position: 'absolute',
+              inset: 0,
+              background:
+                'radial-gradient(ellipse 100% 70% at 50% 100%, rgba(190, 242, 100, 0.4) 0%, rgba(132, 204, 22, 0.12) 35%, transparent 65%)',
+              pointerEvents: 'none',
+            }}
+          />
+          <div
+            style={{
+              position: 'absolute',
+              inset: 0,
+              background:
+                'radial-gradient(circle at 20% 30%, rgba(34, 211, 238, 0.06) 0%, transparent 40%)',
+              pointerEvents: 'none',
+            }}
+          />
+        </>
       )}
       <div
         style={{
           position: 'absolute',
           inset: 0,
           background:
-            'radial-gradient(ellipse 120% 80% at 50% 100%, rgba(190, 242, 100, 0.35) 0%, rgba(190, 242, 100, 0.08) 40%, transparent 70%)',
-          pointerEvents: 'none',
-        }}
-      />
-      <div
-        style={{
-          position: 'absolute',
-          inset: 0,
-          background: 'linear-gradient(180deg, rgba(0,0,0,0.55) 0%, rgba(0,0,0,0.25) 35%, rgba(0,0,0,0.65) 100%)',
+            'linear-gradient(180deg, rgba(0,0,0,0.5) 0%, rgba(0,0,0,0.15) 40%, rgba(0,0,0,0.35) 75%, rgba(0,0,0,0.55) 100%)',
           pointerEvents: 'none',
         }}
       />
@@ -68,7 +89,7 @@ export function ShareCardFrame({ backgroundImageUrl, children, className }: Shar
           display: 'flex',
           flexDirection: 'column',
           alignItems: 'center',
-          padding: '72px 64px 96px',
+          padding: '64px 56px 72px',
           boxSizing: 'border-box',
         }}
       >
@@ -76,9 +97,19 @@ export function ShareCardFrame({ backgroundImageUrl, children, className }: Shar
           src={rnkxLogo}
           alt="RNKX"
           crossOrigin="anonymous"
-          style={{ height: 56, width: 'auto', marginBottom: 48 }}
+          style={{ height: 52, width: 'auto', flexShrink: 0, marginBottom: 24 }}
         />
-        {children}
+        <div
+          style={{
+            flex: 1,
+            width: '100%',
+            minHeight: 0,
+            display: 'flex',
+            flexDirection: 'column',
+          }}
+        >
+          {children}
+        </div>
       </div>
     </div>
   );

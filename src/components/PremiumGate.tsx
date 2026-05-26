@@ -58,7 +58,7 @@ export function PremiumGate({
 
           <div className="flex flex-1 flex-col items-center justify-center gap-4 px-6 py-10 text-center">
             <Lock className="h-8 w-8 shrink-0 text-neon-lime" strokeWidth={2} aria-hidden />
-            <h3 className="text-xl font-bold text-white">{heading}</h3>
+            <h3 className="type-heading">{heading}</h3>
             <p className="max-w-sm text-sm text-zinc-400">{body}</p>
             <Button
               type="button"

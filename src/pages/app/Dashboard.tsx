@@ -12,6 +12,7 @@ import type { InsightActivity } from '@/lib/insightsAggregates';
 import { usePullToRefresh } from '@/hooks/usePullToRefresh';
 import { activitySessionScore } from '@/lib/activitySessionScore';
 import { isDespiaIphoneUa, wearablesIncludeAppleWatch } from '@/lib/despiaPlatform';
+import { cn } from '@/lib/utils';
 import { supabase } from '@/services/supabase';
 
 const SYNC_STALE_MS = 24 * 60 * 60 * 1000;
@@ -295,8 +296,8 @@ export default function Dashboard() {
         </div>
 
         <div className="rounded-lg border border-border bg-card p-4">
-          <p className="text-sm text-muted-foreground">Combined score</p>
-          <p className="type-display-score mt-1 text-foreground">
+          <p className="type-section-label">Combined score</p>
+          <p className="type-stat mt-1 text-foreground">
             {(stats?.total_score ?? 0).toLocaleString(undefined, { maximumFractionDigits: 1 })}
           </p>
         </div>
@@ -332,14 +333,12 @@ export default function Dashboard() {
                 return (
                   <div key={activity.id} className="flex items-center justify-between rounded-md border border-border/60 p-3">
                     <div className="min-w-0">
-                      <p className="truncate text-sm font-medium text-foreground">
-                        {activityLabel(activity.activity_type, leagueType)}
-                      </p>
-                      <p className="text-xs text-muted-foreground">
+                      <p className="type-heading truncate">{activityLabel(activity.activity_type, leagueType)}</p>
+                      <p className="type-meta mt-0.5">
                         {new Date(`${activity.activity_date}T12:00:00`).toLocaleDateString()} · {duration} min
                       </p>
                     </div>
-                    <div className="ml-3 text-right">
+                    <div className="ml-3 shrink-0 text-right">
                       <span
                         className={`inline-flex rounded-full px-2 py-0.5 text-xs font-semibold uppercase tracking-wide ${
                           leagueType === 'run'
@@ -349,12 +348,10 @@ export default function Dashboard() {
                       >
                         {leagueType === 'run' ? 'Run' : 'Engine'}
                       </span>
-                      <p className="mt-1 text-xs text-muted-foreground">
-                        <span className="font-display text-base tabular-nums text-foreground">
-                          {score.toLocaleString()}
-                        </span>{' '}
-                        pts
+                      <p className={cn('type-stat mt-1', leagueType === 'run' ? 'text-secondary' : 'text-primary')}>
+                        {score.toLocaleString()}
                       </p>
+                      <p className="type-stat-unit">pts</p>
                     </div>
                   </div>
                 );

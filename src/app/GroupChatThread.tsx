@@ -1,6 +1,6 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { useParams, Link } from "react-router-dom";
-import { supabase } from "@/integrations/supabase/client";
+import { supabase } from "@/services/supabase";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ArrowLeft, Send, Users } from "lucide-react";
@@ -8,14 +8,13 @@ import { cn } from "@/lib/utils";
 import { format } from "date-fns";
 import { ChatPremiumGate } from "@/components/chat/ChatPremiumGate";
 import { resolveAthleteId } from "@/lib/resolveAthleteId";
+import { toast } from "sonner";
 
 interface Message {
   id: string;
-  sender_id: string;
-  content: string;
+  athlete_id: string;
+  body: string;
   created_at: string;
-  message_type: string;
-  gif_url: string | null;
 }
 
 interface Member {
@@ -35,100 +34,126 @@ export default function GroupChatThread() {
   const [sending, setSending] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
 
-  useEffect(() => {
+  const loadMessages = useCallback(async () => {
     if (!conversationId) return;
-    init();
+    const { data, error } = await supabase
+      .from("conversation_messages")
+      .select("id, athlete_id, body, created_at")
+      .eq("conversation_id", conversationId)
+      .order("created_at", { ascending: true })
+      .limit(200);
+
+    if (error) {
+      toast.error(error.message);
+      return;
+    }
+    setMessages((data as Message[]) ?? []);
   }, [conversationId]);
 
-  async function init() {
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return;
+  useEffect(() => {
+    if (!conversationId) return;
 
-    const aid = await resolveAthleteId(user.id);
-    if (!aid) return;
+    async function init() {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
 
-    setMyAthleteId(aid);
+      const aid = await resolveAthleteId(user.id);
+      if (!aid) return;
 
-    // Load conversation info
-    const { data: conv } = await supabase
-      .from("conversations")
-      .select("name")
-      .eq("id", conversationId)
-      .single();
-    if (conv) setGroupName(conv.name || "Group");
+      setMyAthleteId(aid);
 
-    // Load members
-    const { data: cms } = await supabase
-      .from("conversation_members")
-      .select("athlete_id")
-      .eq("conversation_id", conversationId);
+      const { data: conv } = await supabase
+        .from("conversations")
+        .select("name")
+        .eq("id", conversationId)
+        .single();
+      if (conv) setGroupName(conv.name || "Group");
 
-    if (cms) {
-      setMemberCount(cms.length);
-      const memberIds = cms.map((cm) => cm.athlete_id);
-      const { data: athletes } = await supabase
-        .from("athletes")
-        .select("id, username, avatar_url")
-        .in("id", memberIds);
+      const { data: cms } = await supabase
+        .from("conversation_members")
+        .select("athlete_id")
+        .eq("conversation_id", conversationId);
 
-      const memberMap = new Map<string, Member>();
-      for (const a of athletes || []) memberMap.set(a.id, a);
-      setMembers(memberMap);
+      if (cms) {
+        setMemberCount(cms.length);
+        const memberIds = cms.map((cm) => cm.athlete_id as string);
+        const { data: athletes } = await supabase
+          .from("athletes")
+          .select("id, username, avatar_url")
+          .in("id", memberIds);
+
+        const memberMap = new Map<string, Member>();
+        for (const a of athletes ?? []) {
+          memberMap.set(a.id as string, a as Member);
+        }
+        setMembers(memberMap);
+      }
+
+      await loadMessages();
     }
 
-    await loadMessages();
-  }
+    void init();
+  }, [conversationId, loadMessages]);
 
   useEffect(() => {
-    if (!myAthleteId || !conversationId) return;
+    if (!conversationId) return;
 
     const channel = supabase
       .channel(`group-${conversationId}`)
       .on(
         "postgres_changes",
-        { event: "INSERT", schema: "public", table: "direct_messages" },
+        {
+          event: "INSERT",
+          schema: "public",
+          table: "conversation_messages",
+          filter: `conversation_id=eq.${conversationId}`,
+        },
         (payload) => {
-          const msg = payload.new as Message & { conversation_id: string };
-          if (msg.conversation_id === conversationId) {
-            setMessages((prev) => [...prev, msg]);
-          }
-        }
+          const msg = payload.new as Message;
+          setMessages((prev) => {
+            if (prev.some((m) => m.id === msg.id)) return prev;
+            return [...prev, msg];
+          });
+        },
       )
       .subscribe();
 
-    return () => { supabase.removeChannel(channel); };
-  }, [myAthleteId, conversationId]);
+    return () => {
+      void supabase.removeChannel(channel);
+    };
+  }, [conversationId]);
 
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
   }, [messages]);
 
-  async function loadMessages() {
-    const { data } = await supabase
-      .from("direct_messages")
-      .select("id, sender_id, content, created_at, message_type, gif_url")
-      .eq("conversation_id", conversationId!)
-      .order("created_at", { ascending: true })
-      .limit(200);
-    setMessages((data as Message[]) || []);
-  }
-
-  async function handleSend(msgContent?: string, type: string = "text", gifUrl?: string) {
-    const content = msgContent?.trim() || newMsg.trim();
+  async function handleSend() {
+    const content = newMsg.trim();
     if (!content || !myAthleteId || !conversationId || sending) return;
     setSending(true);
     try {
-      const { error } = await supabase.from("direct_messages").insert({
-        sender_id: myAthleteId,
-        receiver_id: myAthleteId,
-        conversation_id: conversationId,
-        content,
-        message_type: type,
-        gif_url: gifUrl || null,
-      });
+      const { data: inserted, error } = await supabase
+        .from("conversation_messages")
+        .insert({
+          conversation_id: conversationId,
+          athlete_id: myAthleteId,
+          body: content,
+        })
+        .select("id, athlete_id, body, created_at")
+        .single();
+
       if (error) throw error;
-      if (type === "text") setNewMsg("");
+
+      setNewMsg("");
+      if (inserted) {
+        setMessages((prev) => {
+          if (prev.some((m) => m.id === inserted.id)) return prev;
+          return [...prev, inserted as Message];
+        });
+      }
     } catch (err) {
+      const message = err instanceof Error ? err.message : "Could not send message";
+      toast.error(message);
       console.error("Send error:", err);
     } finally {
       setSending(false);
@@ -155,8 +180,8 @@ export default function GroupChatThread() {
 
       <div ref={scrollRef} className="app-content px-4 py-4 space-y-1">
         {messages.map((msg) => {
-          const isMine = msg.sender_id === myAthleteId;
-          const sender = members.get(msg.sender_id);
+          const isMine = msg.athlete_id === myAthleteId;
+          const sender = members.get(msg.athlete_id);
           return (
             <div key={msg.id} className="group">
               {!isMine && (
@@ -184,11 +209,7 @@ export default function GroupChatThread() {
                       : "bg-card border border-border text-foreground rounded-bl-md"
                   )}
                 >
-                  {msg.message_type === "gif" && msg.gif_url ? (
-                    <img src={msg.gif_url} alt="GIF" className="rounded-lg max-w-full" loading="lazy" />
-                  ) : (
-                    <p className="text-sm break-words">{msg.content}</p>
-                  )}
+                  <p className="text-sm break-words">{msg.body}</p>
                   <p className={cn(
                     "text-xs mt-1",
                     isMine ? "text-primary-foreground/60" : "text-muted-foreground"
@@ -204,7 +225,7 @@ export default function GroupChatThread() {
 
       <div className="app-footer border-t border-border bg-background px-4 py-3">
         <form
-          onSubmit={(e) => { e.preventDefault(); handleSend(); }}
+          onSubmit={(e) => { e.preventDefault(); void handleSend(); }}
           className="flex gap-2 items-center"
         >
           <Input

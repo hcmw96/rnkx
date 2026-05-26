@@ -27,7 +27,7 @@ export class RootErrorBoundary extends Component<Props, State> {
       return (
         <div className="flex min-h-screen flex-col items-center justify-center gap-6 bg-background px-6 py-12 text-center text-foreground">
           <div className="max-w-md space-y-2">
-            <h1 className="text-lg font-semibold">Something went wrong</h1>
+            <h1 className="type-heading">Something went wrong</h1>
             <p className="whitespace-pre-wrap break-words text-sm text-muted-foreground">{error.message}</p>
           </div>
           <Button type="button" onClick={() => window.location.reload()}>

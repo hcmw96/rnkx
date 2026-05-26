@@ -69,6 +69,13 @@ export function CreateLeagueModal({
         return;
       }
 
+      // Ensure athletes.user_id is populated so RLS policies pass
+      await supabase
+        .from('athletes')
+        .update({ user_id: user.id })
+        .eq('id', athleteId)
+        .is('user_id', null);
+
       let imageUrl: string | null = null;
       if (imageFile) {
         setUploading(true);
@@ -259,7 +266,7 @@ export function CreateLeagueModal({
                 )}
               >
                 <Heart className="h-5 w-5" aria-hidden />
-                <span className="text-sm font-medium">Engine</span>
+                <span className="type-heading">Engine</span>
                 <span className="text-xs">Heart rate based</span>
               </button>
               <button
@@ -273,7 +280,7 @@ export function CreateLeagueModal({
                 )}
               >
                 <Activity className="h-5 w-5" aria-hidden />
-                <span className="text-sm font-medium">Run</span>
+                <span className="type-heading">Run</span>
                 <span className="text-xs">Pace based</span>
               </button>
             </div>

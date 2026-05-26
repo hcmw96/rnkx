@@ -14,7 +14,7 @@ export function ContributionBreakdown({
   if (total === 0) {
     return (
       <div className="space-y-2">
-        <h4 className="text-sm font-medium text-muted-foreground uppercase tracking-wide">
+        <h4 className="type-section-label">
           Points Breakdown
         </h4>
         <div className="h-6 bg-muted/50 rounded-full flex items-center justify-center">
@@ -29,7 +29,7 @@ export function ContributionBreakdown({
 
   return (
     <div className="space-y-2">
-      <h4 className="text-sm font-medium text-muted-foreground uppercase tracking-wide">
+      <h4 className="type-section-label">
         Points Breakdown
       </h4>
 

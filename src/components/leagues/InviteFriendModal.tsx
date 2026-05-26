@@ -175,10 +175,10 @@ export function InviteFriendModal({ open, onOpenChange, leagueId, leagueName, on
                     </AvatarFallback>
                   </Avatar>
                   <div className="min-w-0 flex-1">
-                    <p className="truncate text-sm font-medium text-foreground">
+                    <p className="truncate type-heading">
                       {athlete.display_name || athlete.username}
                     </p>
-                    <p className="text-xs text-muted-foreground">@{athlete.username}</p>
+                    <p className="type-meta">{athlete.username}</p>
                   </div>
                   {adding === athlete.id ? (
                     <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />

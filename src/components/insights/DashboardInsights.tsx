@@ -37,8 +37,8 @@ function RankPill({
   const down = weeklyChange != null && weeklyChange < 0;
   return (
     <div className="flex-1 rounded-xl border border-border/60 bg-[hsla(0,0%,8%,1)] px-3 py-3">
-      <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{label}</p>
-      <p className="type-display-score mt-1 text-foreground">
+      <p className="type-section-label">{label}</p>
+      <p className="type-stat mt-1 text-foreground">
         {rank != null ? `#${rank.toLocaleString()}` : '—'}
       </p>
       {weeklyChange != null ? (
@@ -92,7 +92,7 @@ export function DashboardInsights({ activities, stats }: DashboardInsightsProps)
   return (
     <div className="space-y-5">
       <div>
-        <h3 className="font-sans text-sm font-semibold uppercase tracking-wide text-foreground">Insights</h3>
+        <h3 className="type-section-label">Insights</h3>
         <p className="mt-1 text-xs text-muted-foreground">
           Your performance story — scoring trends, intensity, and standout sessions.
         </p>
@@ -100,7 +100,7 @@ export function DashboardInsights({ activities, stats }: DashboardInsightsProps)
 
       {/* Rank + weekly movement */}
       <div className="rounded-xl border border-border/70 bg-[hsla(0,0%,10%,1)] p-4">
-        <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Leaderboard position</p>
+        <p className="type-section-label">Leaderboard position</p>
         <div className="mt-3 flex gap-2">
           {showEngine ? (
             <RankPill
@@ -119,7 +119,7 @@ export function DashboardInsights({ activities, stats }: DashboardInsightsProps)
       <div className="rounded-xl border border-border/70 bg-[hsla(0,0%,10%,1)] p-4">
         <div className="flex items-start justify-between gap-2">
           <div>
-            <p className="font-sans text-sm font-semibold text-foreground">Scoring momentum</p>
+            <p className="type-heading">Scoring momentum</p>
             <p className="text-xs text-muted-foreground">Daily points · last 14 days</p>
           </div>
           {summary.weekDelta !== 0 ? (
@@ -155,7 +155,7 @@ export function DashboardInsights({ activities, stats }: DashboardInsightsProps)
 
       {/* Season points curve */}
       <div className="rounded-xl border border-border/70 bg-[hsla(0,0%,10%,1)] p-4">
-        <p className="font-sans text-sm font-semibold text-foreground">Season points curve</p>
+        <p className="type-heading">Season points curve</p>
         <p className="text-xs text-muted-foreground">Cumulative scored points this fortnight</p>
         {hasChartData ? (
           <InsightsLineChart
@@ -174,7 +174,7 @@ export function DashboardInsights({ activities, stats }: DashboardInsightsProps)
       <div className="grid gap-4 sm:grid-cols-2">
         {/* Training volume */}
         <div className="rounded-xl border border-border/70 bg-[hsla(0,0%,10%,1)] p-4">
-          <p className="font-sans text-sm font-semibold text-foreground">Training volume</p>
+          <p className="type-heading">Training volume</p>
           <p className="text-xs text-muted-foreground">Minutes per day</p>
           {hasChartData ? (
             <InsightsLineChart
@@ -192,7 +192,7 @@ export function DashboardInsights({ activities, stats }: DashboardInsightsProps)
 
         {/* HR intensity */}
         <div className="rounded-xl border border-border/70 bg-[hsla(0,0%,10%,1)] p-4">
-          <p className="font-sans text-sm font-semibold text-foreground">Engine intensity</p>
+          <p className="type-heading">Engine intensity</p>
           <p className="text-xs text-muted-foreground">Avg % of max HR</p>
           {intensityData.length > 0 ? (
             <InsightsLineChart
@@ -212,7 +212,7 @@ export function DashboardInsights({ activities, stats }: DashboardInsightsProps)
 
       {/* Session breakdowns */}
       <div className="rounded-xl border border-border/70 bg-[hsla(0,0%,10%,1)] p-4">
-        <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Top sessions</p>
+        <p className="type-section-label">Top sessions</p>
         {!summary.topSessions.length ? (
           <p className="mt-2 text-sm text-muted-foreground">No scored workouts yet — sync to see breakdowns.</p>
         ) : (
@@ -232,13 +232,13 @@ export function DashboardInsights({ activities, stats }: DashboardInsightsProps)
                     {i + 1}
                   </span>
                   <div className="min-w-0">
-                    <p className="truncate text-sm font-medium text-foreground">{session.label}</p>
+                    <p className="truncate type-heading">{session.label}</p>
                     <p className="text-xs text-muted-foreground">
                       {session.duration} min · {session.leagueType === 'run' ? 'Run' : 'Engine'}
                     </p>
                   </div>
                 </div>
-                <span className="ml-2 shrink-0 font-display text-base font-bold text-neon-lime tabular-nums">
+                <span className="ml-2 shrink-0 type-stat text-neon-lime">
                   {session.score.toLocaleString()}
                 </span>
               </li>

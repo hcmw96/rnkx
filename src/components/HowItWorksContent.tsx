@@ -5,7 +5,7 @@ export function HowItWorksScrollBody() {
   return (
     <div className="mx-auto max-w-lg space-y-8 pb-6">
       <section className="space-y-3">
-        <h2 className="flex items-center gap-2 font-sans text-sm font-semibold uppercase tracking-wider text-zinc-300">
+        <h2 className="flex items-center gap-2 type-section-label">
           <span aria-hidden className="text-[#ADFF2F]">
             ⚡
           </span>
@@ -46,7 +46,7 @@ export function HowItWorksScrollBody() {
       </section>
 
       <section className="space-y-3">
-        <h2 className="flex items-center gap-2 font-sans text-sm font-semibold uppercase tracking-wider text-zinc-300">
+        <h2 className="flex items-center gap-2 type-section-label">
           <span className="text-base" aria-hidden>
             📅
           </span>
@@ -61,7 +61,7 @@ export function HowItWorksScrollBody() {
       </section>
 
       <section className="space-y-3">
-        <h2 className="flex items-center gap-2 font-sans text-sm font-semibold uppercase tracking-wider text-zinc-300">
+        <h2 className="flex items-center gap-2 type-section-label">
           <span className="text-base" aria-hidden>
             🛡️
           </span>
