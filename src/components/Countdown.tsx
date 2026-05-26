@@ -40,7 +40,7 @@ const Countdown = ({ targetDate }: CountdownProps) => {
           {String(value).padStart(2, '0')}
         </div>
       </div>
-      <span className="text-[10px] sm:text-xs uppercase tracking-widest text-muted-foreground mt-1">
+      <span className="text-xs sm:text-xs uppercase tracking-widest text-muted-foreground mt-1">
         {label}
       </span>
     </div>

@@ -180,12 +180,12 @@ export default function ChatThread() {
           {friendId ? (
             <Link
               to={`/app/friends/${friendId}`}
-              className="min-w-0 truncate font-sans text-lg font-semibold text-foreground hover:text-neon-lime"
+              className="type-card-title min-w-0 truncate hover:text-neon-lime"
             >
               {friendName}
             </Link>
           ) : (
-            <h1 className="font-sans text-lg font-semibold text-foreground">{friendName}</h1>
+            <h1 className="type-card-title">{friendName}</h1>
           )}
         </div>
       </header>
@@ -211,7 +211,7 @@ export default function ChatThread() {
                   )}
                   <div className={cn("flex items-center gap-1 mt-1", isMine ? "justify-end" : "")}>
                     <span className={cn(
-                      "text-[10px]",
+                      "text-xs",
                       isMine ? "text-primary-foreground/60" : "text-muted-foreground"
                     )}>
                       {format(new Date(msg.created_at), "HH:mm")}

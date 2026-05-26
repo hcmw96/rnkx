@@ -72,7 +72,7 @@ export function NewMessageModal({
     <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
       <DialogContent className="max-h-[85dvh] border-border bg-card sm:max-w-md">
         <DialogHeader>
-          <DialogTitle className="font-sans text-lg font-semibold">New message</DialogTitle>
+          <DialogTitle className="type-card-title">New message</DialogTitle>
           <DialogDescription>Choose a friend to message.</DialogDescription>
         </DialogHeader>
         <div className="relative">
@@ -118,7 +118,7 @@ export function NewMessageModal({
                       <p className="truncate text-xs text-muted-foreground">@{f.username ?? '—'}</p>
                     </div>
                     {hasThread ? (
-                      <span className="shrink-0 text-[10px] uppercase tracking-wide text-muted-foreground">
+                      <span className="shrink-0 text-xs uppercase tracking-wide text-muted-foreground">
                         Open
                       </span>
                     ) : null}

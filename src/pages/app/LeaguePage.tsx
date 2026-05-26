@@ -19,12 +19,12 @@ import type { RealtimeChannel } from '@supabase/supabase-js';
 type League = {
   id: string;
   name: string;
-  description: string | null;
   image_url: string | null;
   league_type: 'engine' | 'run';
   created_by: string;
   conversation_id: string | null;
   invite_code: string | null;
+  is_public: boolean | null;
 };
 
 type MemberRow = {
@@ -78,12 +78,12 @@ export default function LeaguePage() {
 
     const { data: leagueRow, error: leagueErr } = await supabase
       .from('private_leagues')
-      .select('id, name, description, image_url, league_type, created_by, conversation_id, invite_code')
+      .select('id, name, image_url, league_type, created_by, conversation_id, invite_code, is_public')
       .eq('id', leagueId)
       .maybeSingle();
 
     if (leagueErr || !leagueRow) {
-      toast.error(leagueErr?.message ?? 'League not found');
+      toast.error(leagueErr?.message ?? 'Club not found');
       setLeague(null);
       setMembers([]);
       setLoading(false);
@@ -269,14 +269,14 @@ export default function LeaguePage() {
         <section className="mx-auto max-w-lg space-y-4" {...pullHandlers}>
           {(isRefreshing || pullDistance > 0) && (
             <p className="text-center text-xs text-muted-foreground">
-              {isRefreshing ? 'Refreshing league...' : pullDistance > 72 ? 'Release to refresh' : 'Pull to refresh'}
+              {isRefreshing ? 'Refreshing club...' : pullDistance > 72 ? 'Release to refresh' : 'Pull to refresh'}
             </p>
           )}
           <div className="flex items-center gap-2">
             <Button variant="ghost" size="sm" asChild className="-ml-2 gap-1 px-2">
               <Link to="/app/social/leagues">
                 <ArrowLeft className="h-4 w-4" />
-                Leagues
+                Clubs
               </Link>
             </Button>
           </div>
@@ -284,16 +284,19 @@ export default function LeaguePage() {
           {loading ? (
             <p className="text-sm text-muted-foreground">Loading…</p>
           ) : !league ? (
-            <p className="text-sm text-destructive">League not found.</p>
+            <p className="text-sm text-destructive">Club not found.</p>
           ) : (
             <>
               <header className="space-y-1">
-                <h1 className="font-display text-xl text-foreground">{league.name}</h1>
-                {league.description ? <p className="text-sm text-muted-foreground">{league.description}</p> : null}
+                <h1 className="type-card-title">{league.name}</h1>
+                <p className="text-xs text-muted-foreground">
+                  {league.is_public ? 'Public club' : 'Private club'} ·{' '}
+                  {league.league_type === 'engine' ? 'Engine' : 'Run'}
+                </p>
                 {isCreator ? (
                   <div className="flex flex-wrap gap-2">
                     <Button type="button" variant="outline" size="sm" onClick={() => setEditOpen(true)}>
-                      Edit league
+                      Edit club
                     </Button>
                     {league.invite_code ? (
                       <Button
@@ -354,8 +357,8 @@ export default function LeaguePage() {
                   league={{
                     id: league.id,
                     name: league.name,
-                    description: league.description,
                     image_url: league.image_url,
+                    is_public: league.is_public,
                   }}
                   onSaved={() => void loadLeague()}
                 />

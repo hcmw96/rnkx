@@ -102,22 +102,22 @@ export function LeaderboardLeaguesPanel() {
   return (
     <div className="space-y-3 pb-4">
       <div className="flex items-center justify-between gap-3">
-        <h3 className="font-sans text-lg font-semibold text-foreground">Your Leagues</h3>
+        <h3 className="type-card-title">Your Clubs</h3>
         {athleteId ? (
           <CreateLeagueModal
             athleteId={athleteId}
             onCreated={() => void load()}
-            triggerLabel="+ New League"
+            triggerLabel="+ New Club"
             triggerClassName="h-9 shrink-0 rounded-lg bg-neon-lime px-3 text-xs font-semibold text-black hover:bg-neon-lime/90"
           />
         ) : null}
       </div>
 
       {loading ? (
-        <p className="text-sm text-muted-foreground">Loading leagues…</p>
+        <p className="text-sm text-muted-foreground">Loading clubs…</p>
       ) : leagues.length === 0 ? (
         <p className="rounded-xl border border-dashed border-border/70 bg-[hsla(0,0%,10%,1)] px-4 py-10 text-center text-sm text-muted-foreground">
-          No leagues yet. Create one to compete with friends.
+          No clubs yet. Create one to compete with friends.
         </p>
       ) : (
         <ul className="space-y-2.5">

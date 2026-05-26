@@ -9,7 +9,7 @@ import { toast } from 'sonner';
 
 const BENEFITS = [
   'Friends & friend leaderboards',
-  'Private leagues & group chat',
+  'Clubs & group chat',
   'Performance insights & recovery',
   'Direct messaging',
 ] as const;
@@ -58,7 +58,7 @@ export default function PremiumPage() {
         </Button>
 
         <header className="space-y-2 text-center sm:text-left">
-          <h1 className="font-display text-2xl text-foreground">RNKX Premium</h1>
+          <h1 className="type-page-title">RNKX Premium</h1>
           <p className="text-sm text-muted-foreground">Unlock the full social and insights experience.</p>
         </header>
 

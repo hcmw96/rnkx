@@ -13,7 +13,7 @@ export default function NotificationsPage() {
         <div className="space-y-2">
           <h1 className="font-display text-xl text-foreground">Notifications</h1>
           <p className="text-sm text-muted-foreground">
-            You&apos;re all caught up. Push alerts for scores, friend requests, and league activity are sent to your
+            You&apos;re all caught up. Push alerts for scores, friend requests, and club activity are sent to your
             device when enabled in the RNKX app.
           </p>
         </div>

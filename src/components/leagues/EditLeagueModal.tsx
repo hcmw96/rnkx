@@ -2,11 +2,14 @@ import { useState, useRef, useEffect } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
-import { Camera, Loader2 } from 'lucide-react';
+import { Camera, Globe, Loader2, Lock } from 'lucide-react';
 import { supabase } from '@/services/supabase';
 import { toast } from 'sonner';
+import { cn } from '@/lib/utils';
+import { haptic } from '@/lib/haptics';
+
+type ClubVisibility = 'private' | 'public';
 
 interface EditLeagueModalProps {
   open: boolean;
@@ -14,15 +17,15 @@ interface EditLeagueModalProps {
   league: {
     id: string;
     name: string;
-    description: string | null;
     image_url: string | null;
+    is_public?: boolean | null;
   };
   onSaved: () => void;
 }
 
 export function EditLeagueModal({ open, onOpenChange, league, onSaved }: EditLeagueModalProps) {
   const [name, setName] = useState(league.name);
-  const [description, setDescription] = useState(league.description || '');
+  const [visibility, setVisibility] = useState<ClubVisibility>(league.is_public ? 'public' : 'private');
   const [imagePreview, setImagePreview] = useState<string | null>(league.image_url);
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [loading, setLoading] = useState(false);
@@ -31,7 +34,7 @@ export function EditLeagueModal({ open, onOpenChange, league, onSaved }: EditLea
   useEffect(() => {
     if (open) {
       setName(league.name);
-      setDescription(league.description || '');
+      setVisibility(league.is_public ? 'public' : 'private');
       setImagePreview(league.image_url);
       setImageFile(null);
     }
@@ -76,13 +79,13 @@ export function EditLeagueModal({ open, onOpenChange, league, onSaved }: EditLea
         .from('private_leagues')
         .update({
           name: name.trim(),
-          description: description.trim() || null,
           image_url: imageUrl,
+          is_public: visibility === 'public',
         })
         .eq('id', league.id);
 
       if (error) throw error;
-      toast.success('League updated');
+      toast.success('Club updated');
       onSaved();
       onOpenChange(false);
     } catch (err: unknown) {
@@ -97,7 +100,7 @@ export function EditLeagueModal({ open, onOpenChange, league, onSaved }: EditLea
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-sm">
         <DialogHeader>
-          <DialogTitle>Edit League</DialogTitle>
+          <DialogTitle>Edit Club</DialogTitle>
         </DialogHeader>
         <div className="space-y-4">
           <div className="flex justify-center">
@@ -120,17 +123,45 @@ export function EditLeagueModal({ open, onOpenChange, league, onSaved }: EditLea
 
           <div className="space-y-2">
             <Label>Name</Label>
-            <Input value={name} onChange={(e) => setName(e.target.value.slice(0, 40))} placeholder="League name" />
+            <Input value={name} onChange={(e) => setName(e.target.value.slice(0, 40))} placeholder="Club name" />
           </div>
 
           <div className="space-y-2">
-            <Label>Description</Label>
-            <Textarea
-              value={description}
-              onChange={(e) => setDescription(e.target.value.slice(0, 100))}
-              placeholder="Optional description"
-              rows={2}
-            />
+            <Label>Visibility</Label>
+            <div className="flex rounded-xl bg-muted/90 p-1">
+              <button
+                type="button"
+                onClick={() => {
+                  haptic('light');
+                  setVisibility('private');
+                }}
+                className={cn(
+                  'flex flex-1 items-center justify-center gap-1.5 rounded-lg px-3 py-2.5 text-sm font-semibold transition-colors',
+                  visibility === 'private'
+                    ? 'bg-background text-foreground shadow-sm'
+                    : 'text-muted-foreground hover:text-foreground',
+                )}
+              >
+                <Lock className="h-4 w-4 shrink-0" aria-hidden />
+                Private
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  haptic('light');
+                  setVisibility('public');
+                }}
+                className={cn(
+                  'flex flex-1 items-center justify-center gap-1.5 rounded-lg px-3 py-2.5 text-sm font-semibold transition-colors',
+                  visibility === 'public'
+                    ? 'bg-background text-foreground shadow-sm'
+                    : 'text-muted-foreground hover:text-foreground',
+                )}
+              >
+                <Globe className="h-4 w-4 shrink-0" aria-hidden />
+                Public
+              </button>
+            </div>
           </div>
 
           <Button type="button" onClick={() => void handleSave()} disabled={loading || !name.trim()} className="w-full">

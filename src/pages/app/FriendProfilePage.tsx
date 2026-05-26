@@ -198,7 +198,7 @@ export default function FriendProfilePage() {
                 )}
               </div>
               <div className="min-w-0 flex-1">
-                <p className="truncate text-lg font-semibold text-foreground">{displayName}</p>
+                <p className="type-card-title truncate">{displayName}</p>
                 <p className="truncate text-sm text-muted-foreground">@{friend.username ?? '—'}</p>
                 <div className="mt-2 flex flex-wrap gap-3 text-sm">
                   <span className="text-muted-foreground">
@@ -255,7 +255,7 @@ export default function FriendProfilePage() {
                         <div className="ml-3 shrink-0 text-right">
                           <span
                             className={cn(
-                              'inline-flex rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide',
+                              'inline-flex rounded-full px-2 py-0.5 text-xs font-semibold uppercase tracking-wide',
                               leagueType === 'run'
                                 ? 'bg-cyan-500/15 text-cyan-300'
                                 : 'bg-orange-500/15 text-orange-300',

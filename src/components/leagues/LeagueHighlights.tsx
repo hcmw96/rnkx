@@ -117,7 +117,7 @@ export function LeagueHighlights({ memberIds, leagueType, seasonId }: LeagueHigh
         {highlights.map((h) => (
           <div key={h.label} className="space-y-1 rounded-lg border border-border bg-card p-3 text-center">
             <div className="flex items-center justify-center">{h.icon}</div>
-            <div className="text-[10px] uppercase tracking-wider text-muted-foreground">{h.label}</div>
+            <div className="text-xs uppercase tracking-wider text-muted-foreground">{h.label}</div>
             <div className="truncate text-xs font-medium text-foreground">{h.username}</div>
             <div className="font-sans text-xs font-semibold text-primary">{h.value}</div>
           </div>

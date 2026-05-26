@@ -98,14 +98,14 @@ const OnboardingWearables = ({ onConnectionsChange }: OnboardingWearablesProps) 
     if (support === 'both') {
       return (
         <div className="flex gap-1">
-          <Badge variant="outline" className="text-[9px] px-1.5 py-0 font-normal bg-secondary/10 text-secondary border-secondary/20">Run</Badge>
-          <Badge variant="outline" className="text-[9px] px-1.5 py-0 font-normal bg-primary/10 text-primary border-primary/20">Engine</Badge>
+          <Badge variant="outline" className="text-caption px-1.5 py-0 font-normal bg-secondary/10 text-secondary border-secondary/20">Run</Badge>
+          <Badge variant="outline" className="text-caption px-1.5 py-0 font-normal bg-primary/10 text-primary border-primary/20">Engine</Badge>
         </div>
       );
     }
-    if (support === 'run') return <Badge variant="outline" className="text-[9px] px-1.5 py-0 font-normal bg-secondary/10 text-secondary border-secondary/20">Run</Badge>;
-    if (support === 'engine') return <Badge variant="outline" className="text-[9px] px-1.5 py-0 font-normal bg-primary/10 text-primary border-primary/20">Engine</Badge>;
-    return <Badge variant="outline" className="text-[9px] px-1.5 py-0 font-normal bg-muted/50 text-muted-foreground border-muted">Recovery</Badge>;
+    if (support === 'run') return <Badge variant="outline" className="text-caption px-1.5 py-0 font-normal bg-secondary/10 text-secondary border-secondary/20">Run</Badge>;
+    if (support === 'engine') return <Badge variant="outline" className="text-caption px-1.5 py-0 font-normal bg-primary/10 text-primary border-primary/20">Engine</Badge>;
+    return <Badge variant="outline" className="text-caption px-1.5 py-0 font-normal bg-muted/50 text-muted-foreground border-muted">Recovery</Badge>;
   };
 
   const terraConnected = connected.some(p => ['garmin', 'polar', 'coros', 'fitbit', 'oura', 'samsung', 'myzone'].includes(p));
@@ -133,7 +133,7 @@ const OnboardingWearables = ({ onConnectionsChange }: OnboardingWearablesProps) 
               >
                 <CardContent className="flex min-h-[5.5rem] flex-col items-center justify-center gap-2 px-2 py-4 text-center">
                   {isActive && (
-                    <Badge className="absolute top-1 right-1 bg-primary/20 text-primary border-primary/30 text-[10px] px-1.5 py-0" variant="outline">
+                    <Badge className="absolute top-1 right-1 bg-primary/20 text-primary border-primary/30 text-xs px-1.5 py-0" variant="outline">
                       <Check className="h-2.5 w-2.5 mr-0.5" />Connected
                     </Badge>
                   )}
@@ -161,7 +161,7 @@ const OnboardingWearables = ({ onConnectionsChange }: OnboardingWearablesProps) 
           >
             <CardContent className="flex min-h-[6rem] flex-col items-center justify-center gap-3 px-3 py-5 text-center">
               {terraConnected && (
-                <Badge className="absolute top-1 right-1 bg-primary/20 text-primary border-primary/30 text-[10px] px-1.5 py-0" variant="outline">
+                <Badge className="absolute top-1 right-1 bg-primary/20 text-primary border-primary/30 text-xs px-1.5 py-0" variant="outline">
                   <Check className="h-2.5 w-2.5 mr-0.5" />Connected
                 </Badge>
               )}
@@ -183,8 +183,8 @@ const OnboardingWearables = ({ onConnectionsChange }: OnboardingWearablesProps) 
               )}
 
               <div className="flex gap-1">
-                <Badge variant="outline" className="text-[9px] px-1.5 py-0 font-normal bg-secondary/10 text-secondary border-secondary/20">Run</Badge>
-                <Badge variant="outline" className="text-[9px] px-1.5 py-0 font-normal bg-primary/10 text-primary border-primary/20">Engine</Badge>
+                <Badge variant="outline" className="text-caption px-1.5 py-0 font-normal bg-secondary/10 text-secondary border-secondary/20">Run</Badge>
+                <Badge variant="outline" className="text-caption px-1.5 py-0 font-normal bg-primary/10 text-primary border-primary/20">Engine</Badge>
               </div>
             </CardContent>
           </Card>

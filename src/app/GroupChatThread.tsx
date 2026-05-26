@@ -147,8 +147,8 @@ export default function GroupChatThread() {
             <Users className="h-4 w-4 text-muted-foreground" />
           </div>
           <div>
-            <h1 className="font-sans text-lg font-semibold text-foreground leading-tight">{groupName}</h1>
-            <p className="text-[10px] text-muted-foreground">{memberCount} members</p>
+            <h1 className="type-card-title leading-tight">{groupName}</h1>
+            <p className="text-xs text-muted-foreground">{memberCount} members</p>
           </div>
         </div>
       </header>
@@ -165,12 +165,12 @@ export default function GroupChatThread() {
                     {sender?.avatar_url ? (
                       <img src={sender.avatar_url} alt="" className="w-full h-full object-cover" />
                     ) : (
-                      <span className="text-[8px] flex items-center justify-center h-full text-muted-foreground">
+                      <span className="text-caption flex items-center justify-center h-full text-muted-foreground">
                         {sender?.username?.charAt(0).toUpperCase() || "?"}
                       </span>
                     )}
                   </div>
-                  <span className="text-[10px] text-muted-foreground font-medium">
+                  <span className="text-xs text-muted-foreground font-medium">
                     {sender?.username || "Unknown"}
                   </span>
                 </div>
@@ -190,7 +190,7 @@ export default function GroupChatThread() {
                     <p className="text-sm break-words">{msg.content}</p>
                   )}
                   <p className={cn(
-                    "text-[10px] mt-1",
+                    "text-xs mt-1",
                     isMine ? "text-primary-foreground/60" : "text-muted-foreground"
                   )}>
                     {format(new Date(msg.created_at), "HH:mm")}

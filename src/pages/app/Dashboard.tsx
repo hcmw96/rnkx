@@ -296,7 +296,7 @@ export default function Dashboard() {
 
         <div className="rounded-lg border border-border bg-card p-4">
           <p className="text-sm text-muted-foreground">Combined score</p>
-          <p className="mt-1 text-2xl font-semibold text-foreground">
+          <p className="type-display-score mt-1 text-foreground">
             {(stats?.total_score ?? 0).toLocaleString(undefined, { maximumFractionDigits: 1 })}
           </p>
         </div>
@@ -315,7 +315,7 @@ export default function Dashboard() {
         </PremiumGate>
 
         <div className="rounded-lg border border-border bg-card p-4">
-          <h3 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">Recent workouts</h3>
+          <h3 className="type-section-label">Recent workouts</h3>
           {!recentActivities.length ? (
             <p className="mt-3 text-sm text-muted-foreground">No scored workouts yet.</p>
           ) : (
@@ -341,7 +341,7 @@ export default function Dashboard() {
                     </div>
                     <div className="ml-3 text-right">
                       <span
-                        className={`inline-flex rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${
+                        className={`inline-flex rounded-full px-2 py-0.5 text-xs font-semibold uppercase tracking-wide ${
                           leagueType === 'run'
                             ? 'bg-cyan-500/15 text-cyan-300'
                             : 'bg-orange-500/15 text-orange-300'

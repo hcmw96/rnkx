@@ -23,7 +23,7 @@ const LeagueCard = ({ name, description, tier }: LeagueCardProps) => {
     <div 
       className={`p-6 rounded-lg bg-card/50 border ${tierStyles[tier]} transition-all duration-300 flex flex-col h-full`}
     >
-      <span className={`text-[10px] uppercase tracking-[0.2em] font-semibold px-2 py-1 rounded w-fit mb-4 ${tierBadge[tier]}`}>
+      <span className={`text-xs uppercase tracking-[0.2em] font-semibold px-2 py-1 rounded w-fit mb-4 ${tierBadge[tier]}`}>
         {name}
       </span>
       <p className="text-sm text-muted-foreground leading-relaxed">

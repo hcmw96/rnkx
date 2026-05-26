@@ -49,7 +49,7 @@ export function PremiumGate({
         <div className="absolute inset-0 z-10 flex flex-col bg-black/55">
           {badge ? (
             <span
-              className="absolute right-3 top-3 z-20 rounded-md bg-neon-lime px-2.5 py-1 font-sans text-[10px] font-bold uppercase tracking-wide text-black shadow-sm ring-1 ring-neon-lime/50"
+              className="absolute right-3 top-3 z-20 rounded-md bg-neon-lime px-2.5 py-1 font-sans text-xs font-bold uppercase tracking-wide text-black shadow-sm ring-1 ring-neon-lime/50"
               aria-hidden
             >
               {badge}

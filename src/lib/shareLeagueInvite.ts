@@ -2,7 +2,7 @@ import { toast } from 'sonner';
 
 export const PENDING_LEAGUE_INVITE_SESSION_KEY = 'rnkx_pending_league_invite_code';
 
-/** Path to resume a league invite after auth (e.g. `/join/abc123`), or null. */
+/** Path to resume a club invite after auth (e.g. `/join/abc123`), or null. */
 export function getPendingLeagueInvitePath(): string | null {
   try {
     const c = sessionStorage.getItem(PENDING_LEAGUE_INVITE_SESSION_KEY)?.trim();
@@ -16,7 +16,7 @@ export function getPendingLeagueInvitePath(): string | null {
 export async function shareLeagueInvite(leagueName: string, inviteCode: string): Promise<void> {
   const inviteUrl = `https://rnkx.netlify.app/join/${inviteCode}`;
   const shareData: ShareData = {
-    title: 'Join my RNKX league',
+    title: 'Join my RNKX club',
     text: `Join "${leagueName}" on RNKX — the competitive fitness leaderboard. Tap to join:`,
     url: inviteUrl,
   };

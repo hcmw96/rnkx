@@ -54,7 +54,7 @@ export function SeasonCard({
 
       {/* Season Header */}
       <div className="text-center">
-        <h2 className="font-display text-2xl text-foreground">
+        <h2 className="type-page-title">
           {seasonName?.includes(' - ') ? seasonName.split(' - ')[0] : seasonName}
         </h2>
         {seasonName?.includes(' - ') && (
@@ -69,7 +69,7 @@ export function SeasonCard({
         {showEngine && (
           <div className="flex justify-center">
             <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-card border border-primary/40 shadow-sm">
-              <span className="text-[10px] font-semibold text-primary uppercase tracking-wide">
+              <span className="text-xs font-semibold text-primary uppercase tracking-wide">
                 ENGINE
               </span>
               <span className="text-xs font-bold text-foreground">
@@ -81,7 +81,7 @@ export function SeasonCard({
         {showRun && (
           <div className="flex justify-center">
             <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-card border border-secondary/40 shadow-sm">
-              <span className="text-[10px] font-semibold text-secondary uppercase tracking-wide">
+              <span className="text-xs font-semibold text-secondary uppercase tracking-wide">
                 RUN
               </span>
               <span className="text-xs font-bold text-foreground">
@@ -97,7 +97,7 @@ export function SeasonCard({
         {showEngine && (
           <div className="text-center p-3 rounded-lg bg-surface border border-border">
             <span className="text-xs uppercase tracking-wider text-muted-foreground">Engine</span>
-            <div className="font-display text-3xl text-primary mt-1">
+            <div className="type-display-score mt-1 text-primary">
               {formatRank(engineRank)}
             </div>
             <div className="text-sm text-muted-foreground mt-1">
@@ -109,7 +109,7 @@ export function SeasonCard({
         {showRun && (
           <div className="text-center p-3 rounded-lg bg-surface border border-border">
             <span className="text-xs uppercase tracking-wider text-muted-foreground">Run</span>
-            <div className="font-display text-3xl text-secondary mt-1">
+            <div className="type-display-score mt-1 text-secondary">
               {formatRank(runRank)}
             </div>
             <div className="text-sm text-muted-foreground mt-1">

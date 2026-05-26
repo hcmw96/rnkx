@@ -130,7 +130,7 @@ export default function JoinLeaguePage() {
 
       if (memErr) {
         if (memErr.code === '23505') {
-          toast.message('You are already in this league.');
+          toast.message('You are already in this club.');
           navigate(`/app/leagues/${preview.id}`, { replace: true });
           return;
         }
@@ -189,7 +189,7 @@ export default function JoinLeaguePage() {
       <div className="flex min-h-screen flex-col items-center justify-center bg-background px-4 text-foreground">
         <div className="w-full max-w-md space-y-6 text-center">
           <h1 className="font-display text-2xl text-primary">RNKX</h1>
-          <p className="text-muted-foreground">You need an account to join this league.</p>
+          <p className="text-muted-foreground">You need an account to join this club.</p>
           <div className="flex flex-col gap-3 sm:flex-row sm:justify-center">
             <Button asChild className="font-semibold">
               <Link to="/auth">Sign Up</Link>
@@ -208,7 +208,7 @@ export default function JoinLeaguePage() {
       <div className="flex min-h-screen flex-col items-center justify-center bg-background px-4 text-foreground">
         <div className="w-full max-w-md space-y-4 text-center">
           <h1 className="font-display text-2xl text-primary">RNKX</h1>
-          <p className="text-muted-foreground">Finish setting up your profile before joining a league.</p>
+          <p className="text-muted-foreground">Finish setting up your profile before joining a club.</p>
           <Button asChild>
             <Link to="/onboarding">Complete profile</Link>
           </Button>
@@ -220,7 +220,7 @@ export default function JoinLeaguePage() {
   if (lookupLoading) {
     return (
       <div className="flex min-h-screen flex-col items-center justify-center bg-background px-4 text-foreground">
-        <Loader2 className="h-10 w-10 animate-spin text-primary" aria-label="Loading league" />
+        <Loader2 className="h-10 w-10 animate-spin text-primary" aria-label="Loading club" />
       </div>
     );
   }
@@ -232,7 +232,7 @@ export default function JoinLeaguePage() {
           <h1 className="font-display text-2xl text-primary">RNKX</h1>
           <p className="text-muted-foreground">Invalid or expired invite link.</p>
           <Button asChild variant="outline">
-            <Link to="/app/social/leagues">My leagues</Link>
+            <Link to="/app/social/leagues">My clubs</Link>
           </Button>
         </div>
       </div>
@@ -242,16 +242,16 @@ export default function JoinLeaguePage() {
   return (
     <div className="flex min-h-screen flex-col items-center justify-center bg-background px-4 py-10 text-foreground">
       <div className="w-full max-w-md space-y-6 rounded-xl border border-border bg-card p-6 shadow-sm">
-        <h1 className="font-display text-xl text-foreground">Join league</h1>
+        <h1 className="font-display text-xl text-foreground">Join club</h1>
         <div className="space-y-1">
-          <p className="text-lg font-semibold text-foreground">{preview.name}</p>
+          <p className="type-card-title">{preview.name}</p>
           <p className="text-sm text-muted-foreground">
             {preview.member_count} member{preview.member_count !== 1 ? 's' : ''}
           </p>
         </div>
         <PremiumGate athleteId={athleteId} userId={authUserId}>
           <Button type="button" className="w-full font-semibold" disabled={joining} onClick={() => void handleJoin()}>
-            {joining ? 'Joining…' : 'Join League'}
+            {joining ? 'Joining…' : 'Join Club'}
           </Button>
         </PremiumGate>
       </div>

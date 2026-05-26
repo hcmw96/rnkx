@@ -119,7 +119,7 @@ export default function AthleteAuth() {
 
             <div className="mt-2 grid w-full max-w-xl grid-cols-1 gap-3 sm:mt-4 sm:grid-cols-2 sm:gap-4">
               <div className="rounded-xl border border-white/10 bg-black/45 p-3 text-left shadow-lg backdrop-blur-sm sm:p-4">
-                <p className="font-sans text-[10px] font-semibold uppercase tracking-wider text-white/50 sm:text-xs">
+                <p className="font-sans text-xs font-semibold uppercase tracking-wider text-white/50 sm:text-xs">
                   Run league
                 </p>
                 <p className="font-display text-sm text-neon-lime sm:text-base">Season 1</p>

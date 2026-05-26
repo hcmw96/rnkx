@@ -110,9 +110,9 @@ export default function PrivateLeaguesPage({ embedded = false }: PrivateLeaguesP
     <section className="mx-auto max-w-lg space-y-4">
       <div className="flex items-center justify-between gap-3">
         {!embedded ? (
-          <h1 className="font-display text-xl text-foreground">Private leagues</h1>
+          <h1 className="font-display text-xl text-foreground">Clubs</h1>
         ) : (
-          <h2 className="font-sans text-lg font-semibold text-foreground">Leagues</h2>
+          <h2 className="type-card-title">Clubs</h2>
         )}
         {athleteId ? <CreateLeagueModal athleteId={athleteId} onCreated={() => void load()} /> : null}
       </div>
@@ -121,7 +121,7 @@ export default function PrivateLeaguesPage({ embedded = false }: PrivateLeaguesP
         <p className="text-sm text-muted-foreground">Loading…</p>
       ) : leagues.length === 0 ? (
         <p className="rounded-lg border border-dashed border-border p-6 text-center text-sm text-muted-foreground">
-          No leagues yet. Create one to compete with friends.
+          No clubs yet. Create one to compete with friends.
         </p>
       ) : (
         <ul className="space-y-2">

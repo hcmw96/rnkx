@@ -1078,7 +1078,7 @@ export default function ProfilePage() {
             <Dialog open={assistantOpen} onOpenChange={setAssistantOpen}>
               <DialogContent className="max-w-md border-border bg-card">
                 <DialogHeader>
-                  <DialogTitle className="font-sans text-lg font-semibold">Ask the Assistant</DialogTitle>
+                  <DialogTitle className="type-card-title">Ask the Assistant</DialogTitle>
                   <p className="text-sm text-muted-foreground">
                     Scoring rules and fair-play guidelines are in How It Works.
                   </p>
@@ -1115,7 +1115,7 @@ export default function ProfilePage() {
                   {athlete.avatar_url ? (
                     <img src={athlete.avatar_url} alt="" className="h-full w-full object-cover" />
                   ) : (
-                    <span className="flex h-full w-full items-center justify-center text-2xl font-semibold tracking-wide text-foreground">
+                    <span className="flex h-full w-full items-center justify-center text-title-lg font-semibold tracking-wide text-foreground">
                       {initials}
                     </span>
                   )}
@@ -1126,7 +1126,7 @@ export default function ProfilePage() {
                   ) : null}
                 </button>
                 <div className="space-y-1">
-                  <h1 className="text-xl font-bold text-white">{athlete.display_name}</h1>
+                  <h1 className="text-title font-bold text-white">{athlete.display_name}</h1>
                   <p className="text-sm font-medium text-neon-lime">@{athlete.username ?? '—'}</p>
                   <div className="flex flex-wrap items-center justify-center gap-2 pt-1 text-sm text-muted-foreground">
                     {countryInfo?.flag ? (
@@ -1151,12 +1151,12 @@ export default function ProfilePage() {
 
             <div className="grid grid-cols-2 gap-3">
               <div className="rounded-xl border border-border bg-card px-4 py-3">
-                <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Rank</p>
-                <p className="mt-1 font-display text-xl text-foreground">{rank != null ? `#${rank}` : '—'}</p>
+                <p className="text-xs uppercase tracking-wide text-muted-foreground">Rank</p>
+                <p className="type-display-score mt-1 text-foreground">{rank != null ? `#${rank}` : '—'}</p>
               </div>
               <div className="rounded-xl border border-border bg-card px-4 py-3">
-                <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Score</p>
-                <p className="mt-1 font-display text-xl text-neon-lime">
+                <p className="text-xs uppercase tracking-wide text-muted-foreground">Score</p>
+                <p className="type-display-score mt-1 text-neon-lime">
                   {score.toLocaleString(undefined, { maximumFractionDigits: 1 })}
                 </p>
               </div>
@@ -1166,7 +1166,7 @@ export default function ProfilePage() {
             <article className="rounded-xl border border-border bg-card p-5 shadow-sm">
               <div className="flex items-start justify-between gap-2">
                 <div className="flex items-center gap-2">
-                  <h2 className="text-lg font-semibold text-foreground">Max HR</h2>
+                  <h2 className="type-card-title">Max HR</h2>
                   <Tooltip>
                     <TooltipTrigger asChild>
                       <button
@@ -1200,7 +1200,7 @@ export default function ProfilePage() {
               </div>
               {!maxHrEditing ? (
                 <div className="mt-3 space-y-1">
-                  <p className="text-2xl font-semibold text-foreground tabular-nums">
+                  <p className="type-display-score text-foreground tabular-nums">
                     {parseMaxHrDisplay(athlete.max_hr) != null
                       ? `${parseMaxHrDisplay(athlete.max_hr)} bpm`
                       : 'Not set'}
@@ -1252,7 +1252,7 @@ export default function ProfilePage() {
             </article>
 
             <article className="rounded-xl border border-border bg-card p-5 shadow-sm">
-              <h2 className="text-lg font-semibold text-foreground">Connected Devices</h2>
+              <h2 className="type-card-title">Connected Devices</h2>
 
               <div className="mt-4 space-y-3">
                 <div className="rounded-lg border border-border bg-muted/20 px-3 py-3">
@@ -1755,10 +1755,10 @@ export default function ProfilePage() {
               </div>
               {!athlete.is_premium ? (
                 <div className="relative overflow-hidden rounded-xl border border-neon-lime/35 bg-gradient-to-br from-zinc-900 to-zinc-950 p-4">
-                  <span className="absolute right-3 top-3 rounded bg-neon-lime px-2 py-0.5 text-[10px] font-bold uppercase text-black">
+                  <span className="absolute right-3 top-3 rounded bg-neon-lime px-2 py-0.5 text-xs font-bold uppercase text-black">
                     BEST VALUE
                   </span>
-                  <p className="pr-20 text-sm font-semibold text-foreground">Unlock friends, mini leagues & insights</p>
+                  <p className="pr-20 text-sm font-semibold text-foreground">Unlock friends, clubs & insights</p>
                   <p className="mt-1 text-xs text-muted-foreground">£79.99 /year · £6.70/month</p>
                   <Button
                     type="button"

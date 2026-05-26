@@ -115,12 +115,12 @@
   }
 
   body {
-    @apply bg-background text-foreground font-sans antialiased;
+    @apply bg-background text-foreground font-sans text-sm antialiased;
     font-family: 'Inter', sans-serif;
     overflow: hidden;
   }
 
-  /* Anton via .font-display only: RNKX logo, page titles, rank numbers, score/points */
+  /* Anton: logo, page titles, ranks, scores only */
   .font-display {
     font-family: 'Anton', sans-serif;
     letter-spacing: 0.02em;
@@ -207,6 +207,39 @@
   .card-elevated {
     @apply bg-card border border-border rounded-lg;
     background: linear-gradient(180deg, hsl(0 0% 10%), hsl(0 0% 6%));
+  }
+
+  /* Typography scale (prefer these over arbitrary text-[Npx]) */
+  .type-page-title {
+    @apply font-display text-2xl font-normal tracking-normal text-foreground;
+  }
+
+  .type-section-label {
+    @apply font-sans text-xs font-semibold uppercase tracking-wider text-muted-foreground;
+  }
+
+  .type-card-title {
+    @apply font-sans text-base font-semibold leading-snug text-foreground;
+  }
+
+  .type-body {
+    @apply font-sans text-sm leading-normal text-foreground;
+  }
+
+  .type-body-muted {
+    @apply font-sans text-sm leading-normal text-muted-foreground;
+  }
+
+  .type-caption {
+    @apply font-sans text-xs leading-snug text-muted-foreground;
+  }
+
+  .type-display-rank {
+    @apply font-display text-lg font-bold tabular-nums leading-none;
+  }
+
+  .type-display-score {
+    @apply font-display text-xl font-bold tabular-nums leading-none;
   }
   
   .rank-gold {

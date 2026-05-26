@@ -46,7 +46,7 @@ export function PrivateLeagueCard({
           )}
         </div>
         <div className="min-w-0 flex-1">
-          <div className="truncate text-[15px] font-semibold text-foreground">{name}</div>
+          <div className="type-card-title truncate">{name}</div>
           {description ? (
             <div className="truncate text-xs text-muted-foreground">{description}</div>
           ) : (
@@ -68,16 +68,16 @@ export function PrivateLeagueCard({
             onShareInvite?.();
           }}
           disabled={!onAddFriend && !inviteCode}
-          title={onAddFriend ? 'Add friend to league' : inviteCode ? 'Invite friends' : 'Invite unavailable'}
+          title={onAddFriend ? 'Add friend to club' : inviteCode ? 'Invite friends' : 'Invite unavailable'}
           className="rounded-lg p-2.5 text-muted-foreground transition-colors hover:bg-muted/60 hover:text-foreground disabled:opacity-40"
-          aria-label="Add friend to league"
+          aria-label="Add friend to club"
         >
           <UserPlus className="h-4 w-4" />
         </button>
         <Link
           to={chatHref}
           className="rounded-lg p-2.5 text-secondary transition-colors hover:bg-muted/60"
-          aria-label="League chat"
+          aria-label="Club chat"
         >
           <MessageCircle className="h-4 w-4 fill-secondary/20" />
         </Link>

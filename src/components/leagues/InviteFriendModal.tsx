@@ -73,7 +73,7 @@ export function InviteFriendModal({ open, onOpenChange, leagueId, leagueName, on
 
       if (error) {
         if (error.code === '23505') {
-          toast.error(`${athlete.display_name || athlete.username} is already in this league.`);
+          toast.error(`${athlete.display_name || athlete.username} is already in this club.`);
         } else {
           throw error;
         }
@@ -139,7 +139,7 @@ export function InviteFriendModal({ open, onOpenChange, leagueId, leagueName, on
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="border-border bg-card">
         <DialogHeader>
-          <DialogTitle className="font-sans text-lg font-semibold text-foreground">Add Friend to League</DialogTitle>
+          <DialogTitle className="type-card-title">Add friend to club</DialogTitle>
         </DialogHeader>
         <div className="space-y-3 pt-2">
           <div className="relative">

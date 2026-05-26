@@ -22,6 +22,14 @@ export default {
         display: ["Anton", "sans-serif"],
         sans: ["Inter", "sans-serif"],
       },
+      fontSize: {
+        caption: ["0.6875rem", { lineHeight: "1rem" }],
+        "body-sm": ["0.875rem", { lineHeight: "1.25rem" }],
+        "body": ["1rem", { lineHeight: "1.5rem" }],
+        "title-sm": ["1.125rem", { lineHeight: "1.375rem" }],
+        "title": ["1.25rem", { lineHeight: "1.5rem" }],
+        "title-lg": ["1.5rem", { lineHeight: "1.75rem" }],
+      },
       colors: {
         border: "hsl(var(--border))",
         input: "hsl(var(--input))",

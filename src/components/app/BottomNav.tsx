@@ -38,7 +38,7 @@ export function BottomNav() {
               )}
             >
               <Icon className={cn("h-5 w-5", isActive && "glow-cyan")} />
-              <span className={cn("text-[10px] font-medium sm:text-xs", isActive && "text-secondary")}>
+              <span className={cn("text-xs font-medium", isActive && "text-secondary")}>
                 {label}
               </span>
             </Link>
