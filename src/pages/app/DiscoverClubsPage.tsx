@@ -128,24 +128,24 @@ export default function DiscoverClubsPage() {
         <ul className="space-y-2">
           {clubs.map((club) => (
             <li key={club.id}>
-              <div className="flex w-full items-center gap-3 rounded-xl border border-border/80 bg-[hsla(0,0%,10%,1)] p-3.5 shadow-sm">
+              <div className="flex items-center gap-2 rounded-lg border border-border/70 bg-[hsla(0,0%,10%,1)] px-2.5 py-2 shadow-sm">
                 <button
                   type="button"
                   onClick={() => navigate(`/app/leagues/${club.id}`)}
-                  className="flex min-w-0 flex-1 items-center gap-3 text-left"
+                  className="flex min-w-0 flex-1 items-center gap-2 text-left"
                 >
-                  <div className="flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-full">
+                  <div className="relative h-9 w-9 shrink-0 overflow-hidden rounded-full border border-border/80 bg-[hsla(0,0%,14%,1)]">
                     {club.image_url ? (
-                      <img src={club.image_url} alt={club.name} className="h-full w-full rounded-full object-cover" />
+                      <img src={club.image_url} alt={club.name} className="h-full w-full object-cover" />
                     ) : (
-                      <LeagueChevronLogo className="h-11 w-11" />
+                      <LeagueChevronLogo className="h-full w-full" />
                     )}
                   </div>
                   <div className="min-w-0 flex-1">
-                    <div className="type-card-title truncate">{club.name}</div>
-                    <div className="type-meta">
+                    <p className="type-heading truncate">{club.name}</p>
+                    <p className="type-meta mt-0.5">
                       {club.memberCount} member{club.memberCount !== 1 ? 's' : ''}
-                    </div>
+                    </p>
                   </div>
                 </button>
 
@@ -155,8 +155,8 @@ export default function DiscoverClubsPage() {
                   onClick={() => void handleJoin(club)}
                   className={
                     club.joined
-                      ? 'shrink-0 rounded-full bg-muted px-4 py-1.5 text-sm font-medium text-muted-foreground transition-colors hover:bg-muted/70'
-                      : 'shrink-0 rounded-full bg-muted px-4 py-1.5 text-sm font-medium text-foreground transition-colors hover:bg-muted/70 active:scale-95'
+                      ? 'shrink-0 rounded-full bg-muted px-3.5 py-1 text-xs font-medium text-muted-foreground transition-colors hover:bg-muted/70'
+                      : 'shrink-0 rounded-full bg-muted px-3.5 py-1 text-xs font-semibold text-foreground transition-colors hover:bg-muted/70 active:scale-95'
                   }
                 >
                   {joining === club.id ? 'Joining…' : club.joined ? 'Joined' : 'Join'}
