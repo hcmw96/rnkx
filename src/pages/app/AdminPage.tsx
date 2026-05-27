@@ -140,7 +140,7 @@ export default function AdminPage() {
         setError((prev) => prev ?? lbErr.message);
         setLeaderboardRows([]);
       } else {
-        setLeaderboardRows((data as LeaderboardRow[] | null) ?? []);
+        setLeaderboardRows((data as unknown as LeaderboardRow[] | null) ?? []);
       }
     })();
   }, [authed, activeSeasonId]);
