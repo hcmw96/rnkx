@@ -121,32 +121,14 @@ export default function JoinLeaguePage() {
     if (!preview || !athleteId) return;
     setJoining(true);
     try {
-      const { error: memErr } = await supabase.from('private_league_members').insert({
-        league_id: preview.id,
-        athlete_id: athleteId,
-        invited_by: null,
-        status: 'accepted',
+      const { error: memErr } = await supabase.rpc('add_member_to_club', {
+        p_league_id: preview.id,
+        p_athlete_id: athleteId,
       });
 
       if (memErr) {
-        if (memErr.code === '23505') {
-          toast.message('You are already in this club.');
-          navigate(`/app/leagues/${preview.id}`, { replace: true });
-          return;
-        }
         toast.error(memErr.message);
         return;
-      }
-
-      if (preview.conversation_id) {
-        const { error: convErr } = await supabase.from('conversation_members').insert({
-          conversation_id: preview.conversation_id,
-          athlete_id: athleteId,
-        });
-        if (convErr && convErr.code !== '23505') {
-          toast.error(convErr.message);
-          return;
-        }
       }
 
       try {

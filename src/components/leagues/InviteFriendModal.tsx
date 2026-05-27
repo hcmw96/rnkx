@@ -65,64 +65,44 @@ export function InviteFriendModal({ open, onOpenChange, leagueId, leagueName, on
   const handleAdd = async (athlete: SearchResult) => {
     setAdding(athlete.id);
     try {
-      const { error } = await supabase.from('private_league_members').insert({
-        league_id: leagueId,
-        athlete_id: athlete.id,
-        status: 'accepted',
+      const { error } = await supabase.rpc('add_member_to_club', {
+        p_league_id: leagueId,
+        p_athlete_id: athlete.id,
       });
 
       if (error) {
-        if (error.code === '23505') {
-          toast.error(`${athlete.display_name || athlete.username} is already in this club.`);
-        } else {
-          throw error;
-        }
-        return;
+        throw error;
       }
 
-      const { data: league } = await supabase
-        .from('private_leagues')
-        .select('conversation_id')
-        .eq('id', leagueId)
+      // Send push notification to invited athlete.
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      let inviterName = 'Someone';
+      if (user) {
+        const { data: inviterProfile } = await supabase
+          .from('athletes')
+          .select('display_name, username')
+          .eq('user_id', user.id)
+          .maybeSingle();
+        if (inviterProfile) {
+          inviterName = inviterProfile.display_name || inviterProfile.username || inviterName;
+        }
+      }
+
+      const { data: invitedAthlete } = await supabase
+        .from('athletes')
+        .select('user_id')
+        .eq('id', athlete.id)
         .maybeSingle();
 
-      if (league?.conversation_id) {
-        await supabase.from('conversation_members').insert({
-          conversation_id: league.conversation_id,
-          athlete_id: athlete.id,
+      if (invitedAthlete?.user_id) {
+        invokePushNotify('notify-league-invite', {
+          invited_user_id: invitedAthlete.user_id,
+          league_name: leagueName,
+          league_id: leagueId,
+          inviter_name: inviterName,
         });
-      }
-
-      if (athlete.id) {
-        const {
-          data: { user },
-        } = await supabase.auth.getUser();
-        let inviterName = 'Someone';
-        if (user) {
-          const { data: inviterProfile } = await supabase
-            .from('athletes')
-            .select('display_name, username')
-            .eq('user_id', user.id)
-            .maybeSingle();
-          if (inviterProfile) {
-            inviterName = inviterProfile.display_name || inviterProfile.username || inviterName;
-          }
-        }
-
-        const { data: invitedAthlete } = await supabase
-          .from('athletes')
-          .select('user_id')
-          .eq('id', athlete.id)
-          .maybeSingle();
-
-        if (invitedAthlete?.user_id) {
-          invokePushNotify('notify-league-invite', {
-            invited_user_id: invitedAthlete.user_id,
-            league_name: leagueName,
-            league_id: leagueId,
-            inviter_name: inviterName,
-          });
-        }
       }
 
       toast.success(`${athlete.display_name || athlete.username} has been added.`);

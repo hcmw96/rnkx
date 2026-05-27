@@ -99,27 +99,14 @@ export default function DiscoverClubsPage() {
     }
     setJoining(club.id);
     try {
-      const { error: memErr } = await supabase.from('private_league_members').insert({
-        league_id: club.id,
-        athlete_id: athleteId,
-        invited_by: null,
-        status: 'accepted',
+      const { error: memErr } = await supabase.rpc('add_member_to_club', {
+        p_league_id: club.id,
+        p_athlete_id: athleteId,
       });
 
       if (memErr) {
-        if (memErr.code === '23505') {
-          navigate(`/app/leagues/${club.id}`);
-          return;
-        }
         toast.error(memErr.message);
         return;
-      }
-
-      if (club.conversation_id) {
-        await supabase.from('conversation_members').insert({
-          conversation_id: club.conversation_id,
-          athlete_id: athleteId,
-        });
       }
 
       toast.success(`Joined ${club.name}`);
