@@ -42,7 +42,6 @@ export default function LeaguePage() {
   const [authUserId, setAuthUserId] = useState<string | undefined>();
   const [league, setLeague] = useState<League | null>(null);
   const [members, setMembers] = useState<MemberRow[]>([]);
-  const [seasonId, setSeasonId] = useState<string | null>(null);
   const [scoreByAthlete, setScoreByAthlete] = useState<Record<string, number>>({});
   const [editOpen, setEditOpen] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -107,7 +106,6 @@ export default function LeaguePage() {
 
     const { data: season } = await supabase.from('seasons').select('id').eq('is_active', true).maybeSingle();
     const sid = (season?.id as string | undefined) ?? null;
-    setSeasonId(sid);
     if (sid && memberIds.length && leagueRow.league_type) {
       const { data: stats } = await supabase
         .from('athlete_stats')
