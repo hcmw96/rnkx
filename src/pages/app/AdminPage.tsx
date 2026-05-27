@@ -16,6 +16,7 @@ type AthleteRow = {
   display_name: string | null;
   total_score: number | null;
   wearables: string[] | null;
+  data_source: string | null;
   last_synced: string | null;
   max_hr: number | null;
   age: number | null;
@@ -65,6 +66,31 @@ function dateOnly(value: string | null | undefined): string {
   return d.toLocaleDateString();
 }
 
+function wearableLabel(athlete: AthleteRow): string {
+  const raw = athlete.wearables ?? [];
+  const cleaned = raw
+    .map((w) => String(w).trim().toLowerCase())
+    .filter(Boolean)
+    .map((w) => {
+      if (w === 'apple_watch') return 'Apple Watch';
+      if (w === 'whoop') return 'WHOOP';
+      if (w === 'garmin') return 'GARMIN';
+      if (w === 'polar') return 'POLAR';
+      if (w === 'coros') return 'COROS';
+      if (w === 'fitbit') return 'FITBIT';
+      if (w === 'oura') return 'OURA';
+      if (w === 'samsung') return 'SAMSUNG';
+      if (w === 'strava') return 'STRAVA';
+      return w.toUpperCase();
+    });
+
+  if (cleaned.length > 0) return cleaned.join(', ');
+  // Fallback for legacy rows where wearables wasn't backfilled.
+  if ((athlete.data_source ?? '').toLowerCase() === 'terra') return 'GARMIN';
+  if ((athlete.data_source ?? '').toLowerCase() === 'apple') return 'Apple Watch';
+  return '—';
+}
+
 export default function AdminPage() {
   const [authed, setAuthed] = useState(false);
   const [password, setPassword] = useState('');
@@ -101,7 +127,7 @@ export default function AdminPage() {
         supabase.from('seasons').select('id').eq('is_active', true).maybeSingle(),
         supabase
           .from('athletes')
-          .select('id,username,display_name,total_score,wearables,last_synced,max_hr,age')
+          .select('id,username,display_name,total_score,wearables,data_source,last_synced,max_hr,age')
           .order('total_score', { ascending: false }),
       ]);
 
@@ -183,10 +209,20 @@ export default function AdminPage() {
     [athletes, selectedAthleteId],
   );
 
-  const leaderboardForTab = useMemo(
-    () => leaderboardRows.filter((row) => row.category === leaderboardTab).slice(0, 150),
-    [leaderboardRows, leaderboardTab],
-  );
+  const leaderboardForTab = useMemo(() => {
+    return leaderboardRows
+      .filter((row) => row.category === leaderboardTab)
+      .map((row) => ({
+        ...row,
+        scoreNum: Number(row.score ?? 0),
+      }))
+      .sort((a, b) => b.scoreNum - a.scoreNum)
+      .slice(0, 150)
+      .map((row, index) => ({
+        ...row,
+        derivedRank: index + 1,
+      }));
+  }, [leaderboardRows, leaderboardTab]);
 
   const detailRows = useMemo(() => {
     if (!selectedAthlete) return [];
@@ -311,22 +347,22 @@ export default function AdminPage() {
           </div>
 
           <div className="mt-3 overflow-x-auto">
-            <table className="w-full text-left text-sm">
+            <table className="w-full table-fixed text-left text-sm">
               <thead className="text-xs uppercase tracking-wide text-muted-foreground">
                 <tr>
-                  <th className="pb-2">Rank</th>
+                  <th className="w-16 pb-2">Rank</th>
                   <th className="pb-2">Athlete</th>
-                  <th className="pb-2 text-right">Score</th>
+                  <th className="w-32 pb-2 text-right">Score</th>
                 </tr>
               </thead>
               <tbody>
                 {leaderboardForTab.map((row) => (
                   <tr key={`${row.category}-${row.athlete_id}`} className="border-t border-border/60">
-                    <td className="py-2">{row.rank ?? '—'}</td>
-                    <td className="py-2">
+                    <td className="py-2">{row.derivedRank}</td>
+                    <td className="truncate py-2">
                       {row.athletes?.username || row.athletes?.display_name || row.athlete_id.slice(0, 8)}
                     </td>
-                    <td className="py-2 text-right">{Number(row.score ?? 0).toLocaleString()}</td>
+                    <td className="py-2 text-right">{row.scoreNum.toLocaleString()}</td>
                   </tr>
                 ))}
               </tbody>
@@ -339,13 +375,13 @@ export default function AdminPage() {
           {loading ? <p className="mt-3 text-sm text-muted-foreground">Loading athletes...</p> : null}
           {error ? <p className="mt-3 text-sm text-destructive">{error}</p> : null}
           <div className="mt-3 overflow-x-auto">
-            <table className="w-full text-left text-sm">
+            <table className="w-full table-fixed text-left text-sm">
               <thead className="text-xs uppercase tracking-wide text-muted-foreground">
                 <tr>
-                  <th className="pb-2">Username</th>
-                  <th className="pb-2">Wearables</th>
-                  <th className="pb-2 text-right">Total score</th>
-                  <th className="pb-2">Last synced</th>
+                  <th className="w-[28%] pb-2">Username</th>
+                  <th className="w-[28%] pb-2">Wearables</th>
+                  <th className="w-[22%] pb-2 text-right">Total score</th>
+                  <th className="w-[22%] pb-2 text-right">Last synced</th>
                 </tr>
               </thead>
               <tbody>
@@ -357,10 +393,10 @@ export default function AdminPage() {
                       athlete.id === selectedAthleteId ? 'bg-muted/30' : 'hover:bg-muted/20'
                     }`}
                   >
-                    <td className="py-2">{athlete.username || athlete.display_name || athlete.id.slice(0, 8)}</td>
-                    <td className="py-2">{athlete.wearables?.join(', ') || '—'}</td>
+                    <td className="truncate py-2">{athlete.username || athlete.display_name || athlete.id.slice(0, 8)}</td>
+                    <td className="truncate py-2">{wearableLabel(athlete)}</td>
                     <td className="py-2 text-right">{Number(athlete.total_score ?? 0).toLocaleString()}</td>
-                    <td className="py-2">{dateOnly(athlete.last_synced)}</td>
+                    <td className="py-2 text-right">{dateOnly(athlete.last_synced)}</td>
                   </tr>
                 ))}
               </tbody>
