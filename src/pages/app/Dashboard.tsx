@@ -54,6 +54,64 @@ interface RecentActivity {
   duration_minutes: number | null;
   avg_hr_percent: number | null;
   avg_pace_seconds: number | null;
+  /** When set (workouts table), display this instead of recalculating via activitySessionScore. */
+  sessionScore?: number;
+}
+
+interface WorkoutRow {
+  id: string;
+  activity_type: string | null;
+  avg_hr: number | string | null;
+  avg_pace_per_km: number | string | null;
+  engine_score: number | string;
+  run_score: number | string;
+  duration_min: number | string;
+  started_at: string;
+}
+
+function effectiveMaxHr(maxHr: number | string | null | undefined, age: number): number {
+  const parsed =
+    maxHr != null && maxHr !== ''
+      ? typeof maxHr === 'number'
+        ? maxHr
+        : Number(maxHr)
+      : NaN;
+  if (Number.isFinite(parsed) && parsed > 0) return parsed;
+  return Math.max(1, 220 - age);
+}
+
+function mapWorkoutToRecentActivity(
+  row: WorkoutRow,
+  maxHr: number | string | null | undefined,
+  age: number,
+): RecentActivity {
+  const maxHrValue = effectiveMaxHr(maxHr, age);
+  const avgHr = row.avg_hr != null ? Number(row.avg_hr) : null;
+  const avgHrPercent =
+    avgHr != null && Number.isFinite(avgHr) && maxHrValue > 0 ? (avgHr / maxHrValue) * 100 : null;
+  const engineScore = Number(row.engine_score) || 0;
+  const runScore = Number(row.run_score) || 0;
+  const started = new Date(row.started_at);
+  const activityDate = Number.isFinite(started.getTime())
+    ? started.toISOString().slice(0, 10)
+    : String(row.started_at).slice(0, 10);
+
+  return {
+    id: `workout-${row.id}`,
+    activity_type: row.activity_type,
+    league_type: runScore > 0 ? 'run' : 'engine',
+    activity_date: activityDate,
+    duration_minutes: Number(row.duration_min) || 0,
+    avg_hr_percent: avgHrPercent,
+    avg_pace_seconds: row.avg_pace_per_km != null ? Number(row.avg_pace_per_km) : null,
+    sessionScore: engineScore + runScore,
+  };
+}
+
+function mergeRecentWorkouts(activities: RecentActivity[], workouts: RecentActivity[]): RecentActivity[] {
+  return [...activities, ...workouts]
+    .sort((a, b) => b.activity_date.localeCompare(a.activity_date))
+    .slice(0, 10);
 }
 
 function activityLabel(activityType: string | null, leagueType: string): string {
@@ -129,7 +187,7 @@ export default function Dashboard() {
             )
             .eq('athlete_id', userId)
             .maybeSingle(),
-          supabase.from('athletes').select('last_synced, wearables').eq('id', userId).maybeSingle(),
+          supabase.from('athletes').select('last_synced, wearables, max_hr, age').eq('id', userId).maybeSingle(),
         ]);
 
       if (athleteRowError) {
@@ -150,31 +208,58 @@ export default function Dashboard() {
       insightSince.setDate(insightSince.getDate() - 35);
       const insightSinceIso = insightSince.toISOString().slice(0, 10);
 
-      const [{ data: activityRows, error: activitiesError }, { data: insightRows, error: insightError }] =
-        await Promise.all([
-          supabase
-            .from('activities')
-            .select('id,activity_type,league_type,activity_date,duration_minutes,avg_hr_percent,avg_pace_seconds')
-            .eq('athlete_id', userId)
-            .eq('status', 'scored')
-            .order('workout_start_time', { ascending: false, nullsFirst: false })
-            .order('activity_date', { ascending: false })
-            .limit(10),
-          supabase
-            .from('activities')
-            .select('id,activity_type,league_type,activity_date,duration_minutes,avg_hr_percent,avg_pace_seconds')
-            .eq('athlete_id', userId)
-            .eq('status', 'scored')
-            .gte('activity_date', insightSinceIso)
-            .order('activity_date', { ascending: true })
-            .limit(120),
-        ]);
+      const athleteAge = Number(athleteRow?.age) || 30;
+      const athleteMaxHr = (athleteRow?.max_hr as number | string | null | undefined) ?? null;
+
+      const [
+        { data: activityRows, error: activitiesError },
+        { data: workoutRows, error: workoutsError },
+        { data: insightRows, error: insightError },
+      ] = await Promise.all([
+        supabase
+          .from('activities')
+          .select('id,activity_type,league_type,activity_date,duration_minutes,avg_hr_percent,avg_pace_seconds')
+          .eq('athlete_id', userId)
+          .eq('status', 'scored')
+          .order('workout_start_time', { ascending: false, nullsFirst: false })
+          .order('activity_date', { ascending: false })
+          .limit(10),
+        supabase
+          .from('workouts')
+          .select(
+            'id, activity_type, avg_hr, avg_pace_per_km, engine_score, run_score, duration_min, started_at',
+          )
+          .eq('athlete_id', userId)
+          .eq('status', 'scored')
+          .order('started_at', { ascending: false })
+          .limit(10),
+        supabase
+          .from('activities')
+          .select('id,activity_type,league_type,activity_date,duration_minutes,avg_hr_percent,avg_pace_seconds')
+          .eq('athlete_id', userId)
+          .eq('status', 'scored')
+          .gte('activity_date', insightSinceIso)
+          .order('activity_date', { ascending: true })
+          .limit(120),
+      ]);
 
       if (activitiesError) {
         setError((prev) => prev ?? activitiesError.message);
+      }
+      if (workoutsError) {
+        setError((prev) => prev ?? workoutsError.message);
+      }
+
+      if (activitiesError && workoutsError) {
         setRecentActivities([]);
       } else {
-        setRecentActivities((activityRows as RecentActivity[] | null) ?? []);
+        const fromActivities: RecentActivity[] = ((activityRows as RecentActivity[] | null) ?? []).map(
+          (row) => ({ ...row, id: `activity-${row.id}` }),
+        );
+        const fromWorkouts = ((workoutRows as WorkoutRow[] | null) ?? []).map((row) =>
+          mapWorkoutToRecentActivity(row, athleteMaxHr, athleteAge),
+        );
+        setRecentActivities(mergeRecentWorkouts(fromActivities, fromWorkouts));
       }
 
       if (insightError) {
@@ -324,12 +409,15 @@ export default function Dashboard() {
               {recentActivities.map((activity) => {
                 const leagueType = activity.league_type === 'run' ? 'run' : 'engine';
                 const duration = Math.max(0, Number(activity.duration_minutes ?? 0));
-                const score = activitySessionScore(
-                  leagueType,
-                  duration,
-                  activity.avg_hr_percent != null ? Number(activity.avg_hr_percent) : null,
-                  activity.avg_pace_seconds != null ? Number(activity.avg_pace_seconds) : null,
-                );
+                const score =
+                  activity.sessionScore != null
+                    ? activity.sessionScore
+                    : activitySessionScore(
+                        leagueType,
+                        duration,
+                        activity.avg_hr_percent != null ? Number(activity.avg_hr_percent) : null,
+                        activity.avg_pace_seconds != null ? Number(activity.avg_pace_seconds) : null,
+                      );
                 return (
                   <div key={activity.id} className="flex items-center justify-between rounded-md border border-border/60 p-3">
                     <div className="min-w-0">
