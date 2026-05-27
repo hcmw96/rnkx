@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { AppShell } from "@/components/app/AppShell";
 import { ChatPremiumGate } from "@/components/chat/ChatPremiumGate";
@@ -12,6 +12,8 @@ import { formatDistanceToNow } from "date-fns";
 import { Button } from "@/components/ui/button";
 import { usePullToRefresh } from "@/hooks/usePullToRefresh";
 import { toast } from "sonner";
+import { isUnread } from "@/lib/unreadMessages";
+import type { RealtimeChannel } from "@supabase/supabase-js";
 
 interface ChatItem {
   id: string;
@@ -30,6 +32,9 @@ export default function ChatPage() {
   const [athleteId, setAthleteId] = useState<string | null>(null);
   const [newMsgOpen, setNewMsgOpen] = useState(false);
   const navigate = useNavigate();
+  const channelRef = useRef<RealtimeChannel | null>(null);
+  const itemsRef = useRef<ChatItem[]>([]);
+  itemsRef.current = items;
 
   const loadAll = useCallback(async () => {
     try {
@@ -81,14 +86,15 @@ export default function ChatPage() {
         last_message: string | null;
         last_message_at: string | null;
       };
+      const lastMessageAt = r.last_message_at || new Date(0).toISOString();
       return {
         id: `dm-${r.friend_id}`,
         type: "dm" as const,
         name: r.friend_username || "Unknown",
         avatar: r.friend_avatar_url || null,
         lastMessage: r.last_message || "No messages yet",
-        lastMessageAt: r.last_message_at || new Date(0).toISOString(),
-        unread: false,
+        lastMessageAt,
+        unread: isUnread(`dm-${r.friend_id}`, lastMessageAt),
         link: `/app/chat/${r.friend_id}`,
       };
     });
@@ -129,20 +135,65 @@ export default function ChatPage() {
         .eq("conversation_id", convo.id)
         .maybeSingle();
 
+      const lastMessageAt = lastMsg?.created_at || new Date(0).toISOString();
       results.push({
         id: `group-${convo.id}`,
         type: "group",
         name: convo.name || "Group Chat",
         avatar: league?.image_url || null,
         lastMessage: lastMsg?.content || "No messages yet",
-        lastMessageAt: lastMsg?.created_at || new Date(0).toISOString(),
-        unread: false,
+        lastMessageAt,
+        unread: isUnread(`group-${convo.id}`, lastMessageAt),
         link: `/app/chat/group/${convo.id}`,
       });
     }
 
     return results;
   }
+
+  // Realtime: bump unread dot when a new message arrives in any conversation we know about.
+  useEffect(() => {
+    if (channelRef.current) {
+      void supabase.removeChannel(channelRef.current);
+    }
+
+    const ch = supabase
+      .channel("chat-inbox-realtime")
+      .on(
+        "postgres_changes",
+        { event: "INSERT", schema: "public", table: "conversation_messages" },
+        (payload) => {
+          const newMsg = payload.new as { conversation_id: string; created_at: string; athlete_id: string };
+          setItems((prev) => {
+            const updated = prev.map((item) => {
+              const isMine = item.id.replace(/^(dm|group)-/, "") === newMsg.athlete_id;
+              if (isMine) return item;
+              // match dm or group by conversation key
+              const convId = newMsg.conversation_id;
+              const matches =
+                item.id === `group-${convId}` ||
+                (item.type === "dm" && prev.some((i) => i.id === item.id));
+              if (!matches) return item;
+              return {
+                ...item,
+                lastMessage: (newMsg as Record<string, unknown>).content as string || item.lastMessage,
+                lastMessageAt: newMsg.created_at,
+                unread: true,
+              };
+            });
+            return updated.sort(
+              (a, b) => new Date(b.lastMessageAt).getTime() - new Date(a.lastMessageAt).getTime(),
+            );
+          });
+        },
+      )
+      .subscribe();
+
+    channelRef.current = ch;
+    return () => {
+      void supabase.removeChannel(ch);
+    };
+  }, []);
 
   const existingDmFriendIds = items
     .filter((i) => i.type === "dm")

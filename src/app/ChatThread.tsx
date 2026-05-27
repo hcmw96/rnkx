@@ -17,6 +17,7 @@ import {
   type ChatMessageRow,
 } from "@/lib/chatMessages";
 import { toast } from "sonner";
+import { markConversationRead } from "@/lib/unreadMessages";
 
 export default function ChatThread() {
   const { friendId } = useParams<{ friendId: string }>();
@@ -90,6 +91,7 @@ export default function ChatThread() {
 
       setConversationId(cid);
       await loadMessages(cid);
+      if (friendId) markConversationRead(`dm-${friendId}`);
       setThreadReady(true);
     }
 
@@ -121,6 +123,7 @@ export default function ChatThread() {
             if (prev.some((m) => m.id === msg.id)) return prev;
             return [...prev, msg];
           });
+          if (friendId) markConversationRead(`dm-${friendId}`);
         },
       )
       .subscribe();
