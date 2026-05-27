@@ -9,6 +9,7 @@ import { supabase } from '@/services/supabase';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import { haptic } from '@/lib/haptics';
+import { shareLeagueInvite } from '@/lib/shareLeagueInvite';
 
 type LeagueRow = {
   id: string;
@@ -19,6 +20,7 @@ type LeagueRow = {
   league_type: string;
   invite_code: string | null;
   is_public: boolean | null;
+  created_by: string;
 };
 
 type ClubTab = 'private' | 'public';
@@ -34,6 +36,7 @@ export default function PrivateLeaguesPage({ embedded = false }: PrivateLeaguesP
   const [loading, setLoading] = useState(true);
   const [inviteLeague, setInviteLeague] = useState<LeagueRow | null>(null);
   const [clubTab, setClubTab] = useState<ClubTab>('private');
+  const [myRankByLeague, setMyRankByLeague] = useState<Record<string, number>>({});
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -83,7 +86,7 @@ export default function PrivateLeaguesPage({ embedded = false }: PrivateLeaguesP
 
     const { data: leagueRows, error: leagueErr } = await supabase
       .from('private_leagues')
-      .select('id, name, description, image_url, conversation_id, league_type, invite_code, is_public')
+      .select('id, name, description, image_url, conversation_id, league_type, invite_code, is_public, created_by')
       .in('id', leagueIds);
 
     if (leagueErr) {
@@ -93,13 +96,73 @@ export default function PrivateLeaguesPage({ embedded = false }: PrivateLeaguesP
       return;
     }
 
-    const { data: allMembers } = await supabase.from('private_league_members').select('league_id').in('league_id', leagueIds);
+    const { data: allMembers } = await supabase
+      .from('private_league_members')
+      .select('league_id')
+      .in('league_id', leagueIds)
+      .eq('status', 'accepted');
 
     const countByLeague = new Map<string, number>();
     for (const row of allMembers ?? []) {
       const lid = row.league_id as string;
       countByLeague.set(lid, (countByLeague.get(lid) ?? 0) + 1);
     }
+
+    const rankMap: Record<string, number> = {};
+    const { data: season } = await supabase.from('seasons').select('id').eq('is_active', true).maybeSingle();
+    const seasonId = (season?.id as string | undefined) ?? null;
+    if (seasonId && aid && leagueRows?.length) {
+      const { data: memberRows } = await supabase
+        .from('private_league_members')
+        .select('league_id, athlete_id')
+        .in('league_id', leagueIds)
+        .eq('status', 'accepted');
+
+      const allAthleteIds = [...new Set((memberRows ?? []).map((m) => String(m.athlete_id)))];
+      const { data: statsRows } =
+        allAthleteIds.length > 0
+          ? await supabase
+              .from('athlete_stats')
+              .select('athlete_id, category, score')
+              .eq('season_id', seasonId)
+              .in('athlete_id', allAthleteIds)
+              .in('category', ['engine', 'run'])
+          : { data: [] };
+
+      const scoreMap = new Map<string, { engine: number; run: number }>();
+      for (const row of (statsRows ?? []) as { athlete_id: string; category: string; score: number | string | null }[]) {
+        const current = scoreMap.get(row.athlete_id) ?? { engine: 0, run: 0 };
+        const pts = Number(row.score ?? 0);
+        if (row.category === 'run') current.run = Number.isFinite(pts) ? pts : 0;
+        if (row.category === 'engine') current.engine = Number.isFinite(pts) ? pts : 0;
+        scoreMap.set(row.athlete_id, current);
+      }
+
+      const membersByLeague = new Map<string, string[]>();
+      for (const m of (memberRows ?? []) as { league_id: string; athlete_id: string }[]) {
+        const arr = membersByLeague.get(m.league_id) ?? [];
+        arr.push(m.athlete_id);
+        membersByLeague.set(m.league_id, arr);
+      }
+
+      for (const league of leagueRows as LeagueRow[]) {
+        const membersForLeague = membersByLeague.get(league.id) ?? [];
+        const ranked = membersForLeague
+          .map((memberId) => ({
+            id: memberId,
+            score:
+              league.league_type === 'run'
+                ? scoreMap.get(memberId)?.run ?? 0
+                : scoreMap.get(memberId)?.engine ?? 0,
+          }))
+          .sort((a, b) => b.score - a.score);
+        const idx = ranked.findIndex((r) => r.id === aid);
+        if (idx >= 0) {
+          rankMap[league.id] = idx + 1;
+        }
+      }
+    }
+    setMyRankByLeague(rankMap);
 
     setLeagues(
       (leagueRows ?? []).map((l) => ({
@@ -147,7 +210,18 @@ export default function PrivateLeaguesPage({ embedded = false }: PrivateLeaguesP
             conversationId={league.conversation_id}
             imageUrl={league.image_url}
             description={league.description}
-            onAddFriend={() => setInviteLeague(league)}
+            myRank={myRankByLeague[league.id] ?? null}
+            canAddFriend={!league.is_public && athleteId != null && league.created_by === athleteId}
+            onAddFriend={
+              !league.is_public && athleteId != null && league.created_by === athleteId
+                ? () => setInviteLeague(league)
+                : null
+            }
+            onShareInvite={
+              league.invite_code
+                ? () => void shareLeagueInvite(league.name, league.invite_code as string)
+                : undefined
+            }
           />
         </li>
       ))}

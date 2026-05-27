@@ -154,32 +154,26 @@ export default function AdminPage() {
     void (async () => {
       setDetailLoading(true);
       setDetailError(null);
-      const [{ data: workoutRows, error: workoutErr }, { data: activityRows, error: activityErr }] =
-        await Promise.all([
-          supabase
-            .from('workouts')
-            .select(
-              'id,started_at,activity_type,duration_min,avg_hr,avg_pace_per_km,engine_score,run_score,status',
-            )
-            .eq('athlete_id', selectedAthleteId)
-            .eq('status', 'scored')
-            .order('started_at', { ascending: false }),
-          supabase
-            .from('activities')
-            .select(
-              'id,activity_date,activity_type,duration_minutes,avg_hr_percent,avg_pace_seconds,league_type,status',
-            )
-            .eq('athlete_id', selectedAthleteId)
-            .eq('status', 'scored')
-            .order('workout_start_time', { ascending: false, nullsFirst: false })
-            .order('activity_date', { ascending: false }),
-        ]);
+      const { data, error: rpcErr } = await supabase.rpc('admin_list_athlete_recent_activity', {
+        p_athlete_id: selectedAthleteId,
+        p_limit: 250,
+      });
 
-      if (workoutErr) setDetailError(workoutErr.message);
-      if (activityErr) setDetailError((prev) => prev ?? activityErr.message);
+      if (rpcErr) {
+        setDetailError(rpcErr.message);
+        setDetailWorkouts([]);
+        setDetailActivities([]);
+        setDetailLoading(false);
+        return;
+      }
 
-      setDetailWorkouts((workoutRows as WorkoutRow[] | null) ?? []);
-      setDetailActivities((activityRows as ActivityRow[] | null) ?? []);
+      const payload = (data ?? {}) as {
+        workouts?: WorkoutRow[] | null;
+        activities?: ActivityRow[] | null;
+      };
+
+      setDetailWorkouts((payload.workouts as WorkoutRow[] | null) ?? []);
+      setDetailActivities((payload.activities as ActivityRow[] | null) ?? []);
       setDetailLoading(false);
     })();
   }, [authed, selectedAthleteId]);

@@ -1,4 +1,4 @@
-import { MessageCircle, UserPlus } from 'lucide-react';
+import { MessageCircle, Share2, UserPlus } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Link } from 'react-router-dom';
 import { LeagueChevronLogo } from '@/components/leagues/LeagueChevronLogo';
@@ -24,10 +24,11 @@ interface PrivateLeagueCardProps {
   conversationId?: string | null;
   imageUrl?: string | null;
   description?: string | null;
+  myRank?: number | null;
   /** Opens add-friend modal (leaderboard leagues tab). */
-  onAddFriend?: () => void;
-  /** Legacy: share invite link (social leagues page). */
+  onAddFriend?: (() => void) | null;
   onShareInvite?: () => void;
+  canAddFriend?: boolean;
 }
 
 export function PrivateLeagueCard({
@@ -41,6 +42,8 @@ export function PrivateLeagueCard({
   onShareInvite,
   inviteCode,
   leagueType = 'engine',
+  myRank = null,
+  canAddFriend = false,
 }: PrivateLeagueCardProps) {
   const chatHref = conversationId ? `/app/chat/group/${conversationId}` : `/app/leagues/${id}`;
   const isRun = leagueType === 'run';
@@ -61,7 +64,14 @@ export function PrivateLeagueCard({
           )}
         </div>
         <div className="min-w-0 flex-1">
-          <p className={cn('type-heading truncate')}>{name}</p>
+          <p className={cn('type-heading truncate')}>
+            {name}
+            {myRank != null ? (
+              <span className="ml-2 rounded-full bg-muted px-1.5 py-0.5 text-[10px] font-semibold text-muted-foreground">
+                #{myRank}
+              </span>
+            ) : null}
+          </p>
           <p className="type-meta mt-0.5 truncate">
             {description ?? `${memberCount} member${memberCount !== 1 ? 's' : ''}`}
           </p>
@@ -69,20 +79,29 @@ export function PrivateLeagueCard({
       </Link>
 
       <div className="flex shrink-0 items-center">
-        <button
-          type="button"
-          onClick={() => {
-            if (onAddFriend) { onAddFriend(); return; }
-            if (!inviteCode) return;
-            onShareInvite?.();
-          }}
-          disabled={!onAddFriend && !inviteCode}
-          title={onAddFriend ? 'Add friend to club' : inviteCode ? 'Invite friends' : 'Invite unavailable'}
-          className="rounded-lg p-2 text-muted-foreground transition-colors hover:bg-muted/60 hover:text-foreground disabled:opacity-40"
-          aria-label="Add friend to club"
-        >
-          <UserPlus className="h-4 w-4" />
-        </button>
+        {canAddFriend && onAddFriend ? (
+          <button
+            type="button"
+            onClick={() => onAddFriend()}
+            title="Add member to club"
+            className="rounded-lg p-2 text-muted-foreground transition-colors hover:bg-muted/60 hover:text-foreground"
+            aria-label="Add member to club"
+          >
+            <UserPlus className="h-4 w-4" />
+          </button>
+        ) : null}
+        {inviteCode ? (
+          <button
+            type="button"
+            onClick={() => onShareInvite?.()}
+            title="Share invite link"
+            className="rounded-lg p-2 text-muted-foreground transition-colors hover:bg-muted/60 hover:text-foreground disabled:opacity-40"
+            aria-label="Share invite link"
+            disabled={!onShareInvite}
+          >
+            <Share2 className="h-4 w-4" />
+          </button>
+        ) : null}
         <Link
           to={chatHref}
           className={cn(

@@ -1,10 +1,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
-import { ArrowLeft, Heart, Share2, Timer } from 'lucide-react';
+import { ArrowLeft, Heart, Share2, Timer, UserPlus } from 'lucide-react';
 import { AppShell } from '@/components/app/AppShell';
 import { PremiumGate } from '@/components/PremiumGate';
 import { Button } from '@/components/ui/button';
 import { EditLeagueModal } from '@/components/leagues/EditLeagueModal';
+import { InviteFriendModal } from '@/components/leagues/InviteFriendModal';
 import { resolveAthleteId } from '@/lib/resolveAthleteId';
 import { supabase } from '@/services/supabase';
 import { toast } from 'sonner';
@@ -45,6 +46,7 @@ export default function LeaguePage() {
   const [scoreByAthlete, setScoreByAthlete] = useState<Record<string, number>>({});
   const [editOpen, setEditOpen] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [inviteOpen, setInviteOpen] = useState(false);
   const membersRef = useRef<MemberRow[]>([]);
   membersRef.current = members;
 
@@ -144,7 +146,7 @@ export default function LeaguePage() {
       .map((r, i) => ({ ...r, rank: i + 1 }));
   }, [members, scoreByAthlete]);
 
-  const isCreator = league && athleteId && league.created_by === athleteId;
+  const isCreator = !!league && !!athleteId && league.created_by === athleteId;
 
   const scoreColorClass = league?.league_type === 'run' ? 'text-secondary' : 'text-primary';
   const selfBorderClass =
@@ -209,25 +211,35 @@ export default function LeaguePage() {
                   </div>
                 </div>
 
-                {isCreator ? (
-                  <div className="flex flex-wrap gap-2">
+                <div className="flex flex-wrap gap-2">
+                  {isCreator ? (
                     <Button type="button" variant="outline" size="sm" onClick={() => setEditOpen(true)}>
                       Edit club
                     </Button>
-                    {league.invite_code ? (
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        className="gap-1"
-                        onClick={() => void shareLeagueInvite(league.name, league.invite_code!)}
-                      >
-                        <Share2 className="h-3.5 w-3.5" />
-                        Invite
-                      </Button>
-                    ) : null}
-                  </div>
-                ) : null}
+                  ) : null}
+
+                  {/* Private clubs: creator/admin can add by username. Public clubs: no + button. */}
+                  {!league.is_public && isCreator ? (
+                    <Button type="button" variant="outline" size="sm" className="gap-1" onClick={() => setInviteOpen(true)}>
+                      <UserPlus className="h-3.5 w-3.5" />
+                      Add member
+                    </Button>
+                  ) : null}
+
+                  {/* Share invite link is available to all members with invite code. */}
+                  {league.invite_code ? (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="gap-1"
+                      onClick={() => void shareLeagueInvite(league.name, league.invite_code!)}
+                    >
+                      <Share2 className="h-3.5 w-3.5" />
+                      Share invite link
+                    </Button>
+                  ) : null}
+                </div>
               </header>
 
               {/* Leaderboard */}
@@ -301,6 +313,19 @@ export default function LeaguePage() {
                     is_public: league.is_public,
                   }}
                   onSaved={() => void loadLeague()}
+                />
+              ) : null}
+
+              {!league.is_public && isCreator && league ? (
+                <InviteFriendModal
+                  open={inviteOpen}
+                  onOpenChange={setInviteOpen}
+                  leagueId={league.id}
+                  leagueName={league.name}
+                  onInvited={() => {
+                    setInviteOpen(false);
+                    void loadLeague();
+                  }}
                 />
               ) : null}
             </>

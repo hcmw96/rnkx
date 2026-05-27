@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { CreateLeagueModal } from '@/components/leagues/CreateLeagueModal';
 import { InviteFriendModal } from '@/components/leagues/InviteFriendModal';
 import { PrivateLeagueCard } from '@/components/leagues/PrivateLeagueCard';
+import { shareLeagueInvite } from '@/lib/shareLeagueInvite';
 import { supabase } from '@/services/supabase';
 import { toast } from 'sonner';
 
@@ -13,6 +14,8 @@ type LeagueRow = {
   conversation_id: string | null;
   invite_code: string | null;
   league_type: string;
+  created_by: string;
+  is_public: boolean | null;
 };
 
 export function LeaderboardLeaguesPanel() {
@@ -66,7 +69,7 @@ export function LeaderboardLeaguesPanel() {
 
     const { data: leagueRows, error: leagueErr } = await supabase
       .from('private_leagues')
-      .select('id, name, description, image_url, conversation_id, invite_code, league_type')
+      .select('id, name, description, image_url, conversation_id, invite_code, league_type, created_by, is_public')
       .in('id', leagueIds);
 
     if (leagueErr) {
@@ -132,7 +135,17 @@ export function LeaderboardLeaguesPanel() {
                 imageUrl={league.image_url}
                 description={league.description}
                 conversationId={league.conversation_id}
-                onAddFriend={() => setInviteLeague(league)}
+                canAddFriend={!league.is_public && athleteId != null && league.created_by === athleteId}
+                onAddFriend={
+                  !league.is_public && athleteId != null && league.created_by === athleteId
+                    ? () => setInviteLeague(league)
+                    : null
+                }
+                onShareInvite={
+                  league.invite_code
+                    ? () => void shareLeagueInvite(league.name, league.invite_code)
+                    : undefined
+                }
               />
             </li>
           ))}
