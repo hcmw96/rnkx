@@ -51,6 +51,11 @@ type ActivityRow = {
   league_type: string | null;
 };
 
+type ConnectionSummary = {
+  terra_providers: string[];
+  has_whoop: boolean;
+};
+
 function paceDisplayFromSeconds(value: number | null): string {
   if (value == null || !Number.isFinite(value) || value <= 0) return '—';
   const total = Math.round(value);
@@ -66,29 +71,50 @@ function dateOnly(value: string | null | undefined): string {
   return d.toLocaleDateString();
 }
 
-function wearableLabel(athlete: AthleteRow): string {
-  const raw = athlete.wearables ?? [];
-  const cleaned = raw
-    .map((w) => String(w).trim().toLowerCase())
-    .filter(Boolean)
-    .map((w) => {
-      if (w === 'apple_watch') return 'Apple Watch';
-      if (w === 'whoop') return 'WHOOP';
-      if (w === 'garmin') return 'GARMIN';
-      if (w === 'polar') return 'POLAR';
-      if (w === 'coros') return 'COROS';
-      if (w === 'fitbit') return 'FITBIT';
-      if (w === 'oura') return 'OURA';
-      if (w === 'samsung') return 'SAMSUNG';
-      if (w === 'strava') return 'STRAVA';
-      return w.toUpperCase();
-    });
+function mapWearableToken(low: string): string | null {
+  if (low === 'apple_watch' || low === 'apple') return 'Apple Watch';
+  if (low === 'whoop') return 'WHOOP';
+  if (low === 'garmin') return 'GARMIN';
+  if (low === 'polar') return 'POLAR';
+  if (low === 'coros') return 'COROS';
+  if (low === 'fitbit') return 'FITBIT';
+  if (low === 'oura') return 'OURA';
+  if (low === 'samsung') return 'SAMSUNG';
+  if (low === 'strava') return 'STRAVA';
+  if (!low) return null;
+  return low.toUpperCase();
+}
 
-  if (cleaned.length > 0) return cleaned.join(', ');
-  // Fallback for legacy rows where wearables wasn't backfilled.
-  if ((athlete.data_source ?? '').toLowerCase() === 'terra') return 'GARMIN';
-  if ((athlete.data_source ?? '').toLowerCase() === 'apple') return 'Apple Watch';
-  return '—';
+/** Prefer Terra + WHOOP connection tables (admin RPC); ignore misleading apple_watch on Terra-only athletes. */
+function buildWearableDisplay(athlete: AthleteRow, summary: ConnectionSummary | undefined): string {
+  const terra = (summary?.terra_providers ?? [])
+    .map((p) => String(p).trim().toUpperCase())
+    .filter(Boolean);
+  const hasWhoop = summary?.has_whoop === true;
+  const parts: string[] = [];
+
+  if (terra.length > 0) {
+    for (const label of terra) {
+      if (!parts.includes(label)) parts.push(label);
+    }
+  } else {
+    const raw = athlete.wearables ?? [];
+    for (const w of raw) {
+      const low = String(w).trim().toLowerCase();
+      if (low === 'whoop') continue;
+      const mapped = mapWearableToken(low);
+      if (mapped && !parts.includes(mapped)) parts.push(mapped);
+    }
+    if (parts.length === 0) {
+      const ds = (athlete.data_source ?? '').toLowerCase();
+      if (ds === 'terra') parts.push('GARMIN');
+      else if (ds === 'apple') parts.push('Apple Watch');
+    }
+  }
+
+  if (hasWhoop && !parts.includes('WHOOP')) parts.push('WHOOP');
+
+  return parts.length > 0 ? parts.join(', ') : '—';
 }
 
 export default function AdminPage() {
@@ -109,6 +135,7 @@ export default function AdminPage() {
   const [detailError, setDetailError] = useState<string | null>(null);
   const [detailWorkouts, setDetailWorkouts] = useState<WorkoutRow[]>([]);
   const [detailActivities, setDetailActivities] = useState<ActivityRow[]>([]);
+  const [wearableSummaryByAthlete, setWearableSummaryByAthlete] = useState<Record<string, ConnectionSummary>>({});
 
   useEffect(() => {
     try {
@@ -145,6 +172,33 @@ export default function AdminPage() {
       if (athletesList.length > 0) {
         setSelectedAthleteId((prev) => prev ?? athletesList[0].id);
       }
+
+      const ids = athletesList.map((a) => a.id);
+      if (ids.length > 0) {
+        const { data: summaryJson, error: summaryErr } = await supabase.rpc('admin_athlete_wearable_summary', {
+          p_athlete_ids: ids,
+        });
+        if (summaryErr) {
+          setError((prev) => prev ?? summaryErr.message);
+          setWearableSummaryByAthlete({});
+        } else {
+          const next: Record<string, ConnectionSummary> = {};
+          const raw = summaryJson as Record<string, { terra_providers?: unknown; has_whoop?: unknown }> | null;
+          if (raw && typeof raw === 'object') {
+            for (const [athleteId, v] of Object.entries(raw)) {
+              const tp = v?.terra_providers;
+              next[athleteId] = {
+                terra_providers: Array.isArray(tp) ? tp.map((x) => String(x)) : [],
+                has_whoop: Boolean(v?.has_whoop),
+              };
+            }
+          }
+          setWearableSummaryByAthlete(next);
+        }
+      } else {
+        setWearableSummaryByAthlete({});
+      }
+
       setLoading(false);
     })();
   }, [authed]);
@@ -378,10 +432,10 @@ export default function AdminPage() {
             <table className="w-full table-fixed text-left text-sm">
               <thead className="text-xs uppercase tracking-wide text-muted-foreground">
                 <tr>
-                  <th className="w-[28%] pb-2">Username</th>
-                  <th className="w-[28%] pb-2">Wearables</th>
-                  <th className="w-[22%] pb-2 text-right">Total score</th>
-                  <th className="w-[22%] pb-2 text-right">Last synced</th>
+                  <th className="w-[22%] pb-2 pr-2">Username</th>
+                  <th className="w-[36%] pb-2 pr-3">Wearables</th>
+                  <th className="w-[21%] pb-2 pl-2 text-right">Total score</th>
+                  <th className="w-[21%] pb-2 pl-2 text-right">Last synced</th>
                 </tr>
               </thead>
               <tbody>
@@ -393,10 +447,14 @@ export default function AdminPage() {
                       athlete.id === selectedAthleteId ? 'bg-muted/30' : 'hover:bg-muted/20'
                     }`}
                   >
-                    <td className="truncate py-2">{athlete.username || athlete.display_name || athlete.id.slice(0, 8)}</td>
-                    <td className="truncate py-2">{wearableLabel(athlete)}</td>
-                    <td className="py-2 text-right">{Number(athlete.total_score ?? 0).toLocaleString()}</td>
-                    <td className="py-2 text-right">{dateOnly(athlete.last_synced)}</td>
+                    <td className="truncate py-2 pr-2">{athlete.username || athlete.display_name || athlete.id.slice(0, 8)}</td>
+                    <td className="break-words py-2 pr-3 text-sm leading-snug">
+                      {buildWearableDisplay(athlete, wearableSummaryByAthlete[athlete.id])}
+                    </td>
+                    <td className="whitespace-nowrap py-2 pl-2 text-right tabular-nums">
+                      {Number(athlete.total_score ?? 0).toLocaleString(undefined, { maximumFractionDigits: 1 })}
+                    </td>
+                    <td className="whitespace-nowrap py-2 pl-2 text-right">{dateOnly(athlete.last_synced)}</td>
                   </tr>
                 ))}
               </tbody>
