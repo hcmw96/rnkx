@@ -1,22 +1,16 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Link, useLocation, useParams } from 'react-router-dom';
-import { ArrowLeft, Send, Share2 } from 'lucide-react';
+import { Link, useParams } from 'react-router-dom';
+import { ArrowLeft, Heart, Share2, Timer } from 'lucide-react';
 import { AppShell } from '@/components/app/AppShell';
 import { PremiumGate } from '@/components/PremiumGate';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { LeaguePodium } from '@/components/leagues/LeaguePodium';
-import { LeagueHighlights } from '@/components/leagues/LeagueHighlights';
-import { LeagueActivityFeed } from '@/components/leagues/LeagueActivityFeed';
 import { EditLeagueModal } from '@/components/leagues/EditLeagueModal';
-import { listConversationMessages, sendConversationMessage, chatMessageText } from '@/lib/chatMessages';
 import { resolveAthleteId } from '@/lib/resolveAthleteId';
-import { invokePushNotify } from '@/lib/pushNotify';
 import { supabase } from '@/services/supabase';
 import { toast } from 'sonner';
 import { shareLeagueInvite } from '@/lib/shareLeagueInvite';
 import { usePullToRefresh } from '@/hooks/usePullToRefresh';
-import type { RealtimeChannel } from '@supabase/supabase-js';
+import { cn } from '@/lib/utils';
 
 type League = {
   id: string;
@@ -34,25 +28,22 @@ type MemberRow = {
   athletes: { id: string; username: string | null; avatar_url: string | null } | null;
 };
 
-type ChatMessage = {
-  id: string;
-  content: string;
-  created_at: string;
-  athlete_id: string;
-  athletes?: { username: string | null } | null;
+type RankedRow = {
+  athleteId: string;
+  username: string;
+  avatar_url: string | null;
+  score: number;
+  rank: number;
 };
 
 export default function LeaguePage() {
   const { leagueId } = useParams<{ leagueId: string }>();
-  const location = useLocation();
   const [athleteId, setAthleteId] = useState<string | undefined>();
   const [authUserId, setAuthUserId] = useState<string | undefined>();
   const [league, setLeague] = useState<League | null>(null);
   const [members, setMembers] = useState<MemberRow[]>([]);
   const [seasonId, setSeasonId] = useState<string | null>(null);
   const [scoreByAthlete, setScoreByAthlete] = useState<Record<string, number>>({});
-  const [messages, setMessages] = useState<ChatMessage[]>([]);
-  const [chatInput, setChatInput] = useState('');
   const [editOpen, setEditOpen] = useState(false);
   const [loading, setLoading] = useState(true);
   const membersRef = useRef<MemberRow[]>([]);
@@ -133,27 +124,6 @@ export default function LeaguePage() {
       setScoreByAthlete({});
     }
 
-    const cid = leagueRow.conversation_id as string | null;
-    if (cid) {
-      const { messages: msgs, error: msgErr } = await listConversationMessages(cid, 200);
-      if (msgErr) {
-        toast.error(msgErr);
-        setMessages([]);
-      } else {
-        const usernames = new Map(
-          memberList.map((m) => [m.athlete_id, m.athletes?.username ?? null] as const),
-        );
-        setMessages(
-          msgs.map((m) => ({
-            ...m,
-            athletes: { username: usernames.get(m.athlete_id) ?? null },
-          })),
-        );
-      }
-    } else {
-      setMessages([]);
-    }
-
     setLoading(false);
   }, [leagueId]);
 
@@ -163,102 +133,26 @@ export default function LeaguePage() {
 
   const { isRefreshing, pullDistance, pullHandlers } = usePullToRefresh(loadLeague);
 
-  useEffect(() => {
-    const cid = league?.conversation_id;
-    if (!cid) return;
-
-    const channel: RealtimeChannel = supabase
-      .channel(`conversation_messages:${cid}`)
-      .on(
-        'postgres_changes',
-        {
-          event: 'INSERT',
-          schema: 'public',
-          table: 'conversation_messages',
-          filter: `conversation_id=eq.${cid}`,
-        },
-        (payload) => {
-          const raw = payload.new as ChatMessage & { body?: string };
-          const row: ChatMessage = {
-            id: raw.id,
-            athlete_id: raw.athlete_id,
-            content: chatMessageText(raw),
-            created_at: raw.created_at,
-            athletes: raw.athletes,
-          };
-          setMessages((prev) => {
-            if (prev.some((m) => m.id === row.id)) return prev;
-            const uname =
-              membersRef.current.find((x) => x.athlete_id === row.athlete_id)?.athletes?.username ?? null;
-            return [...prev, { ...row, athletes: row.athletes ?? { username: uname } }];
-          });
-        },
-      )
-      .subscribe();
-
-    return () => {
-      void supabase.removeChannel(channel);
-    };
-  }, [league?.conversation_id]);
-
-  const memberIds = useMemo(() => members.map((m) => m.athlete_id), [members]);
-
-  const usernameByAthleteId = useMemo(
-    () =>
-      Object.fromEntries(
-        members.map((m) => [m.athlete_id, m.athletes?.username ?? null] as const),
-      ) as Record<string, string | null>,
-    [members],
-  );
-
-  const podiumMembers = useMemo(() => {
-    const rows = members
-      .map((m) => {
-        const a = m.athletes;
-        const username = a?.username?.trim() || 'Athlete';
-        const score = scoreByAthlete[m.athlete_id] ?? 0;
-        return {
-          id: m.athlete_id,
-          username,
-          avatar_url: a?.avatar_url ?? null,
-          score,
-          rank: 0,
-        };
-      })
+  const rankedRows = useMemo((): RankedRow[] => {
+    return members
+      .map((m) => ({
+        athleteId: m.athlete_id,
+        username: m.athletes?.username?.trim() || 'Athlete',
+        avatar_url: m.athletes?.avatar_url ?? null,
+        score: scoreByAthlete[m.athlete_id] ?? 0,
+        rank: 0,
+      }))
       .sort((a, b) => b.score - a.score)
-      .map((m, i) => ({ ...m, rank: i + 1 }));
-    return rows;
+      .map((r, i) => ({ ...r, rank: i + 1 }));
   }, [members, scoreByAthlete]);
 
   const isCreator = league && athleteId && league.created_by === athleteId;
 
-  useEffect(() => {
-    if (!league || location.hash !== '#chat') return;
-    const el = document.getElementById('chat');
-    if (!el) return;
-    const timer = window.setTimeout(() => {
-      el.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    }, 200);
-    return () => window.clearTimeout(timer);
-  }, [league, location.hash]);
-
-  const sendChat = async () => {
-    const messageBody = chatInput.trim();
-    const conversationId = league?.conversation_id;
-    const currentAthleteId = athleteId;
-    if (!messageBody || !conversationId || !currentAthleteId) return;
-    const { error } = await sendConversationMessage(conversationId, currentAthleteId, messageBody);
-    if (error) {
-      toast.error(error);
-      return;
-    }
-    setChatInput('');
-    invokePushNotify('notify-new-message', {
-      conversation_id: conversationId,
-      sender_athlete_id: currentAthleteId,
-      message_body: messageBody,
-    });
-  };
+  const scoreColorClass = league?.league_type === 'run' ? 'text-secondary' : 'text-primary';
+  const selfBorderClass =
+    league?.league_type === 'run'
+      ? 'border-electric-cyan/50 ring-1 ring-electric-cyan/20'
+      : 'border-neon-lime/50 ring-1 ring-neon-lime/20';
 
   return (
     <AppShell>
@@ -269,6 +163,7 @@ export default function LeaguePage() {
               {isRefreshing ? 'Refreshing club...' : pullDistance > 72 ? 'Release to refresh' : 'Pull to refresh'}
             </p>
           )}
+
           <div className="flex items-center gap-2">
             <Button variant="ghost" size="sm" asChild className="-ml-2 gap-1 px-2">
               <Link to="/app/social/leagues">
@@ -284,12 +179,38 @@ export default function LeaguePage() {
             <p className="text-sm text-destructive">Club not found.</p>
           ) : (
             <>
-              <header className="space-y-1">
-                <h1 className="type-card-title">{league.name}</h1>
-                <p className="text-xs text-muted-foreground">
-                  {league.is_public ? 'Public club' : 'Private club'} ·{' '}
-                  {league.league_type === 'engine' ? 'Engine' : 'Run'}
-                </p>
+              {/* Header */}
+              <header className="space-y-2">
+                <div className="flex items-start gap-3">
+                  {league.image_url ? (
+                    <img
+                      src={league.image_url}
+                      alt=""
+                      className="h-14 w-14 shrink-0 rounded-xl object-cover"
+                    />
+                  ) : null}
+                  <div className="min-w-0 flex-1 space-y-1.5">
+                    <h1 className="type-page-title leading-tight">{league.name}</h1>
+                    <div className="flex flex-wrap items-center gap-2">
+                      {/* League type badge — prominent */}
+                      {league.league_type === 'engine' ? (
+                        <span className="inline-flex items-center gap-1 rounded-full bg-primary/15 px-2.5 py-0.5 text-xs font-semibold text-primary">
+                          <Heart className="h-3 w-3 fill-primary" />
+                          Engine · Heart rate
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center gap-1 rounded-full bg-secondary/15 px-2.5 py-0.5 text-xs font-semibold text-secondary">
+                          <Timer className="h-3 w-3" />
+                          Run · Pace
+                        </span>
+                      )}
+                      <span className="text-xs text-muted-foreground">
+                        {league.is_public ? 'Public' : 'Private'} · {members.length} member{members.length !== 1 ? 's' : ''}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
                 {isCreator ? (
                   <div className="flex flex-wrap gap-2">
                     <Button type="button" variant="outline" size="sm" onClick={() => setEditOpen(true)}>
@@ -311,41 +232,65 @@ export default function LeaguePage() {
                 ) : null}
               </header>
 
-              <LeaguePodium members={podiumMembers} leagueType={league.league_type} />
-              <LeagueHighlights memberIds={memberIds} leagueType={league.league_type} seasonId={seasonId} />
-              <LeagueActivityFeed memberIds={memberIds} leagueType={league.league_type} seasonId={seasonId} />
+              {/* Leaderboard */}
+              <div className="space-y-1">
+                <h2 className="type-section-label px-0.5 pb-1">Leaderboard</h2>
+                {rankedRows.length === 0 ? (
+                  <p className="rounded-lg border border-dashed border-border p-5 text-center text-sm text-muted-foreground">
+                    No members with scores yet.
+                  </p>
+                ) : (
+                  <ul className="flex flex-col gap-1.5 px-0.5 pb-4">
+                    {rankedRows.map((row) => {
+                      const isSelf = row.athleteId === athleteId;
+                      const isFirst = row.rank === 1;
+                      const initial = row.username.charAt(0).toUpperCase();
+                      const pts = Math.round(row.score);
 
-              {league.conversation_id ? (
-                <div id="chat" className="space-y-2 rounded-xl border border-border bg-card p-3">
-                  <h2 className="type-section-label">Group chat</h2>
-                  <div className="max-h-64 space-y-2 overflow-y-auto">
-                    {messages.map((m) => (
-                      <div key={m.id} className="text-sm">
-                        <span className="font-medium text-foreground">
-                          {m.athletes?.username ?? usernameByAthleteId[m.athlete_id] ?? 'Member'}:{' '}
-                        </span>
-                        <span className="text-muted-foreground">{m.content}</span>
-                      </div>
-                    ))}
-                    {!messages.length ? (
-                      <p className="text-xs text-muted-foreground">No messages yet. Say hi!</p>
-                    ) : null}
-                  </div>
-                  <div className="flex gap-2">
-                    <Input
-                      value={chatInput}
-                      onChange={(e) => setChatInput(e.target.value)}
-                      placeholder="Message…"
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter') void sendChat();
-                      }}
-                    />
-                    <Button type="button" size="icon" onClick={() => void sendChat()} aria-label="Send">
-                      <Send className="h-4 w-4" />
-                    </Button>
-                  </div>
-                </div>
-              ) : null}
+                      return (
+                        <li key={row.athleteId}>
+                          <div
+                            className={cn(
+                              'flex items-center gap-2 rounded-lg border bg-[hsla(0,0%,10%,1)] px-2.5 py-2 shadow-sm',
+                              isSelf ? selfBorderClass : 'border-border/70',
+                            )}
+                          >
+                            <span
+                              className={cn(
+                                'type-rank w-9 shrink-0 text-center',
+                                isFirst ? 'text-neon-lime' : '!text-foreground',
+                              )}
+                            >
+                              {row.rank}
+                            </span>
+                            <div className="relative h-9 w-9 shrink-0 overflow-hidden rounded-full border border-border/80 bg-[hsla(0,0%,14%,1)]">
+                              {row.avatar_url ? (
+                                <img src={row.avatar_url} alt="" className="h-full w-full object-cover" />
+                              ) : (
+                                <span className="flex h-full w-full items-center justify-center text-xs font-semibold text-muted-foreground">
+                                  {initial}
+                                </span>
+                              )}
+                            </div>
+                            <div className="flex min-w-0 flex-1 items-center justify-between gap-3 pr-1">
+                              <p className="type-heading truncate">
+                                {row.username}
+                                {isSelf ? (
+                                  <span className="ml-1.5 text-xs font-normal text-muted-foreground">you</span>
+                                ) : null}
+                              </p>
+                              <p className={cn('shrink-0 whitespace-nowrap tabular-nums', scoreColorClass)}>
+                                <span className="text-lg font-bold">{pts.toLocaleString()}</span>
+                                <span className="ml-1 text-xs font-medium text-muted-foreground">pts</span>
+                              </p>
+                            </div>
+                          </div>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                )}
+              </div>
 
               {isCreator && league ? (
                 <EditLeagueModal
