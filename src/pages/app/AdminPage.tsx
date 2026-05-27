@@ -3,10 +3,14 @@ import { AppShell } from '@/components/app/AppShell';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { activitySessionScore } from '@/lib/activitySessionScore';
+import {
+  ADMIN_PASSWORD,
+  hasAdminUiAccess,
+  isAllowlistedAdminUsername,
+  resolveCurrentUsername,
+  setAdminPasswordSession,
+} from '@/lib/adminAccess';
 import { supabase } from '@/services/supabase';
-
-const ADMIN_STORAGE_KEY = 'rnkx_admin_auth';
-const ADMIN_PASSWORD = 'rnkx_admin_2026';
 
 type LeagueTab = 'engine' | 'run';
 
@@ -138,11 +142,10 @@ export default function AdminPage() {
   const [wearableSummaryByAthlete, setWearableSummaryByAthlete] = useState<Record<string, ConnectionSummary>>({});
 
   useEffect(() => {
-    try {
-      setAuthed(localStorage.getItem(ADMIN_STORAGE_KEY) === ADMIN_PASSWORD);
-    } catch {
-      setAuthed(false);
-    }
+    void (async () => {
+      const allowed = await hasAdminUiAccess();
+      setAuthed(allowed);
+    })();
   }, []);
 
   useEffect(() => {
@@ -150,28 +153,57 @@ export default function AdminPage() {
     void (async () => {
       setLoading(true);
       setError(null);
-      const [{ data: season, error: seasonErr }, { data: athleteRows, error: athleteErr }] = await Promise.all([
-        supabase.from('seasons').select('id').eq('is_active', true).maybeSingle(),
-        supabase
-          .from('athletes')
-          .select('id,username,display_name,total_score,wearables,data_source,last_synced,max_hr,age')
-          .order('total_score', { ascending: false }),
-      ]);
 
-      if (seasonErr) {
-        setError(seasonErr.message);
-      }
-      if (athleteErr) {
-        setError((prev) => prev ?? athleteErr.message);
+      const { data: dashboardJson, error: dashboardErr } = await supabase.rpc('admin_get_dashboard');
+
+      if (dashboardErr) {
+        const msg = dashboardErr.message;
+        if (/forbidden/i.test(msg)) {
+          setAuthed(false);
+          setAuthError('Your account is not authorized for admin. Contact support if this is unexpected.');
+          setAthletes([]);
+          setLeaderboardRows([]);
+          setLoading(false);
+          return;
+        }
+        setError(msg);
+        setLoading(false);
+        return;
       }
 
-      const sid = (season?.id as string | undefined) ?? null;
+      const payload = dashboardJson as {
+        season_id?: string | null;
+        athletes?: AthleteRow[] | null;
+        leaderboard?: {
+          athlete_id: string;
+          category: string;
+          score: number | string | null;
+          rank: number | null;
+          username?: string | null;
+          display_name?: string | null;
+        }[] | null;
+      };
+
+      const sid = (payload.season_id as string | undefined) ?? null;
       setActiveSeasonId(sid);
-      const athletesList = (athleteRows as AthleteRow[] | null) ?? [];
+
+      const athletesList = (payload.athletes as AthleteRow[] | null) ?? [];
       setAthletes(athletesList);
       if (athletesList.length > 0) {
         setSelectedAthleteId((prev) => prev ?? athletesList[0].id);
       }
+
+      const lbRows: LeaderboardRow[] = (payload.leaderboard ?? []).map((row) => ({
+        athlete_id: row.athlete_id,
+        category: row.category,
+        score: row.score,
+        rank: row.rank,
+        athletes: {
+          username: row.username ?? null,
+          display_name: row.display_name ?? null,
+        },
+      }));
+      setLeaderboardRows(lbRows);
 
       const ids = athletesList.map((a) => a.id);
       if (ids.length > 0) {
@@ -204,28 +236,6 @@ export default function AdminPage() {
   }, [authed]);
 
   useEffect(() => {
-    if (!authed || !activeSeasonId) {
-      setLeaderboardRows([]);
-      return;
-    }
-    void (async () => {
-      const { data, error: lbErr } = await supabase
-        .from('athlete_stats')
-        .select('athlete_id,category,score,rank,athletes(username,display_name)')
-        .eq('season_id', activeSeasonId)
-        .in('category', ['engine', 'run'])
-        .order('rank', { ascending: true, nullsFirst: false })
-        .limit(400);
-      if (lbErr) {
-        setError((prev) => prev ?? lbErr.message);
-        setLeaderboardRows([]);
-      } else {
-        setLeaderboardRows((data as unknown as LeaderboardRow[] | null) ?? []);
-      }
-    })();
-  }, [authed, activeSeasonId]);
-
-  useEffect(() => {
     if (!authed || !selectedAthleteId) {
       setDetailWorkouts([]);
       setDetailActivities([]);
@@ -240,7 +250,11 @@ export default function AdminPage() {
       });
 
       if (rpcErr) {
-        setDetailError(rpcErr.message);
+        setDetailError(
+          /forbidden/i.test(rpcErr.message)
+            ? 'Forbidden — your account is not on the admin allowlist.'
+            : rpcErr.message,
+        );
         setDetailWorkouts([]);
         setDetailActivities([]);
         setDetailLoading(false);
@@ -332,20 +346,25 @@ export default function AdminPage() {
     return [...workoutsRows, ...activitiesRows].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
   }, [detailActivities, detailTab, detailWorkouts, selectedAthlete]);
 
-  function handlePasswordSubmit(e: FormEvent<HTMLFormElement>) {
+  async function handlePasswordSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
-    if (password === ADMIN_PASSWORD) {
-      try {
-        localStorage.setItem(ADMIN_STORAGE_KEY, ADMIN_PASSWORD);
-      } catch {
-        // Ignore storage failures and still allow in-session access.
-      }
+    const username = await resolveCurrentUsername();
+    const allowlisted = isAllowlistedAdminUsername(username);
+
+    if (password === ADMIN_PASSWORD && allowlisted) {
+      setAdminPasswordSession();
       setAuthed(true);
       setAuthError(null);
       setPassword('');
-    } else {
-      setAuthError('Incorrect password');
+      return;
     }
+
+    if (password === ADMIN_PASSWORD && !allowlisted) {
+      setAuthError('Correct password, but your RNKX username is not on the admin allowlist.');
+      return;
+    }
+
+    setAuthError('Incorrect password');
   }
 
   if (!authed) {
@@ -353,7 +372,10 @@ export default function AdminPage() {
       <AppShell headerActions={null}>
         <section className="mx-auto mt-16 max-w-md rounded-lg border border-border bg-card p-5">
           <h1 className="type-section-label">Admin Access</h1>
-          <p className="mt-2 text-sm text-muted-foreground">Enter the admin password to continue.</p>
+          <p className="mt-2 text-sm text-muted-foreground">
+            Allowlisted accounts (e.g. sds8) can open admin automatically when signed in. Others need the admin
+            password.
+          </p>
           <form className="mt-4 space-y-3" onSubmit={handlePasswordSubmit}>
             <Input
               type="password"

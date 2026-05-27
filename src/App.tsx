@@ -40,15 +40,13 @@ import { supabase } from './services/supabase';
 const queryClient = new QueryClient();
 
 async function fetchAthleteProfileComplete(userId: string): Promise<boolean> {
-  const { data, error } = await supabase
-    .from('athletes')
-    .select('id')
-    .eq('user_id', userId)
-    .not('username', 'is', null)
-    .maybeSingle();
+  const [byUserId, byId] = await Promise.all([
+    supabase.from('athletes').select('id').eq('user_id', userId).not('username', 'is', null).maybeSingle(),
+    supabase.from('athletes').select('id').eq('id', userId).not('username', 'is', null).maybeSingle(),
+  ]);
 
-  if (error) return false;
-  return !!data;
+  if (byUserId.error && byId.error) return false;
+  return !!(byUserId.data?.id ?? byId.data?.id);
 }
 
 function SessionRoutes() {
