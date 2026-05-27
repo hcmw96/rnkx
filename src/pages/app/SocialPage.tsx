@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import type { LucideIcon } from 'lucide-react';
-import { Shield, UserRound } from 'lucide-react';
+import { Compass, Shield, UserRound } from 'lucide-react';
 import { Link, NavLink, Outlet } from 'react-router-dom';
 import { AppShell } from '@/components/app/AppShell';
 import { PremiumGate } from '@/components/PremiumGate';
@@ -10,6 +10,7 @@ import { cn } from '@/lib/utils';
 const TABS: readonly { to: string; label: string; Icon: LucideIcon }[] = [
   { to: '/app/social/friends', label: 'Friends', Icon: UserRound },
   { to: '/app/social/leagues', label: 'Clubs', Icon: Shield },
+  { to: '/app/social/discover', label: 'Discover', Icon: Compass },
 ];
 
 export default function SocialPage() {
@@ -48,7 +49,7 @@ export default function SocialPage() {
             are included with Premium.
           </p>
           <nav
-            className="grid grid-cols-2 border-b border-border"
+            className="grid grid-cols-3 border-b border-border"
             aria-label="Social sections"
           >
             {TABS.map(({ to, label, Icon }) => (

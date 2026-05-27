@@ -10,6 +10,7 @@ import LeaderboardPage from './pages/app/LeaderboardPage';
 import ProfilePage from './pages/app/ProfilePage';
 import PremiumPage from './pages/app/PremiumPage';
 import PrivateLeaguesPage from './pages/app/PrivateLeaguesPage';
+import DiscoverClubsPage from './pages/app/DiscoverClubsPage';
 import LeaguePage from './pages/app/LeaguePage';
 import FriendsPage from './pages/app/FriendsPage';
 import FriendProfilePage from './pages/app/FriendProfilePage';
@@ -340,6 +341,7 @@ function SessionRoutes() {
           <Route index element={<Navigate to="friends" replace />} />
           <Route path="friends" element={<FriendsPage embedded />} />
           <Route path="leagues" element={<PrivateLeaguesPage embedded />} />
+          <Route path="discover" element={<DiscoverClubsPage />} />
           <Route path="recovery" element={<Navigate to="/app/profile#recovery" replace />} />
         </Route>
         <Route path="/app/friends" element={<Navigate to="/app/social/friends" replace />} />
