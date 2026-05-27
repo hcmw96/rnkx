@@ -82,7 +82,7 @@ export default function LeaguePage() {
 
     const { data: memRows, error: memErr } = await supabase
       .from('private_league_members')
-      .select('athlete_id, athletes(id, username, avatar_url)')
+      .select('athlete_id, athletes!athlete_id(id, username, avatar_url)')
       .eq('league_id', leagueId)
       .eq('status', 'accepted');
 

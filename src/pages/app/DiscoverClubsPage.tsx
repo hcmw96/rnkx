@@ -4,6 +4,8 @@ import { supabase } from '@/services/supabase';
 import { toast } from 'sonner';
 import { resolveAthleteId } from '@/lib/resolveAthleteId';
 import { LeagueChevronLogo } from '@/components/leagues/LeagueChevronLogo';
+import { leagueCardBorderClass } from '@/components/leagues/PrivateLeagueCard';
+import { cn } from '@/lib/utils';
 
 type PublicClub = {
   id: string;
@@ -128,7 +130,12 @@ export default function DiscoverClubsPage() {
         <ul className="space-y-2">
           {clubs.map((club) => (
             <li key={club.id}>
-              <div className="flex items-center gap-2 rounded-lg border border-border/70 bg-[hsla(0,0%,10%,1)] px-2.5 py-2 shadow-sm">
+              <div
+                className={cn(
+                  'flex items-center gap-2 rounded-lg border bg-[hsla(0,0%,10%,1)] px-2.5 py-2 shadow-sm',
+                  leagueCardBorderClass(club.league_type === 'run' ? 'run' : 'engine'),
+                )}
+              >
                 <button
                   type="button"
                   onClick={() => navigate(`/app/leagues/${club.id}`)}

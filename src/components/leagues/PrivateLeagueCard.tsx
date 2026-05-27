@@ -3,10 +3,23 @@ import { cn } from '@/lib/utils';
 import { Link } from 'react-router-dom';
 import { LeagueChevronLogo } from '@/components/leagues/LeagueChevronLogo';
 
+export type ClubLeagueType = 'engine' | 'run';
+
+export function leagueCardBorderClass(leagueType?: ClubLeagueType | string | null): string {
+  if (leagueType === 'run') {
+    return 'border-electric-cyan/50 ring-1 ring-electric-cyan/20';
+  }
+  if (leagueType === 'engine') {
+    return 'border-neon-lime/50 ring-1 ring-neon-lime/20';
+  }
+  return 'border-border/70';
+}
+
 interface PrivateLeagueCardProps {
   id: string;
   name: string;
   memberCount: number;
+  leagueType?: ClubLeagueType;
   inviteCode?: string | null;
   conversationId?: string | null;
   imageUrl?: string | null;
@@ -27,11 +40,18 @@ export function PrivateLeagueCard({
   onAddFriend,
   onShareInvite,
   inviteCode,
+  leagueType = 'engine',
 }: PrivateLeagueCardProps) {
   const chatHref = conversationId ? `/app/chat/group/${conversationId}` : `/app/leagues/${id}`;
+  const isRun = leagueType === 'run';
 
   return (
-    <div className="flex items-center gap-2 rounded-lg border border-border/70 bg-[hsla(0,0%,10%,1)] px-2.5 py-2 shadow-sm">
+    <div
+      className={cn(
+        'flex items-center gap-2 rounded-lg border bg-[hsla(0,0%,10%,1)] px-2.5 py-2 shadow-sm',
+        leagueCardBorderClass(leagueType),
+      )}
+    >
       <Link to={`/app/leagues/${id}`} className="flex min-w-0 flex-1 items-center gap-2">
         <div className="relative h-9 w-9 shrink-0 overflow-hidden rounded-full border border-border/80 bg-[hsla(0,0%,14%,1)]">
           {imageUrl ? (
@@ -65,10 +85,13 @@ export function PrivateLeagueCard({
         </button>
         <Link
           to={chatHref}
-          className="rounded-lg p-2 text-secondary transition-colors hover:bg-muted/60"
+          className={cn(
+            'rounded-lg p-2 transition-colors hover:bg-muted/60',
+            isRun ? 'text-secondary' : 'text-primary',
+          )}
           aria-label="Club chat"
         >
-          <MessageCircle className="h-4 w-4 fill-secondary/20" />
+          <MessageCircle className={cn('h-4 w-4', isRun ? 'fill-secondary/20' : 'fill-primary/20')} />
         </Link>
       </div>
     </div>

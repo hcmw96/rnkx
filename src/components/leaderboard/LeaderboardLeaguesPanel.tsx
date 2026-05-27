@@ -12,6 +12,7 @@ type LeagueRow = {
   image_url: string | null;
   conversation_id: string | null;
   invite_code: string | null;
+  league_type: string;
 };
 
 export function LeaderboardLeaguesPanel() {
@@ -65,7 +66,7 @@ export function LeaderboardLeaguesPanel() {
 
     const { data: leagueRows, error: leagueErr } = await supabase
       .from('private_leagues')
-      .select('id, name, description, image_url, conversation_id, invite_code')
+      .select('id, name, description, image_url, conversation_id, invite_code, league_type')
       .in('id', leagueIds);
 
     if (leagueErr) {
@@ -126,6 +127,7 @@ export function LeaderboardLeaguesPanel() {
               <PrivateLeagueCard
                 id={league.id}
                 name={league.name}
+                leagueType={league.league_type === 'run' ? 'run' : 'engine'}
                 memberCount={memberCount}
                 imageUrl={league.image_url}
                 description={league.description}
