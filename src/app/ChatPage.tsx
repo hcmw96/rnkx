@@ -24,6 +24,8 @@ interface ChatItem {
   lastMessageAt: string;
   unread: boolean;
   link: string;
+  conversationId?: string;
+  friendId?: string;
 }
 
 export default function ChatPage() {
@@ -80,6 +82,7 @@ export default function ChatPage() {
     const rows = (Array.isArray(data) ? data : []) as Record<string, unknown>[];
     return rows.map((row) => {
       const r = row as {
+        conversation_id: string;
         friend_id: string;
         friend_username: string | null;
         friend_avatar_url: string | null;
@@ -88,14 +91,16 @@ export default function ChatPage() {
       };
       const lastMessageAt = r.last_message_at || new Date(0).toISOString();
       return {
-        id: `dm-${r.friend_id}`,
+        id: `dm-${r.conversation_id}`,
         type: "dm" as const,
         name: r.friend_username || "Unknown",
         avatar: r.friend_avatar_url || null,
         lastMessage: r.last_message || "No messages yet",
         lastMessageAt,
-        unread: isUnread(`dm-${r.friend_id}`, lastMessageAt),
+        unread: isUnread(`dm-${r.conversation_id}`, lastMessageAt),
         link: `/app/chat/${r.friend_id}`,
+        conversationId: r.conversation_id,
+        friendId: r.friend_id,
       };
     });
   }
@@ -163,20 +168,22 @@ export default function ChatPage() {
         "postgres_changes",
         { event: "INSERT", schema: "public", table: "conversation_messages" },
         (payload) => {
-          const newMsg = payload.new as { conversation_id: string; created_at: string; athlete_id: string };
+          const newMsg = payload.new as {
+            conversation_id: string;
+            created_at: string;
+            athlete_id: string;
+            content?: string | null;
+          };
           setItems((prev) => {
             const updated = prev.map((item) => {
-              const isMine = item.id.replace(/^(dm|group)-/, "") === newMsg.athlete_id;
-              if (isMine) return item;
-              // match dm or group by conversation key
               const convId = newMsg.conversation_id;
-              const matches =
-                item.id === `group-${convId}` ||
-                (item.type === "dm" && prev.some((i) => i.id === item.id));
+              const matches = item.id === `group-${convId}` || item.id === `dm-${convId}`;
               if (!matches) return item;
+              const isMine = athleteId != null && newMsg.athlete_id === athleteId;
+              if (isMine) return item;
               return {
                 ...item,
-                lastMessage: (newMsg as Record<string, unknown>).content as string || item.lastMessage,
+                lastMessage: newMsg.content || item.lastMessage,
                 lastMessageAt: newMsg.created_at,
                 unread: true,
               };
@@ -197,7 +204,8 @@ export default function ChatPage() {
 
   const existingDmFriendIds = items
     .filter((i) => i.type === "dm")
-    .map((i) => i.id.replace("dm-", ""));
+    .map((i) => i.friendId ?? "")
+    .filter(Boolean);
 
   return (
     <AppShell>

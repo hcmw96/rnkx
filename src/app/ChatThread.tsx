@@ -91,7 +91,7 @@ export default function ChatThread() {
 
       setConversationId(cid);
       await loadMessages(cid);
-      if (friendId) markConversationRead(`dm-${friendId}`);
+      markConversationRead(`dm-${cid}`);
       setThreadReady(true);
     }
 
@@ -123,7 +123,8 @@ export default function ChatThread() {
             if (prev.some((m) => m.id === msg.id)) return prev;
             return [...prev, msg];
           });
-          if (friendId) markConversationRead(`dm-${friendId}`);
+          // Thread is open, so any new message has been "seen".
+          markConversationRead(`dm-${conversationId}`);
         },
       )
       .subscribe();

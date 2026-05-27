@@ -9,6 +9,7 @@ import { ScoreSharePromptProvider } from '@/context/ScoreSharePromptContext';
 import LeaderboardPage from './pages/app/LeaderboardPage';
 import ProfilePage from './pages/app/ProfilePage';
 import PremiumPage from './pages/app/PremiumPage';
+import AdminPage from './pages/app/AdminPage';
 import PrivateLeaguesPage from './pages/app/PrivateLeaguesPage';
 import DiscoverClubsPage from './pages/app/DiscoverClubsPage';
 import LeaguePage from './pages/app/LeaguePage';
@@ -275,6 +276,18 @@ function SessionRoutes() {
               <Navigate to="/app" replace />
             ) : (
               <Onboarding />
+            )
+          }
+        />
+        <Route
+          path="/admin"
+          element={
+            !session ? (
+              <Navigate to="/auth" replace />
+            ) : !profileComplete ? (
+              <Navigate to="/onboarding" replace />
+            ) : (
+              <AdminPage />
             )
           }
         />

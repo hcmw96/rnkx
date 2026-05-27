@@ -25,6 +25,7 @@ function isSyncStale(lastSynced: string | null | undefined): boolean {
 }
 
 interface ActiveSeason {
+  id: string;
   name: string;
   ends_at: string | null;
 }
@@ -146,7 +147,7 @@ export default function Dashboard() {
           supabase.auth.getUser(),
           supabase
             .from('seasons')
-            .select('name,ends_at')
+            .select('id,name,ends_at')
             .eq('is_active', true)
             .maybeSingle(),
         ]);
@@ -158,6 +159,7 @@ export default function Dashboard() {
         return;
       }
 
+      const activeSeasonId = (seasonResult?.id as string | undefined) ?? null;
       if (seasonResult != null) {
         setSeason(seasonResult as ActiveSeason);
       } else {
@@ -178,16 +180,21 @@ export default function Dashboard() {
         return;
       }
 
-      const [{ data: statsData, error: statsError }, { data: athleteRow, error: athleteRowError }] =
+      const [{ data: statsRows, error: statsError }, { data: athleteRow, error: athleteRowError }] =
         await Promise.all([
+          activeSeasonId
+            ? supabase
+                .from('athlete_stats')
+                .select('category,score,rank')
+                .eq('athlete_id', userId)
+                .eq('season_id', activeSeasonId)
+                .in('category', ['engine', 'run'])
+            : Promise.resolve({ data: [], error: null }),
           supabase
-            .from('athlete_stats')
-            .select(
-              'engine_rank,run_rank,engine_score,run_score,total_score,engine_weekly_change,run_weekly_change,engine_places_to_promotion,run_places_to_promotion,engine_places_to_relegation,run_places_to_relegation,engine_division,run_division,selected_leagues'
-            )
-            .eq('athlete_id', userId)
+            .from('athletes')
+            .select('last_synced, wearables, max_hr, age, selected_leagues')
+            .eq('id', userId)
             .maybeSingle(),
-          supabase.from('athletes').select('last_synced, wearables, max_hr, age').eq('id', userId).maybeSingle(),
         ]);
 
       if (athleteRowError) {
@@ -201,7 +208,45 @@ export default function Dashboard() {
       if (statsError) {
         setError(statsError.message);
       } else {
-        setStats((statsData as AthleteStats | null) ?? null);
+        const rows = (statsRows ?? []) as {
+          category: string | null;
+          score: number | string | null;
+          rank: number | string | null;
+        }[];
+
+        let engineScore = 0;
+        let runScore = 0;
+        let engineRank: number | null = null;
+        let runRank: number | null = null;
+
+        for (const row of rows) {
+          const pts = row.score != null ? Number(row.score) : 0;
+          const r = row.rank != null ? Number(row.rank) : null;
+          if (row.category === 'engine') {
+            engineScore = Number.isFinite(pts) ? pts : 0;
+            engineRank = r != null && Number.isFinite(r) && r > 0 ? Math.round(r) : null;
+          } else if (row.category === 'run') {
+            runScore = Number.isFinite(pts) ? pts : 0;
+            runRank = r != null && Number.isFinite(r) && r > 0 ? Math.round(r) : null;
+          }
+        }
+
+        setStats({
+          engine_rank: engineRank,
+          run_rank: runRank,
+          engine_score: engineScore,
+          run_score: runScore,
+          total_score: engineScore + runScore,
+          engine_weekly_change: null,
+          run_weekly_change: null,
+          engine_places_to_promotion: null,
+          run_places_to_promotion: null,
+          engine_places_to_relegation: null,
+          run_places_to_relegation: null,
+          engine_division: null,
+          run_division: null,
+          selected_leagues: (athleteRow?.selected_leagues as string[] | null | undefined) ?? null,
+        });
       }
 
       const insightSince = new Date();
@@ -423,7 +468,7 @@ export default function Dashboard() {
                     <div className="min-w-0">
                       <p className="type-heading truncate">{activityLabel(activity.activity_type, leagueType)}</p>
                       <p className="type-meta mt-0.5">
-                        {new Date(`${activity.activity_date}T12:00:00`).toLocaleDateString()} · {duration} min
+                        {new Date(`${activity.activity_date}T12:00:00`).toLocaleDateString()} · {Math.round(duration)} min
                       </p>
                     </div>
                     <div className="ml-3 shrink-0 text-right">
