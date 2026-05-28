@@ -73,27 +73,11 @@ serve(async (req) => {
 
   const supabase = createClient(supabaseUrl, serviceKey);
 
-  let athlete: { id: string; user_id: string | null } | null = null;
-  let athErr: { message: string } | null = null;
-
-  const byUser = await supabase
+  const { data: athleteRows, error: athErr } = await supabase
     .from('athletes')
-    .select('id, user_id')
-    .eq('user_id', invitedUserId)
-    .maybeSingle();
-  if (byUser.error) {
-    athErr = byUser.error;
-  } else if (byUser.data?.id) {
-    athlete = byUser.data;
-  } else {
-    const byId = await supabase
-      .from('athletes')
-      .select('id, user_id')
-      .eq('id', invitedUserId)
-      .maybeSingle();
-    if (byId.error) athErr = byId.error;
-    else athlete = byId.data?.id ? byId.data : null;
-  }
+    .select('id')
+    .or(`id.eq.${invitedUserId},user_id.eq.${invitedUserId}`)
+    .limit(1);
 
   if (athErr) {
     console.error('[notify-league-invite] athlete lookup', athErr);
@@ -102,6 +86,7 @@ serve(async (req) => {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
   }
+  const athlete = (athleteRows ?? [])[0] as { id?: string } | undefined;
   if (!athlete?.id) {
     return new Response(JSON.stringify({ success: false, error: 'Athlete not found' }), {
       status: 404,
@@ -118,7 +103,7 @@ serve(async (req) => {
 
   const osPayload = {
     app_id: appId,
-    filters: [{ field: 'external_user_id', value: externalUserId }],
+    include_external_user_ids: [externalUserId],
     headings: { en: 'League Invitation' },
     contents: { en: contents },
     url: DEFAULT_LEAGUES_URL,
@@ -128,7 +113,7 @@ serve(async (req) => {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      Authorization: `Basic ${apiKey}`,
+      Authorization: `Key ${apiKey}`,
     },
     body: JSON.stringify(osPayload),
   });

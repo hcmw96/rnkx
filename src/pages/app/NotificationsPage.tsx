@@ -99,12 +99,16 @@ export default function NotificationsPage() {
     const pendingLeagueIds = [...new Set((pendingClubRows ?? []).map((r) => r.league_id as string))];
     if (pendingLeagueIds.length) {
       const { data: leagues } = await supabase.from('private_leagues').select('id, name, created_by').in('id', pendingLeagueIds);
+      const leagueMap = new Map((leagues ?? []).map((l) => [String(l.id), l]));
       setClubInvites(
-        (leagues ?? []).map((l) => ({
-          leagueId: l.id as string,
-          leagueName: (l.name as string) || 'Club',
-          createdBy: (l.created_by as string | null) ?? null,
-        })),
+        pendingLeagueIds.map((leagueId) => {
+          const l = leagueMap.get(leagueId) as { id?: string; name?: string; created_by?: string | null } | undefined;
+          return {
+            leagueId,
+            leagueName: (l?.name as string) || 'Club invitation',
+            createdBy: (l?.created_by as string | null) ?? null,
+          };
+        }),
       );
     } else {
       setClubInvites([]);

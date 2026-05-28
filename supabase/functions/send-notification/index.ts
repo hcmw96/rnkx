@@ -58,7 +58,7 @@ serve(async (req) => {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      Authorization: `Basic ${restApiKey}`,
+      Authorization: `Key ${restApiKey}`,
     },
     body: JSON.stringify(payload),
   });
