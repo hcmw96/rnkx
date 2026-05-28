@@ -1,11 +1,14 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
-import { ArrowLeft, Heart, Timer } from 'lucide-react';
+import { ArrowLeft, Calendar, Heart, Pencil, Timer, Trophy } from 'lucide-react';
 import { AppShell } from '@/components/app/AppShell';
 import { PremiumGate } from '@/components/PremiumGate';
 import { Button } from '@/components/ui/button';
+import { EditLeagueModal } from '@/components/leagues/EditLeagueModal';
 import { LeaderboardRows, type LeaderboardRowData } from '@/components/leaderboard/LeaderboardRows';
 import { clubImageDisplayUrl } from '@/lib/clubImageUpload';
+import { haptic } from '@/lib/haptics';
+import { cn } from '@/lib/utils';
 import { resolveAthleteId } from '@/lib/resolveAthleteId';
 import { supabase } from '@/services/supabase';
 import { toast } from 'sonner';
@@ -35,13 +38,35 @@ type RankedRow = {
   rank: number;
 };
 
+type ScoreTab = 'season' | 'overall';
+
+function seasonShortLabel(name: string | null | undefined): string {
+  if (!name?.trim()) return 'Current Season';
+  return name.includes(' - ') ? name.split(' - ')[0].trim() : name.trim();
+}
+
+function buildScoreMap(
+  rows: { athlete_id: string; score: unknown }[] | null | undefined,
+): Record<string, number> {
+  const map: Record<string, number> = {};
+  for (const row of rows ?? []) {
+    const id = row.athlete_id as string;
+    map[id] = (map[id] ?? 0) + Number(row.score ?? 0);
+  }
+  return map;
+}
+
 export default function LeaguePage() {
   const { leagueId } = useParams<{ leagueId: string }>();
   const [athleteId, setAthleteId] = useState<string | undefined>();
   const [authUserId, setAuthUserId] = useState<string | undefined>();
   const [league, setLeague] = useState<League | null>(null);
   const [members, setMembers] = useState<MemberRow[]>([]);
-  const [scoreByAthlete, setScoreByAthlete] = useState<Record<string, number>>({});
+  const [seasonScores, setSeasonScores] = useState<Record<string, number>>({});
+  const [overallScores, setOverallScores] = useState<Record<string, number>>({});
+  const [activeSeasonLabel, setActiveSeasonLabel] = useState('Current Season');
+  const [scoreTab, setScoreTab] = useState<ScoreTab>('season');
+  const [editOpen, setEditOpen] = useState(false);
   const [loading, setLoading] = useState(true);
   const membersRef = useRef<MemberRow[]>([]);
   membersRef.current = members;
@@ -102,22 +127,40 @@ export default function LeaguePage() {
       setMembers(memberList);
     }
 
-    const { data: season } = await supabase.from('seasons').select('id').eq('is_active', true).maybeSingle();
+    const category = leagueRow.league_type as string | undefined;
+    const { data: season } = await supabase
+      .from('seasons')
+      .select('id, name')
+      .eq('is_active', true)
+      .maybeSingle();
     const sid = (season?.id as string | undefined) ?? null;
-    if (sid && memberIds.length && leagueRow.league_type) {
-      const { data: stats } = await supabase
-        .from('athlete_stats')
-        .select('athlete_id, score')
-        .eq('season_id', sid)
-        .eq('category', leagueRow.league_type)
-        .in('athlete_id', memberIds);
-      const map: Record<string, number> = {};
-      for (const s of stats ?? []) {
-        map[s.athlete_id as string] = Number(s.score ?? 0);
-      }
-      setScoreByAthlete(map);
+    setActiveSeasonLabel(seasonShortLabel(typeof season?.name === 'string' ? season.name : null));
+
+    if (memberIds.length && category) {
+      const [seasonRes, overallRes] = await Promise.all([
+        sid
+          ? supabase
+              .from('athlete_stats')
+              .select('athlete_id, score')
+              .eq('season_id', sid)
+              .eq('category', category)
+              .in('athlete_id', memberIds)
+          : Promise.resolve({ data: [], error: null }),
+        supabase
+          .from('athlete_stats')
+          .select('athlete_id, score')
+          .eq('category', category)
+          .in('athlete_id', memberIds),
+      ]);
+
+      if (seasonRes.error) toast.error(seasonRes.error.message);
+      if (overallRes.error) toast.error(overallRes.error.message);
+
+      setSeasonScores(buildScoreMap(seasonRes.data as { athlete_id: string; score: unknown }[] | null));
+      setOverallScores(buildScoreMap(overallRes.data as { athlete_id: string; score: unknown }[] | null));
     } else {
-      setScoreByAthlete({});
+      setSeasonScores({});
+      setOverallScores({});
     }
 
     setLoading(false);
@@ -128,6 +171,9 @@ export default function LeaguePage() {
   }, [loadLeague]);
 
   const { isRefreshing, pullDistance, pullHandlers } = usePullToRefresh(loadLeague);
+
+  const scoreByAthlete = scoreTab === 'season' ? seasonScores : overallScores;
+  const isCreator = athleteId != null && league?.created_by === athleteId;
 
   const rankedRows = useMemo((): RankedRow[] => {
     return members
@@ -199,7 +245,6 @@ export default function LeaguePage() {
                   <div className="min-w-0 flex-1 space-y-1.5">
                     <h1 className="type-heading text-xl leading-tight">{league.name}</h1>
                     <div className="flex flex-wrap items-center gap-2">
-                      {/* League type badge — prominent */}
                       {league.league_type === 'engine' ? (
                         <span className="inline-flex items-center gap-1 rounded-full bg-primary/15 px-2.5 py-0.5 text-xs font-semibold text-primary">
                           <Heart className="h-3 w-3 fill-primary" />
@@ -216,13 +261,65 @@ export default function LeaguePage() {
                       </span>
                     </div>
                   </div>
+                  {isCreator ? (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="shrink-0 gap-1.5 border-border"
+                      onClick={() => setEditOpen(true)}
+                    >
+                      <Pencil className="h-3.5 w-3.5" aria-hidden />
+                      Edit
+                    </Button>
+                  ) : null}
                 </div>
-
               </header>
+
+              <div className="flex rounded-xl bg-muted/90 p-1" role="tablist" aria-label="Leaderboard timeframe">
+                <button
+                  type="button"
+                  role="tab"
+                  aria-selected={scoreTab === 'season'}
+                  onClick={() => {
+                    haptic('light');
+                    setScoreTab('season');
+                  }}
+                  className={cn(
+                    'flex flex-1 items-center justify-center gap-1.5 rounded-lg px-3 py-2.5 text-sm font-semibold transition-colors',
+                    scoreTab === 'season'
+                      ? 'bg-background text-foreground shadow-sm'
+                      : 'text-muted-foreground hover:text-foreground',
+                  )}
+                >
+                  <Calendar className="h-4 w-4 shrink-0" aria-hidden />
+                  {activeSeasonLabel}
+                </button>
+                <button
+                  type="button"
+                  role="tab"
+                  aria-selected={scoreTab === 'overall'}
+                  onClick={() => {
+                    haptic('light');
+                    setScoreTab('overall');
+                  }}
+                  className={cn(
+                    'flex flex-1 items-center justify-center gap-1.5 rounded-lg px-3 py-2.5 text-sm font-semibold transition-colors',
+                    scoreTab === 'overall'
+                      ? 'bg-background text-foreground shadow-sm'
+                      : 'text-muted-foreground hover:text-foreground',
+                  )}
+                >
+                  <Trophy className="h-4 w-4 shrink-0" aria-hidden />
+                  Overall
+                </button>
+              </div>
 
               {/* Leaderboard */}
               <div className="space-y-1">
-                <h2 className="type-section-label px-0.5 pb-1">Leaderboard</h2>
+                <h2 className="type-section-label px-0.5 pb-1">
+                  {scoreTab === 'season' ? `${activeSeasonLabel} leaderboard` : 'All-time leaderboard'}
+                </h2>
                 {rankedRows.length === 0 ? (
                   <p className="rounded-lg border border-dashed border-border p-5 text-center text-sm text-muted-foreground">
                     No members with scores yet.
@@ -236,6 +333,20 @@ export default function LeaguePage() {
                   />
                 )}
               </div>
+
+              {isCreator ? (
+                <EditLeagueModal
+                  open={editOpen}
+                  onOpenChange={setEditOpen}
+                  league={{
+                    id: league.id,
+                    name: league.name,
+                    image_url: league.image_url,
+                    is_public: league.is_public,
+                  }}
+                  onSaved={() => void loadLeague()}
+                />
+              ) : null}
             </>
           )}
         </section>

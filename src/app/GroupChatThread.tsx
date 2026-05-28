@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useParams, Link } from "react-router-dom";
+import { invokePushNotify } from "@/lib/pushNotify";
 import { supabase } from "@/services/supabase";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -15,6 +16,7 @@ import {
   type ChatMessageRow,
 } from "@/lib/chatMessages";
 import { toast } from "sonner";
+import { conversationUnreadKey, markConversationRead } from "@/lib/unreadMessages";
 
 interface Member {
   id: string;
@@ -83,6 +85,7 @@ export default function GroupChatThread() {
       }
 
       await loadMessages();
+      markConversationRead(conversationUnreadKey(conversationId));
     }
 
     void init();
@@ -113,6 +116,7 @@ export default function GroupChatThread() {
             if (prev.some((m) => m.id === msg.id)) return prev;
             return [...prev, msg];
           });
+          markConversationRead(conversationUnreadKey(conversationId));
         },
       )
       .subscribe();
@@ -146,6 +150,12 @@ export default function GroupChatThread() {
           return [...prev, inserted];
         });
       }
+
+      invokePushNotify("notify-new-message", {
+        conversation_id: conversationId,
+        sender_athlete_id: myAthleteId,
+        message_body: content,
+      });
     } catch (err) {
       const message = err instanceof Error ? err.message : "Could not send message";
       toast.error(message);

@@ -12,7 +12,7 @@ import { formatDistanceToNow } from "date-fns";
 import { Button } from "@/components/ui/button";
 import { usePullToRefresh } from "@/hooks/usePullToRefresh";
 import { toast } from "sonner";
-import { isUnread } from "@/lib/unreadMessages";
+import { conversationUnreadKey, isUnread, UNREAD_CHANGED_EVENT } from "@/lib/unreadMessages";
 import type { RealtimeChannel } from "@supabase/supabase-js";
 
 interface ChatItem {
@@ -67,6 +67,12 @@ export default function ChatPage() {
     void loadAll();
   }, [loadAll]);
 
+  useEffect(() => {
+    const refresh = () => void loadAll();
+    window.addEventListener(UNREAD_CHANGED_EVENT, refresh);
+    return () => window.removeEventListener(UNREAD_CHANGED_EVENT, refresh);
+  }, [loadAll]);
+
   const { isRefreshing, pullDistance, pullHandlers } = usePullToRefresh(loadAll);
 
   async function loadDMs(athleteId: string): Promise<ChatItem[]> {
@@ -97,7 +103,7 @@ export default function ChatPage() {
         avatar: r.friend_avatar_url || null,
         lastMessage: r.last_message || "No messages yet",
         lastMessageAt,
-        unread: isUnread(`dm-${r.conversation_id}`, lastMessageAt),
+        unread: isUnread(conversationUnreadKey(r.conversation_id), lastMessageAt),
         link: `/app/chat/${r.friend_id}`,
         conversationId: r.conversation_id,
         friendId: r.friend_id,
@@ -148,7 +154,7 @@ export default function ChatPage() {
         avatar: league?.image_url || null,
         lastMessage: lastMsg?.content || "No messages yet",
         lastMessageAt,
-        unread: isUnread(`group-${convo.id}`, lastMessageAt),
+        unread: isUnread(conversationUnreadKey(convo.id), lastMessageAt),
         link: `/app/chat/group/${convo.id}`,
       });
     }
@@ -200,7 +206,7 @@ export default function ChatPage() {
     return () => {
       void supabase.removeChannel(ch);
     };
-  }, []);
+  }, [athleteId]);
 
   const existingDmFriendIds = items
     .filter((i) => i.type === "dm")

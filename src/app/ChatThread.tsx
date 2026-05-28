@@ -17,7 +17,7 @@ import {
   type ChatMessageRow,
 } from "@/lib/chatMessages";
 import { toast } from "sonner";
-import { markConversationRead } from "@/lib/unreadMessages";
+import { conversationUnreadKey, markConversationRead } from "@/lib/unreadMessages";
 
 export default function ChatThread() {
   const { friendId } = useParams<{ friendId: string }>();
@@ -91,7 +91,7 @@ export default function ChatThread() {
 
       setConversationId(cid);
       await loadMessages(cid);
-      markConversationRead(`dm-${cid}`);
+      markConversationRead(conversationUnreadKey(cid));
       setThreadReady(true);
     }
 
@@ -124,7 +124,7 @@ export default function ChatThread() {
             return [...prev, msg];
           });
           // Thread is open, so any new message has been "seen".
-          markConversationRead(`dm-${conversationId}`);
+          markConversationRead(conversationUnreadKey(conversationId));
         },
       )
       .subscribe();
