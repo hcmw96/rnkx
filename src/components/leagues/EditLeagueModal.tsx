@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Camera, Globe, Loader2, Lock } from 'lucide-react';
+import { resolveAthleteId } from '@/lib/resolveAthleteId';
 import { supabase } from '@/services/supabase';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
@@ -63,28 +64,39 @@ export function EditLeagueModal({ open, onOpenChange, league, onSaved }: EditLea
         toast.error('Not signed in');
         return;
       }
+      const athleteId = await resolveAthleteId(user.id);
+      if (!athleteId) {
+        toast.error('Complete profile before editing clubs');
+        return;
+      }
 
       let imageUrl = league.image_url;
 
       if (imageFile) {
         const ext = imageFile.name.split('.').pop();
-        const path = `${user.id}/league-${league.id}.${ext}`;
+        const path = `${athleteId}/league-${league.id}-${Date.now()}.${ext}`;
         const { error: uploadErr } = await supabase.storage.from('avatars').upload(path, imageFile, { upsert: true });
         if (uploadErr) throw uploadErr;
         const { data: urlData } = supabase.storage.from('avatars').getPublicUrl(path);
         imageUrl = urlData.publicUrl;
       }
 
-      const { error } = await supabase
+      const { data: updated, error } = await supabase
         .from('private_leagues')
         .update({
           name: name.trim(),
           image_url: imageUrl,
           is_public: visibility === 'public',
         })
-        .eq('id', league.id);
+        .eq('id', league.id)
+        .eq('created_by', athleteId)
+        .select('id')
+        .maybeSingle();
 
       if (error) throw error;
+      if (!updated?.id) {
+        throw new Error('Could not save club changes (permission denied or club not found).');
+      }
       toast.success('Club updated');
       onSaved();
       onOpenChange(false);

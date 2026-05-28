@@ -1,17 +1,14 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
-import { ArrowLeft, Heart, Share2, Timer, UserPlus } from 'lucide-react';
+import { ArrowLeft, Heart, Timer } from 'lucide-react';
 import { AppShell } from '@/components/app/AppShell';
 import { PremiumGate } from '@/components/PremiumGate';
 import { Button } from '@/components/ui/button';
-import { EditLeagueModal } from '@/components/leagues/EditLeagueModal';
-import { InviteFriendModal } from '@/components/leagues/InviteFriendModal';
+import { LeaderboardRows, type LeaderboardRowData } from '@/components/leaderboard/LeaderboardRows';
 import { resolveAthleteId } from '@/lib/resolveAthleteId';
 import { supabase } from '@/services/supabase';
 import { toast } from 'sonner';
-import { shareLeagueInvite } from '@/lib/shareLeagueInvite';
 import { usePullToRefresh } from '@/hooks/usePullToRefresh';
-import { cn } from '@/lib/utils';
 
 type League = {
   id: string;
@@ -44,9 +41,7 @@ export default function LeaguePage() {
   const [league, setLeague] = useState<League | null>(null);
   const [members, setMembers] = useState<MemberRow[]>([]);
   const [scoreByAthlete, setScoreByAthlete] = useState<Record<string, number>>({});
-  const [editOpen, setEditOpen] = useState(false);
   const [loading, setLoading] = useState(true);
-  const [inviteOpen, setInviteOpen] = useState(false);
   const membersRef = useRef<MemberRow[]>([]);
   membersRef.current = members;
 
@@ -146,13 +141,20 @@ export default function LeaguePage() {
       .map((r, i) => ({ ...r, rank: i + 1 }));
   }, [members, scoreByAthlete]);
 
-  const isCreator = !!league && !!athleteId && league.created_by === athleteId;
-
-  const scoreColorClass = league?.league_type === 'run' ? 'text-secondary' : 'text-primary';
-  const selfBorderClass =
-    league?.league_type === 'run'
-      ? 'border-electric-cyan/50 ring-1 ring-electric-cyan/20'
-      : 'border-neon-lime/50 ring-1 ring-neon-lime/20';
+  const leaderboardRows = useMemo<LeaderboardRowData[]>(
+    () =>
+      rankedRows.map((row) => ({
+        id: row.athleteId,
+        rank: row.rank,
+        score: row.score,
+        displayName: row.username,
+        username: row.username,
+        country: null,
+        avatarUrl: row.avatar_url,
+      })),
+    [rankedRows],
+  );
+  const friendIds = useMemo(() => new Set(rankedRows.map((r) => r.athleteId)), [rankedRows]);
 
   return (
     <AppShell>
@@ -180,7 +182,7 @@ export default function LeaguePage() {
           ) : (
             <>
               {/* Header */}
-              <header className="space-y-2">
+              <header className="space-y-2 rounded-lg border border-border bg-card p-4">
                 <div className="flex items-start gap-3">
                   {league.image_url ? (
                     <img
@@ -190,7 +192,7 @@ export default function LeaguePage() {
                     />
                   ) : null}
                   <div className="min-w-0 flex-1 space-y-1.5">
-                    <h1 className="type-page-title leading-tight">{league.name}</h1>
+                    <h1 className="type-heading text-xl leading-tight">{league.name}</h1>
                     <div className="flex flex-wrap items-center gap-2">
                       {/* League type badge — prominent */}
                       {league.league_type === 'engine' ? (
@@ -211,35 +213,6 @@ export default function LeaguePage() {
                   </div>
                 </div>
 
-                <div className="flex flex-wrap gap-2">
-                  {isCreator ? (
-                    <Button type="button" variant="outline" size="sm" onClick={() => setEditOpen(true)}>
-                      Edit club
-                    </Button>
-                  ) : null}
-
-                  {/* Private clubs: creator/admin can add by username. Public clubs: no + button. */}
-                  {!league.is_public && isCreator ? (
-                    <Button type="button" variant="outline" size="sm" className="gap-1" onClick={() => setInviteOpen(true)}>
-                      <UserPlus className="h-3.5 w-3.5" />
-                      Add member
-                    </Button>
-                  ) : null}
-
-                  {/* Share invite link is available to all members with invite code. */}
-                  {league.invite_code ? (
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      className="gap-1"
-                      onClick={() => void shareLeagueInvite(league.name, league.invite_code!)}
-                    >
-                      <Share2 className="h-3.5 w-3.5" />
-                      Share invite link
-                    </Button>
-                  ) : null}
-                </div>
               </header>
 
               {/* Leaderboard */}
@@ -250,84 +223,14 @@ export default function LeaguePage() {
                     No members with scores yet.
                   </p>
                 ) : (
-                  <ul className="flex flex-col gap-1.5 px-0.5 pb-4">
-                    {rankedRows.map((row) => {
-                      const isSelf = row.athleteId === athleteId;
-                      const isFirst = row.rank === 1;
-                      const initial = row.username.charAt(0).toUpperCase();
-                      const pts = Math.round(row.score);
-
-                      return (
-                        <li key={row.athleteId}>
-                          <div
-                            className={cn(
-                              'flex items-center gap-2 rounded-lg border bg-[hsla(0,0%,10%,1)] px-2.5 py-2 shadow-sm',
-                              isSelf ? selfBorderClass : 'border-border/70',
-                            )}
-                          >
-                            <span
-                              className={cn(
-                                'type-rank w-9 shrink-0 text-center',
-                                isFirst ? 'text-neon-lime' : '!text-foreground',
-                              )}
-                            >
-                              {row.rank}
-                            </span>
-                            <div className="relative h-9 w-9 shrink-0 overflow-hidden rounded-full border border-border/80 bg-[hsla(0,0%,14%,1)]">
-                              {row.avatar_url ? (
-                                <img src={row.avatar_url} alt="" className="h-full w-full object-cover" />
-                              ) : (
-                                <span className="flex h-full w-full items-center justify-center text-xs font-semibold text-muted-foreground">
-                                  {initial}
-                                </span>
-                              )}
-                            </div>
-                            <div className="flex min-w-0 flex-1 items-center justify-between gap-3 pr-1">
-                              <p className="type-heading truncate">
-                                {row.username}
-                                {isSelf ? (
-                                  <span className="ml-1.5 text-xs font-normal text-muted-foreground">you</span>
-                                ) : null}
-                              </p>
-                              <p className={cn('shrink-0 whitespace-nowrap tabular-nums', scoreColorClass)}>
-                                <span className="text-lg font-bold">{pts.toLocaleString()}</span>
-                                <span className="ml-1 text-xs font-medium text-muted-foreground">pts</span>
-                              </p>
-                            </div>
-                          </div>
-                        </li>
-                      );
-                    })}
-                  </ul>
+                  <LeaderboardRows
+                    rows={leaderboardRows}
+                    league={league.league_type === 'run' ? 'run' : 'engine'}
+                    currentUserId={athleteId ?? null}
+                    friendIds={friendIds}
+                  />
                 )}
               </div>
-
-              {isCreator && league ? (
-                <EditLeagueModal
-                  open={editOpen}
-                  onOpenChange={setEditOpen}
-                  league={{
-                    id: league.id,
-                    name: league.name,
-                    image_url: league.image_url,
-                    is_public: league.is_public,
-                  }}
-                  onSaved={() => void loadLeague()}
-                />
-              ) : null}
-
-              {!league.is_public && isCreator && league ? (
-                <InviteFriendModal
-                  open={inviteOpen}
-                  onOpenChange={setInviteOpen}
-                  leagueId={league.id}
-                  leagueName={league.name}
-                  onInvited={() => {
-                    setInviteOpen(false);
-                    void loadLeague();
-                  }}
-                />
-              ) : null}
             </>
           )}
         </section>
