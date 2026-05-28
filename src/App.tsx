@@ -8,6 +8,7 @@ import { ProfileGateContext } from '@/context/ProfileGateContext';
 import { ScoreSharePromptProvider } from '@/context/ScoreSharePromptContext';
 import LeaderboardPage from './pages/app/LeaderboardPage';
 import ProfilePage from './pages/app/ProfilePage';
+import SettingsPage from './pages/app/SettingsPage';
 import PremiumPage from './pages/app/PremiumPage';
 import AdminPage from './pages/app/AdminPage';
 import PrivateLeaguesPage from './pages/app/PrivateLeaguesPage';
@@ -325,6 +326,18 @@ function SessionRoutes() {
           }
         />
         <Route
+          path="/app/settings"
+          element={
+            !session ? (
+              <Navigate to="/auth" replace />
+            ) : !profileComplete ? (
+              <Navigate to="/onboarding" replace />
+            ) : (
+              <SettingsPage />
+            )
+          }
+        />
+        <Route
           path="/app/how-it-works"
           element={
             !session ? (
@@ -352,7 +365,7 @@ function SessionRoutes() {
           <Route path="friends" element={<FriendsPage embedded />} />
           <Route path="leagues" element={<PrivateLeaguesPage embedded />} />
           <Route path="discover" element={<DiscoverClubsPage />} />
-          <Route path="recovery" element={<Navigate to="/app/profile#recovery" replace />} />
+          <Route path="recovery" element={<Navigate to="/app/settings#recovery" replace />} />
         </Route>
         <Route path="/app/friends" element={<Navigate to="/app/social/friends" replace />} />
         <Route
@@ -416,7 +429,7 @@ function SessionRoutes() {
           }
         />
         <Route path="/app/leagues" element={<Navigate to="/app/social/leagues" replace />} />
-        <Route path="/app/recovery" element={<Navigate to="/app/profile#recovery" replace />} />
+        <Route path="/app/recovery" element={<Navigate to="/app/settings#recovery" replace />} />
         <Route
           path="/app/leagues/:leagueId"
           element={

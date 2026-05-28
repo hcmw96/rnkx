@@ -40,7 +40,7 @@ export function AppHeaderActions() {
         )}
       </Link>
       <Link
-        to="/app/profile"
+        to="/app/settings"
         aria-label="Settings"
         className="rounded-lg p-2 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
         onClick={() => haptic('light')}
