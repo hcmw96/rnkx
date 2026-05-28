@@ -24,7 +24,9 @@ export function BottomNav() {
                 ? location.pathname.startsWith("/app/social") ||
                   location.pathname.startsWith("/app/friends") ||
                   location.pathname.startsWith("/app/leagues")
-                : location.pathname === path || location.pathname.startsWith(`${path}/`);
+                : path === "/app/profile"
+                  ? location.pathname === "/app/profile"
+                  : location.pathname === path || location.pathname.startsWith(`${path}/`);
           return (
             <Link
               key={path}

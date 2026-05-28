@@ -7,12 +7,14 @@ import {
   Lock,
   Medal,
   Sunrise,
+  Settings,
   Target,
   TrendingUp,
   Trophy,
   Zap,
   type LucideIcon,
 } from 'lucide-react';
+import { Link } from 'react-router-dom';
 import { format } from 'date-fns';
 import { toast } from 'sonner';
 import { AppShell } from '@/components/app/AppShell';
@@ -327,6 +329,14 @@ export default function ProfilePage() {
                 ))}
               </div>
             </article>
+
+            <Link
+              to="/app/settings"
+              className="flex items-center justify-center gap-2 rounded-xl border border-border bg-card py-3 text-sm font-medium text-muted-foreground transition-colors hover:border-neon-lime/40 hover:text-foreground"
+            >
+              <Settings className="h-4 w-4" aria-hidden />
+              Account &amp; device settings
+            </Link>
           </>
         )}
       </section>
