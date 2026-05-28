@@ -1,8 +1,9 @@
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
+import { buildOneSignalPayload } from '../_shared/onesignalPush.ts';
+
 const ONESIGNAL_API = 'https://onesignal.com/api/v1/notifications';
-const SOCIAL_URL = 'https://rnkx.netlify.app/app/social';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -53,7 +54,12 @@ serve(async (req) => {
     const requestId = crypto.randomUUID().slice(0, 8);
     console.log('[notify-new-message] start', { requestId });
 
-    async function notifyAthlete(receiverAthleteId: string, senderDisplay: string, previewRaw: string): Promise<void> {
+    async function notifyAthlete(
+      receiverAthleteId: string,
+      senderDisplay: string,
+      previewRaw: string,
+      path: string,
+    ): Promise<void> {
       const trimmedReceiver = receiverAthleteId.trim();
       if (!trimmedReceiver) return;
 
@@ -77,13 +83,13 @@ serve(async (req) => {
       const title = `${sanitize(senderDisplay, 60)} 💬`;
       const message = sanitize(previewRaw || 'New message', 200);
 
-      const payload = {
-        app_id: appId,
-        include_external_user_ids: [externalUserId],
-        headings: { en: title },
-        contents: { en: message },
-        url: SOCIAL_URL,
-      };
+      const payload = buildOneSignalPayload({
+        appId,
+        externalUserIds: [externalUserId],
+        title,
+        message,
+        path,
+      });
 
       const osRes = await fetch(ONESIGNAL_API, {
         method: 'POST',
@@ -153,13 +159,13 @@ serve(async (req) => {
       const preview = sanitize(messageBody, 200);
 
       for (const rid of recipientIds) {
-        await notifyAthlete(rid, senderDisplay, preview);
+        await notifyAthlete(rid, senderDisplay, preview, `/app/chat/group/${conversationId}`);
       }
 
       return json({ success: true });
     }
 
-    /** Direct / legacy: single receiver */
+    const senderAthleteId = typeof body.sender_athlete_id === 'string' ? body.sender_athlete_id.trim() : '';
     const receiverAthleteId =
       typeof body.receiver_athlete_id === 'string' ? body.receiver_athlete_id.trim() : '';
     const senderName = typeof body.sender_name === 'string' ? body.sender_name.trim() : 'Someone';
@@ -170,12 +176,18 @@ serve(async (req) => {
       return json({ success: true });
     }
 
+    const dmPath = senderAthleteId
+      ? `/app/chat/${senderAthleteId}`
+      : '/app/chat';
+
     console.log('[notify-new-message] direct payload', {
       requestId,
       receiverAthleteId,
+      senderAthleteId,
       previewLen: preview.length,
+      path: dmPath,
     });
-    await notifyAthlete(receiverAthleteId, senderName, preview || 'New message');
+    await notifyAthlete(receiverAthleteId, senderName, preview || 'New message', dmPath);
   } catch (e) {
     console.error('[notify-new-message]', e);
   }

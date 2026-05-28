@@ -145,7 +145,7 @@ export default function JoinLeaguePage() {
           athlete_id: creatorId,
           title: 'Club invite accepted',
           message: `Someone accepted your invite to ${preview.name}.`,
-          url: `https://rnkx.netlify.app/app/leagues/${preview.id}`,
+          path: `/app/leagues/${preview.id}`,
         });
       }
 

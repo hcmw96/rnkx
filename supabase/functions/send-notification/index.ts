@@ -1,8 +1,8 @@
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import { buildOneSignalPayload, pathFromUrl } from '../_shared/onesignalPush.ts';
 
 const ONESIGNAL_API = 'https://onesignal.com/api/v1/notifications';
-const DEFAULT_APP_URL = 'https://rnkx.netlify.app/app/dashboard';
 
 serve(async (req) => {
   if (req.method !== 'POST') {
@@ -23,7 +23,7 @@ serve(async (req) => {
     return new Response(JSON.stringify({ error: 'Server misconfiguration' }), { status: 500 });
   }
 
-  let body: { athlete_id?: string; title?: string; message?: string; url?: string };
+  let body: { athlete_id?: string; title?: string; message?: string; url?: string; path?: string };
   try {
     body = await req.json();
   } catch {
@@ -33,7 +33,12 @@ serve(async (req) => {
   const athleteId = typeof body.athlete_id === 'string' ? body.athlete_id.trim() : '';
   const title = typeof body.title === 'string' ? body.title.trim() : '';
   const message = typeof body.message === 'string' ? body.message.trim() : '';
-  const url = typeof body.url === 'string' && body.url.trim() !== '' ? body.url.trim() : DEFAULT_APP_URL;
+  const path =
+    typeof body.path === 'string' && body.path.trim() !== ''
+      ? body.path.trim()
+      : typeof body.url === 'string' && body.url.trim() !== ''
+        ? pathFromUrl(body.url.trim())
+        : '/app/notifications';
 
   if (!athleteId || !title || !message) {
     return new Response(JSON.stringify({ error: 'athlete_id, title, and message are required' }), { status: 400 });
@@ -46,13 +51,13 @@ serve(async (req) => {
   }
 
   // Target subscriptions linked via OneSignal.login(athlete_id) on the client.
-  const payload = {
-    app_id: appId,
-    include_external_user_ids: [athleteId],
-    headings: { en: title },
-    contents: { en: message },
-    url,
-  };
+  const payload = buildOneSignalPayload({
+    appId,
+    externalUserIds: [athleteId],
+    title,
+    message,
+    path,
+  });
 
   const osRes = await fetch(ONESIGNAL_API, {
     method: 'POST',

@@ -1,8 +1,8 @@
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import { buildOneSignalPayload } from '../_shared/onesignalPush.ts';
 
 const ONESIGNAL_API = 'https://onesignal.com/api/v1/notifications';
-const DEFAULT_LEAGUES_URL = 'https://rnkx.netlify.app/app/social';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -101,13 +101,15 @@ serve(async (req) => {
   const safeLeague = sanitize(leagueName, 80);
   const contents = `${safeInviter} invited you to join ${safeLeague}`;
 
-  const osPayload = {
-    app_id: appId,
-    include_external_user_ids: [externalUserId],
-    headings: { en: 'League Invitation' },
-    contents: { en: contents },
-    url: DEFAULT_LEAGUES_URL,
-  };
+  const invitePath = '/app/notifications';
+
+  const osPayload = buildOneSignalPayload({
+    appId,
+    externalUserIds: [externalUserId],
+    title: 'League Invitation',
+    message: contents,
+    path: invitePath,
+  });
 
   const osRes = await fetch(ONESIGNAL_API, {
     method: 'POST',

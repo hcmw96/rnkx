@@ -1,8 +1,8 @@
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import { buildOneSignalPayload } from '../_shared/onesignalPush.ts';
 
 const ONESIGNAL_API = 'https://onesignal.com/api/v1/notifications';
-const SOCIAL_URL = 'https://rnkx.netlify.app/app/social';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -68,7 +68,7 @@ serve(async (req) => {
 
     const { data: leagueRow, error: leagueErr } = await supabase
       .from('private_leagues')
-      .select('name')
+      .select('name, conversation_id')
       .eq('id', leagueId)
       .maybeSingle();
 
@@ -78,6 +78,8 @@ serve(async (req) => {
     }
 
     const leagueName = sanitize((leagueRow?.name as string | undefined) || 'League', 80);
+    const conversationId = String((leagueRow as { conversation_id?: string | null })?.conversation_id ?? '').trim();
+    const chatPath = conversationId ? `/app/chat/group/${conversationId}` : `/app/leagues/${leagueId}`;
 
     const { data: members, error: memErr } = await supabase
       .from('private_league_members')
@@ -111,13 +113,15 @@ serve(async (req) => {
         'Content-Type': 'application/json',
         Authorization: `Key ${apiKey}`,
       },
-      body: JSON.stringify({
-        app_id: appId,
-        include_external_user_ids: externalUserIds,
-        headings: { en: title },
-        contents: { en: message },
-        url: SOCIAL_URL,
-      }),
+      body: JSON.stringify(
+        buildOneSignalPayload({
+          appId,
+          externalUserIds,
+          title,
+          message,
+          path: chatPath,
+        }),
+      ),
     });
 
     const osJson = await osRes.json().catch(() => ({}));

@@ -120,7 +120,7 @@ export default function DiscoverClubsPage() {
           athlete_id: club.created_by,
           title: 'New club member',
           message: `Someone joined ${club.name}.`,
-          url: `https://rnkx.netlify.app/app/leagues/${club.id}`,
+          path: `/app/leagues/${club.id}`,
         });
       }
 

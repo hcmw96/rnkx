@@ -104,7 +104,7 @@ export function EditLeagueModal({ open, onOpenChange, league, onSaved }: EditLea
           athlete_id: memberId,
           title: 'Club updated',
           message: `${name.trim()} details were updated.`,
-          url: `https://rnkx.netlify.app/app/leagues/${league.id}`,
+          path: `/app/leagues/${league.id}`,
         });
       }
 

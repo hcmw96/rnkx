@@ -236,7 +236,7 @@ export default function NotificationsPage() {
           athlete_id: acceptedInvite.createdBy,
           title: 'Club invite accepted',
           message: `Someone accepted your invite to ${acceptedInvite.leagueName}.`,
-          url: `https://rnkx.netlify.app/app/leagues/${acceptedInvite.leagueId}`,
+          path: `/app/leagues/${acceptedInvite.leagueId}`,
         });
       }
       setClubInvites((prev) => prev.filter((c) => c.leagueId !== leagueId));
@@ -269,7 +269,7 @@ export default function NotificationsPage() {
           athlete_id: declinedInvite.createdBy,
           title: 'Club invite declined',
           message: `An invite to ${declinedInvite.leagueName} was declined.`,
-          url: `https://rnkx.netlify.app/app/leagues/${declinedInvite.leagueId}`,
+          path: `/app/leagues/${declinedInvite.leagueId}`,
         });
       }
 

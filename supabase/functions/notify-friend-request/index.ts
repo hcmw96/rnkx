@@ -1,8 +1,8 @@
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import { buildOneSignalPayload } from '../_shared/onesignalPush.ts';
 
 const ONESIGNAL_API = 'https://onesignal.com/api/v1/notifications';
-const SOCIAL_URL = 'https://rnkx.netlify.app/app/social';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -86,13 +86,15 @@ serve(async (req) => {
         'Content-Type': 'application/json',
         Authorization: `Key ${apiKey}`,
       },
-      body: JSON.stringify({
-        app_id: appId,
-        include_external_user_ids: [externalUserId],
-        headings: { en: title },
-        contents: { en: message },
-        url: SOCIAL_URL,
-      }),
+      body: JSON.stringify(
+        buildOneSignalPayload({
+          appId,
+          externalUserIds: [externalUserId],
+          title,
+          message,
+          path: '/app/notifications',
+        }),
+      ),
     });
 
     const osJson = await osRes.json().catch(() => ({}));

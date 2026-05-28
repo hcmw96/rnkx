@@ -27,6 +27,7 @@ import WhoopCallback from './pages/auth/WhoopCallback';
 import Onboarding from './pages/Onboarding';
 import HowItWorksPage from './pages/app/HowItWorksPage';
 import NotificationsPage from './pages/app/NotificationsPage';
+import { NotificationNavigationBridge } from '@/components/NotificationNavigationBridge';
 import {
   CookiesPageRoute,
   PrivacyPolicyPageRoute,
@@ -234,6 +235,7 @@ function SessionRoutes() {
   return (
     <ProfileGateContext.Provider value={{ refetchProfile }}>
       <ScoreSharePromptProvider authUserId={session?.user?.id} enabled={showApp}>
+      <NotificationNavigationBridge enabled={showApp} />
       {welcomeAthleteId && showWelcomeOverlay ? (
         <WelcomeModal
           athleteId={welcomeAthleteId}

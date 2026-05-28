@@ -201,7 +201,7 @@ export default function FriendsPage({ embedded = false }: FriendsPageProps) {
         athlete_id: row.athlete_id,
         title: 'Friend request accepted',
         message: `${row.requester.display_name || row.requester.username || 'Someone'} accepted your friend request.`,
-        url: 'https://rnkx.netlify.app/app/social/friends',
+        path: '/app/social/friends',
       });
     }
     void loadFriendsData();

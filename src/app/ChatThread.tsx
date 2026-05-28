@@ -162,6 +162,7 @@ export default function ChatThread() {
       if (friendId) {
         invokePushNotify("notify-new-message", {
           receiver_athlete_id: friendId,
+          sender_athlete_id: myAthleteId,
           sender_name: myDisplayName || "Someone",
           preview: content,
         });
