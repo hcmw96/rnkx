@@ -4,6 +4,7 @@ import { Bell, Check, MessageCircle, UserPlus, Users, X } from 'lucide-react';
 import { AppShell } from '@/components/app/AppShell';
 import { Button } from '@/components/ui/button';
 import { invokePushNotify } from '@/lib/pushNotify';
+import { isPushRegistered, registerPushForAthlete } from '@/services/onesignal';
 import { supabase } from '@/services/supabase';
 import { resolveAthleteId } from '@/lib/resolveAthleteId';
 import { conversationUnreadKey, isUnread } from '@/lib/unreadMessages';
@@ -26,6 +27,7 @@ type UnreadChatItem = {
 type ClubInviteItem = {
   leagueId: string;
   leagueName: string;
+  imageUrl: string | null;
   createdBy: string | null;
 };
 
@@ -36,6 +38,8 @@ export default function NotificationsPage() {
   const [friendRequests, setFriendRequests] = useState<FriendRequestItem[]>([]);
   const [clubInvites, setClubInvites] = useState<ClubInviteItem[]>([]);
   const [unreadChats, setUnreadChats] = useState<UnreadChatItem[]>([]);
+  const [pushRegistered, setPushRegistered] = useState<boolean | null>(null);
+  const [pushRegistering, setPushRegistering] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -59,6 +63,7 @@ export default function NotificationsPage() {
       return;
     }
     setAthleteId(aid);
+    void isPushRegistered().then(setPushRegistered);
 
     const [{ data: incRows }, { data: memberships }, { data: pendingClubRows }] = await Promise.all([
       supabase
@@ -98,14 +103,20 @@ export default function NotificationsPage() {
 
     const pendingLeagueIds = [...new Set((pendingClubRows ?? []).map((r) => r.league_id as string))];
     if (pendingLeagueIds.length) {
-      const { data: leagues } = await supabase.from('private_leagues').select('id, name, created_by').in('id', pendingLeagueIds);
+      const { data: leagues } = await supabase
+        .from('private_leagues')
+        .select('id, name, image_url, created_by')
+        .in('id', pendingLeagueIds);
       const leagueMap = new Map((leagues ?? []).map((l) => [String(l.id), l]));
       setClubInvites(
         pendingLeagueIds.map((leagueId) => {
-          const l = leagueMap.get(leagueId) as { id?: string; name?: string; created_by?: string | null } | undefined;
+          const l = leagueMap.get(leagueId) as
+            | { id?: string; name?: string; image_url?: string | null; created_by?: string | null }
+            | undefined;
           return {
             leagueId,
             leagueName: (l?.name as string) || 'Club invitation',
+            imageUrl: (l?.image_url as string | null) ?? null,
             createdBy: (l?.created_by as string | null) ?? null,
           };
         }),
@@ -265,6 +276,18 @@ export default function NotificationsPage() {
   };
 
   const empty = !loading && friendRequests.length === 0 && clubInvites.length === 0 && unreadChats.length === 0;
+  const showPushBanner = pushRegistered === false && typeof window !== 'undefined' && !!(window as Window & { despia?: unknown }).despia;
+
+  async function enablePush() {
+    if (!athleteId || pushRegistering) return;
+    setPushRegistering(true);
+    try {
+      await registerPushForAthlete(athleteId);
+      setPushRegistered(await isPushRegistered());
+    } finally {
+      setPushRegistering(false);
+    }
+  }
 
   return (
     <AppShell>
@@ -276,6 +299,18 @@ export default function NotificationsPage() {
           </p>
         </div>
 
+        {showPushBanner ? (
+          <div className="rounded-lg border border-amber-500/40 bg-amber-500/10 p-4 space-y-2">
+            <p className="text-sm font-medium">Push notifications are off</p>
+            <p className="text-xs text-muted-foreground">
+              Enable alerts for messages, friend requests, and club invites on this device.
+            </p>
+            <Button type="button" size="sm" disabled={pushRegistering} onClick={() => void enablePush()}>
+              {pushRegistering ? 'Enabling…' : 'Enable push notifications'}
+            </Button>
+          </div>
+        ) : null}
+
         {loading ? (
           <p className="text-sm text-muted-foreground">Loading…</p>
         ) : empty ? (
@@ -284,9 +319,11 @@ export default function NotificationsPage() {
               <Bell className="h-8 w-8 text-neon-lime" aria-hidden />
             </div>
             <p className="text-sm text-muted-foreground">You&apos;re all caught up.</p>
-            <Button type="button" variant="outline" className="border-border" asChild>
-              <Link to="/app/profile">Push settings in Profile</Link>
-            </Button>
+            {showPushBanner ? (
+              <Button type="button" variant="outline" className="border-border" disabled={pushRegistering} onClick={() => void enablePush()}>
+                Enable push notifications
+              </Button>
+            ) : null}
           </div>
         ) : (
           <div className="space-y-6">
@@ -320,8 +357,12 @@ export default function NotificationsPage() {
                 <ul className="space-y-2">
                   {clubInvites.map((invite) => (
                     <li key={invite.leagueId} className="flex items-center gap-3 rounded-lg border border-border bg-card p-3">
-                      <div className="flex h-10 w-10 items-center justify-center rounded-full bg-muted">
-                        <Users className="h-5 w-5 text-primary" aria-hidden />
+                      <div className="flex h-10 w-10 items-center justify-center overflow-hidden rounded-full bg-muted">
+                        {invite.imageUrl ? (
+                          <img src={invite.imageUrl} alt={invite.leagueName} className="h-full w-full object-cover" />
+                        ) : (
+                          <Users className="h-5 w-5 text-primary" aria-hidden />
+                        )}
                       </div>
                       <div className="min-w-0 flex-1">
                         <p className="type-heading truncate">{invite.leagueName}</p>

@@ -33,7 +33,7 @@ import {
   WaiverPageRoute,
 } from './pages/legal/StaticLegalPages';
 import { WelcomeModal } from '@/components/WelcomeModal';
-import { requestDespiaOneSignalPermissionOnce, setOneSignalExternalId } from './services/onesignal';
+import { registerPushForAthlete } from './services/onesignal';
 import { applyPremiumIfStoreHasEntitlement } from './services/revenuecat';
 import { supabase } from './services/supabase';
 
@@ -191,10 +191,9 @@ function SessionRoutes() {
       if (!athleteId) return;
 
       try {
-        await setOneSignalExternalId(athleteId);
-        await requestDespiaOneSignalPermissionOnce();
+        await registerPushForAthlete(athleteId);
       } catch (err) {
-        console.warn('[OneSignal] set external id failed', err);
+        console.warn('[OneSignal] register push failed', err);
       }
     })();
   }, [session?.user?.id]);
