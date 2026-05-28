@@ -128,7 +128,6 @@ export default function AdminPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const [activeSeasonId, setActiveSeasonId] = useState<string | null>(null);
   const [leaderboardRows, setLeaderboardRows] = useState<LeaderboardRow[]>([]);
   const [leaderboardTab, setLeaderboardTab] = useState<LeagueTab>('engine');
 
@@ -183,9 +182,6 @@ export default function AdminPage() {
           display_name?: string | null;
         }[] | null;
       };
-
-      const sid = (payload.season_id as string | undefined) ?? null;
-      setActiveSeasonId(sid);
 
       const athletesList = (payload.athletes as AthleteRow[] | null) ?? [];
       setAthletes(athletesList);
