@@ -89,3 +89,33 @@ export async function listConversationMessages(
 
   return { messages, error: null };
 }
+
+export type ConversationMemberRow = {
+  athlete_id: string;
+  username: string | null;
+  display_name: string | null;
+  avatar_url: string | null;
+};
+
+export function conversationMemberLabel(member: ConversationMemberRow | undefined): string {
+  const display = member?.display_name?.trim();
+  if (display) return display;
+  const username = member?.username?.trim();
+  if (username) return username;
+  return 'Unknown';
+}
+
+export async function listConversationMembers(
+  conversationId: string,
+): Promise<{ members: ConversationMemberRow[]; error: string | null }> {
+  const { data, error } = await supabase.rpc('list_conversation_members', {
+    p_conversation_id: conversationId,
+  });
+
+  if (error) {
+    return { members: [], error: error.message };
+  }
+
+  const rows = (Array.isArray(data) ? data : []) as ConversationMemberRow[];
+  return { members: rows.filter((row) => Boolean(row?.athlete_id)), error: null };
+}

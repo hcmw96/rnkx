@@ -11,17 +11,22 @@ import { ChatPremiumGate } from "@/components/chat/ChatPremiumGate";
 import { resolveAthleteId } from "@/lib/resolveAthleteId";
 import {
   chatMessageText,
+  conversationMemberLabel,
+  listConversationMembers,
   listConversationMessages,
   sendConversationMessage,
   type ChatMessageRow,
+  type ConversationMemberRow,
 } from "@/lib/chatMessages";
 import { toast } from "sonner";
 import { conversationUnreadKey, markConversationRead } from "@/lib/unreadMessages";
 
-interface Member {
+interface Member extends ConversationMemberRow {
   id: string;
-  username: string;
-  avatar_url: string | null;
+}
+
+function toMember(row: ConversationMemberRow): Member {
+  return { ...row, id: row.athlete_id };
 }
 
 export default function GroupChatThread() {
@@ -64,22 +69,14 @@ export default function GroupChatThread() {
         .single();
       if (conv) setGroupName(conv.name || "Group");
 
-      const { data: cms } = await supabase
-        .from("conversation_members")
-        .select("athlete_id")
-        .eq("conversation_id", conversationId);
-
-      if (cms) {
-        setMemberCount(cms.length);
-        const memberIds = cms.map((cm) => cm.athlete_id as string);
-        const { data: athletes } = await supabase
-          .from("athletes")
-          .select("id, username, avatar_url")
-          .in("id", memberIds);
-
+      const { members: memberRows, error: membersErr } = await listConversationMembers(conversationId);
+      if (membersErr) {
+        console.warn("[group-chat] list_conversation_members:", membersErr);
+      } else {
+        setMemberCount(memberRows.length);
         const memberMap = new Map<string, Member>();
-        for (const a of athletes ?? []) {
-          memberMap.set(a.id as string, a as Member);
+        for (const row of memberRows) {
+          memberMap.set(row.athlete_id, toMember(row));
         }
         setMembers(memberMap);
       }
@@ -196,12 +193,12 @@ export default function GroupChatThread() {
                       <img src={sender.avatar_url} alt="" className="w-full h-full object-cover" />
                     ) : (
                       <span className="text-caption flex items-center justify-center h-full text-muted-foreground">
-                        {sender?.username?.charAt(0).toUpperCase() || "?"}
+                        {conversationMemberLabel(sender).charAt(0).toUpperCase()}
                       </span>
                     )}
                   </div>
                   <span className="text-xs text-muted-foreground font-medium">
-                    {sender?.username || "Unknown"}
+                    {conversationMemberLabel(sender)}
                   </span>
                 </div>
               )}
