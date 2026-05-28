@@ -50,6 +50,9 @@ serve(async (req) => {
 
     const supabase = createClient(supabaseUrl, serviceKey);
 
+    const requestId = crypto.randomUUID().slice(0, 8);
+    console.log('[notify-new-message] start', { requestId });
+
     async function notifyAthlete(receiverAthleteId: string, senderDisplay: string, previewRaw: string): Promise<void> {
       const trimmedReceiver = receiverAthleteId.trim();
       if (!trimmedReceiver) return;
@@ -74,22 +77,33 @@ serve(async (req) => {
       const title = `${sanitize(senderDisplay, 60)} 💬`;
       const message = sanitize(previewRaw || 'New message', 200);
 
+      const payload = {
+        app_id: appId,
+        include_external_user_ids: [externalUserId],
+        headings: { en: title },
+        contents: { en: message },
+        url: SOCIAL_URL,
+      };
+
       const osRes = await fetch(ONESIGNAL_API, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           Authorization: `Key ${apiKey}`,
         },
-        body: JSON.stringify({
-          app_id: appId,
-          include_external_user_ids: [externalUserId],
-          headings: { en: title },
-          contents: { en: message },
-          url: SOCIAL_URL,
-        }),
+        body: JSON.stringify(payload),
       });
 
       const osJson = await osRes.json().catch(() => ({}));
+      console.log('[notify-new-message] onesignal result', {
+        requestId,
+        receiverAthleteId: trimmedReceiver,
+        externalUserId,
+        status: osRes.status,
+        ok: osRes.ok,
+        oneSignalId: (osJson as { id?: unknown }).id ?? null,
+        errors: (osJson as { errors?: unknown }).errors ?? null,
+      });
       if (!osRes.ok) {
         console.error('[notify-new-message] OneSignal', osRes.status, osJson);
       }
@@ -101,6 +115,12 @@ serve(async (req) => {
     const messageBody = typeof body.message_body === 'string' ? body.message_body.trim() : '';
 
     if (conversationId && senderAthleteId && messageBody) {
+      console.log('[notify-new-message] group payload', {
+        requestId,
+        conversationId,
+        senderAthleteId,
+        previewLen: messageBody.length,
+      });
       const { data: rows, error: memErr } = await supabase
         .from('conversation_members')
         .select('athlete_id')
@@ -114,6 +134,11 @@ serve(async (req) => {
       const recipientIds = [...new Set((rows ?? []).map((r) => String((r as { athlete_id?: string }).athlete_id ?? '')))].filter(
         (id) => id.length > 0 && id !== senderAthleteId,
       );
+      console.log('[notify-new-message] group recipients', {
+        requestId,
+        recipientCount: recipientIds.length,
+        recipientIds,
+      });
 
       const { data: senderRow } = await supabase
         .from('athletes')
@@ -145,6 +170,11 @@ serve(async (req) => {
       return json({ success: true });
     }
 
+    console.log('[notify-new-message] direct payload', {
+      requestId,
+      receiverAthleteId,
+      previewLen: preview.length,
+    });
     await notifyAthlete(receiverAthleteId, senderName, preview || 'New message');
   } catch (e) {
     console.error('[notify-new-message]', e);

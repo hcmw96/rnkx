@@ -178,13 +178,13 @@ function SessionRoutes() {
   }, [session?.user?.id, profileComplete]);
 
   useEffect(() => {
-    if (!session?.user || !profileComplete) return;
+    if (!session?.user) return;
 
     const uid = session.user.id;
     void (async () => {
       const [byUserId, byId] = await Promise.all([
-        supabase.from('athletes').select('id').eq('user_id', uid).not('username', 'is', null).maybeSingle(),
-        supabase.from('athletes').select('id').eq('id', uid).not('username', 'is', null).maybeSingle(),
+        supabase.from('athletes').select('id').eq('user_id', uid).maybeSingle(),
+        supabase.from('athletes').select('id').eq('id', uid).maybeSingle(),
       ]);
       // athletes.id — same external_user_id server-side pushes must target
       const athleteId = (byUserId.data?.id ?? byId.data?.id) as string | undefined;
@@ -197,7 +197,7 @@ function SessionRoutes() {
         console.warn('[OneSignal] set external id failed', err);
       }
     })();
-  }, [session?.user?.id, profileComplete]);
+  }, [session?.user?.id]);
 
   useEffect(() => {
     if (!session?.user?.id || !profileComplete) {
