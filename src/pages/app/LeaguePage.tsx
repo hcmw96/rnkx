@@ -5,6 +5,7 @@ import { AppShell } from '@/components/app/AppShell';
 import { PremiumGate } from '@/components/PremiumGate';
 import { Button } from '@/components/ui/button';
 import { LeaderboardRows, type LeaderboardRowData } from '@/components/leaderboard/LeaderboardRows';
+import { clubImageDisplayUrl } from '@/lib/clubImageUpload';
 import { resolveAthleteId } from '@/lib/resolveAthleteId';
 import { supabase } from '@/services/supabase';
 import { toast } from 'sonner';
@@ -155,6 +156,10 @@ export default function LeaguePage() {
     [rankedRows],
   );
   const friendIds = useMemo(() => new Set(rankedRows.map((r) => r.athleteId)), [rankedRows]);
+  const leagueImageUrl = useMemo(
+    () => (league ? clubImageDisplayUrl(league.image_url, league.id) : null),
+    [league],
+  );
 
   return (
     <AppShell>
@@ -184,9 +189,9 @@ export default function LeaguePage() {
               {/* Header */}
               <header className="space-y-2 rounded-lg border border-border bg-card p-4">
                 <div className="flex items-start gap-3">
-                  {league.image_url ? (
+                  {leagueImageUrl ? (
                     <img
-                      src={league.image_url}
+                      src={leagueImageUrl}
                       alt=""
                       className="h-14 w-14 shrink-0 rounded-xl object-cover"
                     />

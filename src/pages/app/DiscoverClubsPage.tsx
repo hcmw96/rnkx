@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/services/supabase';
 import { toast } from 'sonner';
+import { clubImageDisplayUrl } from '@/lib/clubImageUpload';
 import { resolveAthleteId } from '@/lib/resolveAthleteId';
 import { LeagueChevronLogo } from '@/components/leagues/LeagueChevronLogo';
 import { leagueCardBorderClass } from '@/components/leagues/PrivateLeagueCard';
@@ -142,8 +143,12 @@ export default function DiscoverClubsPage() {
                   className="flex min-w-0 flex-1 items-center gap-2 text-left"
                 >
                   <div className="relative h-9 w-9 shrink-0 overflow-hidden rounded-full border border-border/80 bg-[hsla(0,0%,14%,1)]">
-                    {club.image_url ? (
-                      <img src={club.image_url} alt={club.name} className="h-full w-full object-cover" />
+                    {clubImageDisplayUrl(club.image_url, club.id) ? (
+                      <img
+                        src={clubImageDisplayUrl(club.image_url, club.id)!}
+                        alt={club.name}
+                        className="h-full w-full object-cover"
+                      />
                     ) : (
                       <LeagueChevronLogo className="h-full w-full" />
                     )}

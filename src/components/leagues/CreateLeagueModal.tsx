@@ -4,6 +4,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { uploadClubImageFile, saveClubImageUrl } from '@/lib/clubImageUpload';
 import { supabase } from '@/services/supabase';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
@@ -17,37 +18,6 @@ interface CreateLeagueModalProps {
 }
 
 type ClubVisibility = 'private' | 'public';
-
-const UPLOAD_TIMEOUT_MS = 25_000;
-
-async function uploadClubImage(
-  athleteId: string,
-  leagueId: string,
-  file: File,
-): Promise<{ publicUrl: string | null; error: string | null }> {
-  const ext =
-    file.name.split('.').pop()?.toLowerCase() ||
-    (file.type === 'image/png' ? 'png' : file.type === 'image/webp' ? 'webp' : 'jpg');
-  const path = `${athleteId}/league-${leagueId}.${ext}`;
-
-  const uploadPromise = supabase.storage.from('avatars').upload(path, file, {
-    upsert: true,
-    contentType: file.type || 'image/jpeg',
-    cacheControl: '3600',
-  });
-
-  const timeoutPromise = new Promise<{ data: null; error: { message: string } }>((resolve) => {
-    setTimeout(() => resolve({ data: null, error: { message: 'Upload timed out' } }), UPLOAD_TIMEOUT_MS);
-  });
-
-  const { error: uploadError } = await Promise.race([uploadPromise, timeoutPromise]);
-  if (uploadError) {
-    return { publicUrl: null, error: uploadError.message };
-  }
-
-  const { data: pub } = supabase.storage.from('avatars').getPublicUrl(path);
-  return { publicUrl: pub.publicUrl, error: null };
-}
 
 export function CreateLeagueModal({
   athleteId,
@@ -118,16 +88,13 @@ export function CreateLeagueModal({
 
       if (imageFile) {
         setUploading(true);
-        const { publicUrl, error: uploadErr } = await uploadClubImage(athleteId, leagueId, imageFile);
+        const { publicUrl, error: uploadErr } = await uploadClubImageFile(athleteId, leagueId, imageFile);
         if (uploadErr || !publicUrl) {
           toast.error(uploadErr ?? 'Image upload failed — club was created without a photo.');
         } else {
-          const { error: imageUpdateErr } = await supabase
-            .from('private_leagues')
-            .update({ image_url: publicUrl })
-            .eq('id', leagueId);
-          if (imageUpdateErr) {
-            toast.error('Club created but photo could not be saved.');
+          const { ok, error: saveErr } = await saveClubImageUrl(leagueId, athleteId, publicUrl);
+          if (!ok) {
+            toast.error(saveErr ?? 'Club created but photo could not be saved.');
           }
         }
       }

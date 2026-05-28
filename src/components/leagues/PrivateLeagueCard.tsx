@@ -2,6 +2,7 @@ import { MessageCircle, Share2, UserPlus } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Link } from 'react-router-dom';
 import { LeagueChevronLogo } from '@/components/leagues/LeagueChevronLogo';
+import { clubImageDisplayUrl } from '@/lib/clubImageUpload';
 
 export type ClubLeagueType = 'engine' | 'run';
 
@@ -47,6 +48,7 @@ export function PrivateLeagueCard({
 }: PrivateLeagueCardProps) {
   const chatHref = conversationId ? `/app/chat/group/${conversationId}` : `/app/leagues/${id}`;
   const isRun = leagueType === 'run';
+  const displayImageUrl = clubImageDisplayUrl(imageUrl, id);
 
   return (
     <div
@@ -57,8 +59,8 @@ export function PrivateLeagueCard({
     >
       <Link to={`/app/leagues/${id}`} className="flex min-w-0 flex-1 items-center gap-2">
         <div className="relative h-9 w-9 shrink-0 overflow-hidden rounded-full border border-border/80 bg-[hsla(0,0%,14%,1)]">
-          {imageUrl ? (
-            <img src={imageUrl} alt={name} className="h-full w-full object-cover" />
+          {displayImageUrl ? (
+            <img src={displayImageUrl} alt={name} className="h-full w-full object-cover" />
           ) : (
             <LeagueChevronLogo className="h-full w-full" />
           )}
