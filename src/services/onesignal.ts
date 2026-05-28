@@ -1,112 +1,89 @@
 import despia from 'despia-native';
-import OneSignal from 'react-onesignal';
-import { isDespiaIphoneUa } from '@/lib/despiaPlatform';
-
-const PUSH_PERMISSION_PROMPT_KEY = 'rnkx_onesignal_permission_prompted';
-
-let initPromise: Promise<void> | null = null;
-
-function isNativeDespia(): boolean {
-  return typeof window !== 'undefined' && !!(window as Window & { despia?: unknown }).despia;
-}
-
-export async function initOneSignal(): Promise<void> {
-  if (initPromise) return initPromise;
-  initPromise = (async () => {
-    try {
-      if (!window.despia) return; // Skip on web browser
-      await OneSignal.init({
-        appId: '54875193-0dd4-48a1-89f6-d8d15db085c8',
-        allowLocalhostAsSecureOrigin: true,
-      });
-    } catch (err) {
-      console.warn('OneSignal init failed:', err);
-    }
-  })();
-  return initPromise;
-}
 
 /**
- * Registers the device with OneSignal using the athlete row primary key.
- * Must be `athletes.id` (UUID), never `auth.users.id` / `athletes.user_id`.
+ * Despia native push — https://setup.despia.com/native-features/onesignal
+ * Link the device with setonesignalplayerid on every authenticated load.
+ * Backend targets the same id via include_external_user_ids (athletes.id).
  */
-export async function setOneSignalExternalId(athleteId: string): Promise<void> {
-  await registerPushForAthlete(athleteId);
+
+export function isDespiaNative(): boolean {
+  if (typeof navigator === 'undefined') return false;
+  return navigator.userAgent.toLowerCase().includes('despia');
 }
 
-/** True when native app has an active push subscription for the logged-in athlete. */
-export async function isPushRegistered(): Promise<boolean> {
-  if (!isNativeDespia()) return false;
+type NativePushPermissionResult = {
+  nativePushEnabled?: boolean;
+};
+
+/** Whether iOS/Android has granted push permission for this app. */
+export async function checkNativePushEnabled(): Promise<boolean | null> {
+  if (!isDespiaNative()) return null;
   try {
-    await initOneSignal();
-    const sub = OneSignal.User.PushSubscription;
-    return Boolean(sub.optedIn && sub.id);
-  } catch {
+    const result = await despia('checkNativePushPermissions://', ['nativePushEnabled']);
+    return Boolean((result as NativePushPermissionResult)?.nativePushEnabled);
+  } catch (err) {
+    console.warn('[OneSignal] checkNativePushPermissions failed:', err);
     return false;
   }
 }
 
+/** Opens the app’s notification settings (use when permission was denied). */
+export function openNotificationSettings(): void {
+  if (!isDespiaNative()) return;
+  void despia('settingsapp://');
+}
+
 /**
- * Links this device to `athletes.id` and ensures push is opted in.
- * Call on every authenticated session — OneSignal only delivers when the recipient is subscribed.
+ * Links this device to athletes.id in OneSignal (external_id).
+ * Call on every authenticated session per Despia docs.
  */
 export async function registerPushForAthlete(athleteId: string): Promise<void> {
-  if (!isNativeDespia()) return;
+  if (!isDespiaNative()) return;
 
-  await initOneSignal();
-  await OneSignal.login(athleteId);
+  const userId = athleteId.trim();
+  if (!userId) return;
 
-  const subscribed = Boolean(OneSignal.User.PushSubscription.optedIn && OneSignal.User.PushSubscription.id);
+  await despia(`setonesignalplayerid://?user_id=${encodeURIComponent(userId)}`);
 
-  if (!subscribed) {
-    await requestNativePushPermission();
+  let nativePushEnabled = await checkNativePushEnabled();
+
+  if (nativePushEnabled === false) {
     try {
-      await OneSignal.User.PushSubscription.optIn();
+      await despia('registerpush://');
+      nativePushEnabled = await checkNativePushEnabled();
     } catch (err) {
-      console.warn('[OneSignal] optIn failed:', err);
+      console.warn('[OneSignal] registerpush failed:', err);
     }
   }
 
-  console.log('[OneSignal] register', {
-    athleteId,
-    externalId: OneSignal.User.externalId ?? null,
-    optedIn: OneSignal.User.PushSubscription.optedIn ?? false,
-    subscriptionId: OneSignal.User.PushSubscription.id ?? null,
-  });
+  console.log('[OneSignal] linked', { athleteId: userId, nativePushEnabled });
 }
 
-async function requestNativePushPermission(): Promise<void> {
-  if (!isDespiaIphoneUa()) return;
-
-  const alreadyPrompted = localStorage.getItem(PUSH_PERMISSION_PROMPT_KEY) === '1';
-
-  if (!alreadyPrompted) {
-    try {
-      await despia('onesignal://requestPermission', ['oneSignalResponse']);
-      localStorage.setItem(PUSH_PERMISSION_PROMPT_KEY, '1');
-      return;
-    } catch (err) {
-      console.warn('[OneSignal] Despia permission request failed:', err);
-    }
-  }
-
-  try {
-    await OneSignal.Notifications.requestPermission();
-  } catch (err) {
-    console.warn('[OneSignal] SDK permission request failed:', err);
-  }
+/** @deprecated Despia registers the native SDK at launch — no web init required. */
+export async function initOneSignal(): Promise<void> {
+  return;
 }
 
+export async function setOneSignalExternalId(athleteId: string): Promise<void> {
+  await registerPushForAthlete(athleteId);
+}
+
+export async function isPushRegistered(): Promise<boolean> {
+  const enabled = await checkNativePushEnabled();
+  return enabled === true;
+}
+
+/** Request permission (custom flows / when auto-registration is off in Despia dashboard). */
 export async function requestNotificationPermission(): Promise<boolean> {
-  return OneSignal.Notifications.requestPermission();
+  if (!isDespiaNative()) return false;
+  try {
+    await despia('registerpush://');
+  } catch (err) {
+    console.warn('[OneSignal] registerpush failed:', err);
+  }
+  return (await checkNativePushEnabled()) === true;
 }
 
-/**
- * Despia native OneSignal permission prompt (iOS). Runs at most once per device.
- * @deprecated Prefer `registerPushForAthlete`, which re-attempts until subscribed.
- */
 export async function requestDespiaOneSignalPermissionOnce(): Promise<void> {
-  if (!isNativeDespia() || !isDespiaIphoneUa()) return;
-  if (localStorage.getItem(PUSH_PERMISSION_PROMPT_KEY) === '1') return;
-  await requestNativePushPermission();
+  await requestNotificationPermission();
 }

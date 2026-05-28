@@ -4,7 +4,14 @@ import { Bell, Check, MessageCircle, UserPlus, Users, X } from 'lucide-react';
 import { AppShell } from '@/components/app/AppShell';
 import { Button } from '@/components/ui/button';
 import { invokePushNotify } from '@/lib/pushNotify';
-import { isPushRegistered, registerPushForAthlete } from '@/services/onesignal';
+import {
+  checkNativePushEnabled,
+  isDespiaNative,
+  isPushRegistered,
+  openNotificationSettings,
+  registerPushForAthlete,
+  requestNotificationPermission,
+} from '@/services/onesignal';
 import { supabase } from '@/services/supabase';
 import { resolveAthleteId } from '@/lib/resolveAthleteId';
 import { conversationUnreadKey, isUnread } from '@/lib/unreadMessages';
@@ -276,14 +283,22 @@ export default function NotificationsPage() {
   };
 
   const empty = !loading && friendRequests.length === 0 && clubInvites.length === 0 && unreadChats.length === 0;
-  const showPushBanner = pushRegistered === false && typeof window !== 'undefined' && !!(window as Window & { despia?: unknown }).despia;
+  const showPushBanner = isDespiaNative() && pushRegistered === false;
 
-  async function enablePush() {
+  async function enablePush(openSettingsIfNeeded = true) {
     if (!athleteId || pushRegistering) return;
     setPushRegistering(true);
     try {
-      await registerPushForAthlete(athleteId);
-      setPushRegistered(await isPushRegistered());
+      if (athleteId) await registerPushForAthlete(athleteId);
+      let enabled = await checkNativePushEnabled();
+      if (!enabled) {
+        await requestNotificationPermission();
+        enabled = await checkNativePushEnabled();
+      }
+      if (!enabled && openSettingsIfNeeded) {
+        openNotificationSettings();
+      }
+      setPushRegistered(enabled === true);
     } finally {
       setPushRegistering(false);
     }
@@ -305,9 +320,20 @@ export default function NotificationsPage() {
             <p className="text-xs text-muted-foreground">
               Enable alerts for messages, friend requests, and club invites on this device.
             </p>
-            <Button type="button" size="sm" disabled={pushRegistering} onClick={() => void enablePush()}>
-              {pushRegistering ? 'Enabling…' : 'Enable push notifications'}
-            </Button>
+            <div className="flex flex-wrap gap-2">
+              <Button type="button" size="sm" disabled={pushRegistering} onClick={() => void enablePush(true)}>
+                {pushRegistering ? 'Enabling…' : 'Enable notifications'}
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                disabled={pushRegistering}
+                onClick={() => openNotificationSettings()}
+              >
+                Open Settings
+              </Button>
+            </div>
           </div>
         ) : null}
 
@@ -320,8 +346,8 @@ export default function NotificationsPage() {
             </div>
             <p className="text-sm text-muted-foreground">You&apos;re all caught up.</p>
             {showPushBanner ? (
-              <Button type="button" variant="outline" className="border-border" disabled={pushRegistering} onClick={() => void enablePush()}>
-                Enable push notifications
+              <Button type="button" variant="outline" className="border-border" disabled={pushRegistering} onClick={() => void enablePush(true)}>
+                Enable notifications
               </Button>
             ) : null}
           </div>

@@ -15,6 +15,13 @@ declare global {
     };
     /** Despia native bridge: called after a RevenueCat purchase completes. */
     onRevenueCatPurchase?: () => void | Promise<void>;
+    /** Despia OneSignal: fired when user taps a push notification. */
+    onNotificationEvent?: (payload: {
+      type?: string;
+      path?: string;
+      url?: string;
+      metadata?: unknown;
+    }) => void;
   }
 }
 
