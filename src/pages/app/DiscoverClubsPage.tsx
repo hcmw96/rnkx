@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { invokePushNotify } from '@/lib/pushNotify';
 import { supabase } from '@/services/supabase';
 import { toast } from 'sonner';
 import { clubImageDisplayUrl } from '@/lib/clubImageUpload';
@@ -11,6 +12,7 @@ import { cn } from '@/lib/utils';
 type PublicClub = {
   id: string;
   name: string;
+  created_by: string;
   image_url: string | null;
   league_type: string;
   conversation_id: string | null;
@@ -39,7 +41,7 @@ export default function DiscoverClubsPage() {
 
     const { data: publicLeagues, error } = await supabase
       .from('private_leagues')
-      .select('id, name, image_url, league_type, conversation_id')
+      .select('id, name, created_by, image_url, league_type, conversation_id')
       .eq('is_public', true)
       .order('name');
 
@@ -80,6 +82,7 @@ export default function DiscoverClubsPage() {
       (publicLeagues ?? []).map((l) => ({
         id: l.id as string,
         name: l.name as string,
+        created_by: l.created_by as string,
         image_url: l.image_url as string | null,
         league_type: l.league_type as string,
         conversation_id: l.conversation_id as string | null,
@@ -110,6 +113,15 @@ export default function DiscoverClubsPage() {
       if (memErr) {
         toast.error(memErr.message);
         return;
+      }
+
+      if (club.created_by !== athleteId) {
+        invokePushNotify('send-notification', {
+          athlete_id: club.created_by,
+          title: 'New club member',
+          message: `Someone joined ${club.name}.`,
+          url: `https://rnkx.netlify.app/app/leagues/${club.id}`,
+        });
       }
 
       toast.success(`Joined ${club.name}`);

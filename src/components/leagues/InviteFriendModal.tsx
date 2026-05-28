@@ -80,36 +80,34 @@ export function InviteFriendModal({ open, onOpenChange, leagueId, leagueName, on
       } = await supabase.auth.getUser();
       let inviterName = 'Someone';
       if (user) {
-        const { data: inviterProfile } = await supabase
-          .from('athletes')
-          .select('display_name, username')
-          .eq('user_id', user.id)
-          .maybeSingle();
+        const [byUserId, byId] = await Promise.all([
+          supabase.from('athletes').select('display_name, username').eq('user_id', user.id).maybeSingle(),
+          supabase.from('athletes').select('display_name, username').eq('id', user.id).maybeSingle(),
+        ]);
+        const inviterProfile = byUserId.data ?? byId.data;
         if (inviterProfile) {
           inviterName = inviterProfile.display_name || inviterProfile.username || inviterName;
         }
       }
 
-      const { data: invitedAthlete } = await supabase
-        .from('athletes')
-        .select('user_id')
-        .eq('id', athlete.id)
-        .maybeSingle();
+      invokePushNotify('notify-league-invite', {
+        invited_user_id: athlete.id,
+        league_name: leagueName,
+        league_id: leagueId,
+        inviter_name: inviterName,
+      });
 
-      if (invitedAthlete?.user_id) {
-        invokePushNotify('notify-league-invite', {
-          invited_user_id: invitedAthlete.user_id,
-          league_name: leagueName,
-          league_id: leagueId,
-          inviter_name: inviterName,
-        });
-      }
-
-      toast.success(`${athlete.display_name || athlete.username} has been added.`);
+      toast.success(`Invitation sent to ${athlete.display_name || athlete.username}.`);
       onInvited();
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Something went wrong';
-      toast.error(msg);
+      if (msg.toLowerCase().includes('already a member')) {
+        toast.message(`${athlete.display_name || athlete.username} is already in this club.`);
+      } else if (msg.toLowerCase().includes('already invited')) {
+        toast.message(`Invitation already sent to ${athlete.display_name || athlete.username}.`);
+      } else {
+        toast.error(msg);
+      }
     } finally {
       setAdding(null);
     }

@@ -186,6 +186,7 @@ export default function FriendsPage({ embedded = false }: FriendsPageProps) {
   };
 
   const respond = async (rowId: string, accept: boolean) => {
+    const row = incoming.find((r) => r.id === rowId);
     const { error } = await supabase
       .from('friendships')
       .update({ status: accept ? 'accepted' : 'declined' })
@@ -195,6 +196,14 @@ export default function FriendsPage({ embedded = false }: FriendsPageProps) {
       return;
     }
     toast.success(accept ? 'Friend added.' : 'Request declined.');
+    if (accept && athleteId && row?.athlete_id) {
+      invokePushNotify('send-notification', {
+        athlete_id: row.athlete_id,
+        title: 'Friend request accepted',
+        message: `${row.requester.display_name || row.requester.username || 'Someone'} accepted your friend request.`,
+        url: 'https://rnkx.netlify.app/app/social/friends',
+      });
+    }
     void loadFriendsData();
   };
 

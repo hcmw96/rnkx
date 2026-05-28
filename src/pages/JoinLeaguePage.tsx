@@ -3,6 +3,7 @@ import { Link, useNavigate, useParams } from 'react-router-dom';
 import { Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { PremiumGate } from '@/components/PremiumGate';
+import { invokePushNotify } from '@/lib/pushNotify';
 import { supabase } from '@/services/supabase';
 import { toast } from 'sonner';
 import { PENDING_LEAGUE_INVITE_SESSION_KEY } from '@/lib/shareLeagueInvite';
@@ -124,11 +125,28 @@ export default function JoinLeaguePage() {
       const { error: memErr } = await supabase.rpc('add_member_to_club', {
         p_league_id: preview.id,
         p_athlete_id: athleteId,
+        p_invite_code: inviteCode,
       });
 
       if (memErr) {
         toast.error(memErr.message);
         return;
+      }
+
+      const { data: leagueMeta } = await supabase
+        .from('private_leagues')
+        .select('created_by')
+        .eq('id', preview.id)
+        .maybeSingle();
+
+      const creatorId = (leagueMeta?.created_by as string | undefined) ?? null;
+      if (creatorId && creatorId !== athleteId) {
+        invokePushNotify('send-notification', {
+          athlete_id: creatorId,
+          title: 'Club invite accepted',
+          message: `Someone accepted your invite to ${preview.name}.`,
+          url: `https://rnkx.netlify.app/app/leagues/${preview.id}`,
+        });
       }
 
       try {

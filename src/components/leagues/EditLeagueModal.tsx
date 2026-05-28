@@ -5,6 +5,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Camera, Globe, Loader2, Lock } from 'lucide-react';
 import { uploadClubImageFile } from '@/lib/clubImageUpload';
+import { invokePushNotify } from '@/lib/pushNotify';
 import { resolveAthleteId } from '@/lib/resolveAthleteId';
 import { supabase } from '@/services/supabase';
 import { toast } from 'sonner';
@@ -88,6 +89,25 @@ export function EditLeagueModal({ open, onOpenChange, league, onSaved }: EditLea
       });
 
       if (error) throw error;
+
+      const { data: members } = await supabase
+        .from('private_league_members')
+        .select('athlete_id')
+        .eq('league_id', league.id)
+        .eq('status', 'accepted');
+
+      const memberIds = [...new Set((members ?? []).map((m) => String(m.athlete_id ?? '')))].filter(
+        (id) => id && id !== athleteId,
+      );
+      for (const memberId of memberIds) {
+        invokePushNotify('send-notification', {
+          athlete_id: memberId,
+          title: 'Club updated',
+          message: `${name.trim()} details were updated.`,
+          url: `https://rnkx.netlify.app/app/leagues/${league.id}`,
+        });
+      }
+
       toast.success('Club updated');
       onSaved();
       onOpenChange(false);

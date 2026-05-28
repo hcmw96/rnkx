@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Bell, MessageCircle, UserPlus } from 'lucide-react';
+import { Bell, Check, MessageCircle, UserPlus, Users, X } from 'lucide-react';
 import { AppShell } from '@/components/app/AppShell';
 import { Button } from '@/components/ui/button';
+import { invokePushNotify } from '@/lib/pushNotify';
 import { supabase } from '@/services/supabase';
 import { resolveAthleteId } from '@/lib/resolveAthleteId';
 import { conversationUnreadKey, isUnread } from '@/lib/unreadMessages';
@@ -22,9 +23,18 @@ type UnreadChatItem = {
   link: string;
 };
 
+type ClubInviteItem = {
+  leagueId: string;
+  leagueName: string;
+  createdBy: string | null;
+};
+
 export default function NotificationsPage() {
   const [loading, setLoading] = useState(true);
+  const [athleteId, setAthleteId] = useState<string | null>(null);
+  const [acceptingLeagueId, setAcceptingLeagueId] = useState<string | null>(null);
   const [friendRequests, setFriendRequests] = useState<FriendRequestItem[]>([]);
+  const [clubInvites, setClubInvites] = useState<ClubInviteItem[]>([]);
   const [unreadChats, setUnreadChats] = useState<UnreadChatItem[]>([]);
 
   const load = useCallback(async () => {
@@ -41,19 +51,23 @@ export default function NotificationsPage() {
 
     const aid = await resolveAthleteId(user.id);
     if (!aid) {
+      setAthleteId(null);
       setFriendRequests([]);
+      setClubInvites([]);
       setUnreadChats([]);
       setLoading(false);
       return;
     }
+    setAthleteId(aid);
 
-    const [{ data: incRows }, { data: memberships }] = await Promise.all([
+    const [{ data: incRows }, { data: memberships }, { data: pendingClubRows }] = await Promise.all([
       supabase
         .from('friendships')
         .select('id, athlete_id')
         .eq('friend_id', aid)
         .eq('status', 'pending'),
       supabase.from('conversation_members').select('conversation_id').eq('athlete_id', aid),
+      supabase.from('private_league_members').select('league_id').eq('athlete_id', aid).eq('status', 'pending'),
     ]);
 
     const requesterIds = [...new Set((incRows ?? []).map((r) => r.athlete_id as string))];
@@ -81,6 +95,20 @@ export default function NotificationsPage() {
         };
       }),
     );
+
+    const pendingLeagueIds = [...new Set((pendingClubRows ?? []).map((r) => r.league_id as string))];
+    if (pendingLeagueIds.length) {
+      const { data: leagues } = await supabase.from('private_leagues').select('id, name, created_by').in('id', pendingLeagueIds);
+      setClubInvites(
+        (leagues ?? []).map((l) => ({
+          leagueId: l.id as string,
+          leagueName: (l.name as string) || 'Club',
+          createdBy: (l.created_by as string | null) ?? null,
+        })),
+      );
+    } else {
+      setClubInvites([]);
+    }
 
     const convoIds = (memberships ?? []).map((m) => m.conversation_id as string);
     if (!convoIds.length) {
@@ -169,7 +197,70 @@ export default function NotificationsPage() {
     void load();
   }, [load]);
 
-  const empty = !loading && friendRequests.length === 0 && unreadChats.length === 0;
+  const acceptClubInvite = async (leagueId: string) => {
+    if (!athleteId || acceptingLeagueId) return;
+    setAcceptingLeagueId(leagueId);
+    try {
+      const { error } = await supabase.rpc('add_member_to_club', {
+        p_league_id: leagueId,
+        p_athlete_id: athleteId,
+      });
+      if (error) {
+        throw error;
+      }
+      const acceptedInvite = clubInvites.find((c) => c.leagueId === leagueId);
+      if (acceptedInvite?.createdBy && acceptedInvite.createdBy !== athleteId) {
+        invokePushNotify('send-notification', {
+          athlete_id: acceptedInvite.createdBy,
+          title: 'Club invite accepted',
+          message: `Someone accepted your invite to ${acceptedInvite.leagueName}.`,
+          url: `https://rnkx.netlify.app/app/leagues/${acceptedInvite.leagueId}`,
+        });
+      }
+      setClubInvites((prev) => prev.filter((c) => c.leagueId !== leagueId));
+    } catch (err) {
+      console.warn('[notifications] accept club invite failed', err);
+    } finally {
+      setAcceptingLeagueId(null);
+      void load();
+    }
+  };
+
+  const declineClubInvite = async (leagueId: string) => {
+    if (!athleteId || acceptingLeagueId) return;
+    setAcceptingLeagueId(leagueId);
+    try {
+      const { error } = await supabase
+        .from('private_league_members')
+        .update({ status: 'declined' })
+        .eq('league_id', leagueId)
+        .eq('athlete_id', athleteId)
+        .eq('status', 'pending');
+
+      if (error) {
+        throw error;
+      }
+
+      const declinedInvite = clubInvites.find((c) => c.leagueId === leagueId);
+      if (declinedInvite?.createdBy && declinedInvite.createdBy !== athleteId) {
+        invokePushNotify('send-notification', {
+          athlete_id: declinedInvite.createdBy,
+          title: 'Club invite declined',
+          message: `An invite to ${declinedInvite.leagueName} was declined.`,
+          url: `https://rnkx.netlify.app/app/leagues/${declinedInvite.leagueId}`,
+        });
+      }
+
+      setClubInvites((prev) => prev.filter((c) => c.leagueId !== leagueId));
+    } catch (err) {
+      console.warn('[notifications] decline club invite failed', err);
+    } finally {
+      setAcceptingLeagueId(null);
+      void load();
+    }
+  };
+
+  const empty = !loading && friendRequests.length === 0 && clubInvites.length === 0 && unreadChats.length === 0;
 
   return (
     <AppShell>
@@ -213,6 +304,48 @@ export default function NotificationsPage() {
                           <p className="type-meta">Wants to be friends</p>
                         </div>
                       </Link>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ) : null}
+
+            {clubInvites.length > 0 ? (
+              <div className="space-y-2">
+                <h2 className="type-section-label">Club invites</h2>
+                <ul className="space-y-2">
+                  {clubInvites.map((invite) => (
+                    <li key={invite.leagueId} className="flex items-center gap-3 rounded-lg border border-border bg-card p-3">
+                      <div className="flex h-10 w-10 items-center justify-center rounded-full bg-muted">
+                        <Users className="h-5 w-5 text-primary" aria-hidden />
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <p className="type-heading truncate">{invite.leagueName}</p>
+                        <p className="type-meta">Invited you to join</p>
+                      </div>
+                      <div className="flex items-center gap-1.5">
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="outline"
+                          className="h-8 px-2"
+                          disabled={acceptingLeagueId === invite.leagueId}
+                          onClick={() => void declineClubInvite(invite.leagueId)}
+                          aria-label="Decline club invite"
+                        >
+                          <X className="h-3.5 w-3.5" />
+                        </Button>
+                        <Button
+                          type="button"
+                          size="sm"
+                          className="h-8 gap-1.5"
+                          disabled={acceptingLeagueId === invite.leagueId}
+                          onClick={() => void acceptClubInvite(invite.leagueId)}
+                        >
+                          <Check className="h-3.5 w-3.5" />
+                          {acceptingLeagueId === invite.leagueId ? 'Joining…' : 'Accept'}
+                        </Button>
+                      </div>
                     </li>
                   ))}
                 </ul>
