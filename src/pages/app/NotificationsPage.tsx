@@ -14,7 +14,7 @@ import {
 } from '@/services/onesignal';
 import { supabase } from '@/services/supabase';
 import { resolveAthleteId } from '@/lib/resolveAthleteId';
-import { conversationUnreadKey, isUnread } from '@/lib/unreadMessages';
+import { conversationUnreadKey, isUnread, UNREAD_CHANGED_EVENT } from '@/lib/unreadMessages';
 import { formatDistanceToNow } from 'date-fns';
 
 type FriendRequestItem = {
@@ -23,12 +23,13 @@ type FriendRequestItem = {
   avatarUrl: string | null;
 };
 
-type UnreadChatItem = {
+type ChatNotificationItem = {
   id: string;
   name: string;
   preview: string;
   at: string;
   link: string;
+  isRead: boolean;
 };
 
 type ClubInviteItem = {
@@ -44,7 +45,7 @@ export default function NotificationsPage() {
   const [acceptingLeagueId, setAcceptingLeagueId] = useState<string | null>(null);
   const [friendRequests, setFriendRequests] = useState<FriendRequestItem[]>([]);
   const [clubInvites, setClubInvites] = useState<ClubInviteItem[]>([]);
-  const [unreadChats, setUnreadChats] = useState<UnreadChatItem[]>([]);
+  const [chatNotifications, setChatNotifications] = useState<ChatNotificationItem[]>([]);
   const [pushRegistered, setPushRegistered] = useState<boolean | null>(null);
   const [pushRegistering, setPushRegistering] = useState(false);
 
@@ -55,7 +56,7 @@ export default function NotificationsPage() {
     } = await supabase.auth.getUser();
     if (!user) {
       setFriendRequests([]);
-      setUnreadChats([]);
+      setChatNotifications([]);
       setLoading(false);
       return;
     }
@@ -65,7 +66,7 @@ export default function NotificationsPage() {
       setAthleteId(null);
       setFriendRequests([]);
       setClubInvites([]);
-      setUnreadChats([]);
+      setChatNotifications([]);
       setLoading(false);
       return;
     }
@@ -134,7 +135,7 @@ export default function NotificationsPage() {
 
     const convoIds = (memberships ?? []).map((m) => m.conversation_id as string);
     if (!convoIds.length) {
-      setUnreadChats([]);
+      setChatNotifications([]);
       setLoading(false);
       return;
     }
@@ -160,19 +161,16 @@ export default function NotificationsPage() {
       }
     }
 
-    const unreadConvIds = [...latestByConv.entries()]
-      .filter(([cid, meta]) => isUnread(conversationUnreadKey(cid), meta.created_at))
-      .map(([cid]) => cid);
-
-    if (!unreadConvIds.length) {
-      setUnreadChats([]);
+    const convIdsWithMessages = [...latestByConv.keys()];
+    if (!convIdsWithMessages.length) {
+      setChatNotifications([]);
       setLoading(false);
       return;
     }
 
     const [{ data: dmRows }, { data: convos }] = await Promise.all([
       supabase.rpc('list_dm_inbox', { p_athlete_id: aid }),
-      supabase.from('conversations').select('id, name, is_group').in('id', unreadConvIds),
+      supabase.from('conversations').select('id, name, is_group').in('id', convIdsWithMessages),
     ]);
 
     const dmByConvo = new Map<string, { name: string; link: string }>();
@@ -188,35 +186,48 @@ export default function NotificationsPage() {
 
     const convoMeta = new Map((convos ?? []).map((c) => [c.id as string, c]));
 
-    setUnreadChats(
-      unreadConvIds.map((cid) => {
-        const dm = dmByConvo.get(cid);
-        const conv = convoMeta.get(cid);
-        const latest = latestByConv.get(cid)!;
-        if (dm) {
-          return {
-            id: cid,
-            name: dm.name,
-            preview: latest.content,
-            at: latest.created_at,
-            link: dm.link,
-          };
-        }
+    const chats: ChatNotificationItem[] = convIdsWithMessages.map((cid) => {
+      const dm = dmByConvo.get(cid);
+      const conv = convoMeta.get(cid);
+      const latest = latestByConv.get(cid)!;
+      const unread = isUnread(conversationUnreadKey(cid), latest.created_at);
+      if (dm) {
         return {
           id: cid,
-          name: conv?.name || 'Group chat',
+          name: dm.name,
           preview: latest.content,
           at: latest.created_at,
-          link: `/app/chat/group/${cid}`,
+          link: dm.link,
+          isRead: !unread,
         };
-      }),
-    );
+      }
+      return {
+        id: cid,
+        name: conv?.name || 'Group chat',
+        preview: latest.content,
+        at: latest.created_at,
+        link: `/app/chat/group/${cid}`,
+        isRead: !unread,
+      };
+    });
 
+    chats.sort((a, b) => {
+      if (a.isRead !== b.isRead) return a.isRead ? 1 : -1;
+      return new Date(b.at).getTime() - new Date(a.at).getTime();
+    });
+
+    setChatNotifications(chats.slice(0, 40));
     setLoading(false);
   }, []);
 
   useEffect(() => {
     void load();
+  }, [load]);
+
+  useEffect(() => {
+    const refresh = () => void load();
+    window.addEventListener(UNREAD_CHANGED_EVENT, refresh);
+    return () => window.removeEventListener(UNREAD_CHANGED_EVENT, refresh);
   }, [load]);
 
   const acceptClubInvite = async (leagueId: string) => {
@@ -282,7 +293,12 @@ export default function NotificationsPage() {
     }
   };
 
-  const empty = !loading && friendRequests.length === 0 && clubInvites.length === 0 && unreadChats.length === 0;
+  const empty =
+    !loading &&
+    friendRequests.length === 0 &&
+    clubInvites.length === 0 &&
+    chatNotifications.length === 0;
+  const unreadChatCount = chatNotifications.filter((c) => !c.isRead).length;
   const showPushBanner = isDespiaNative() && pushRegistered === false;
 
   async function enablePush(openSettingsIfNeeded = true) {
@@ -423,26 +439,77 @@ export default function NotificationsPage() {
               </div>
             ) : null}
 
-            {unreadChats.length > 0 ? (
+            {chatNotifications.length > 0 ? (
               <div className="space-y-2">
-                <h2 className="type-section-label">Unread messages</h2>
+                <h2 className="type-section-label">
+                  {unreadChatCount > 0 ? `Messages (${unreadChatCount} unread)` : 'Messages'}
+                </h2>
                 <ul className="space-y-2">
-                  {unreadChats.map((chat) => (
+                  {chatNotifications.map((chat) => (
                     <li key={chat.id}>
                       <Link
                         to={chat.link}
-                        className="flex items-center gap-3 rounded-lg border border-border bg-card p-3 transition-colors hover:border-muted-foreground/50"
+                        aria-label={chat.isRead ? `${chat.name}, read` : `${chat.name}, unread`}
+                        className={[
+                          'flex items-center gap-3 rounded-lg border p-3 transition-colors',
+                          chat.isRead
+                            ? 'border-border/60 bg-card/40 opacity-75 hover:border-muted-foreground/40 hover:opacity-90'
+                            : 'border-primary/40 bg-card hover:border-primary/60',
+                        ].join(' ')}
                       >
-                        <div className="flex h-10 w-10 items-center justify-center rounded-full bg-muted">
-                          <MessageCircle className="h-5 w-5 text-primary" aria-hidden />
+                        <div
+                          className={[
+                            'relative flex h-10 w-10 items-center justify-center rounded-full',
+                            chat.isRead ? 'bg-muted/60' : 'bg-muted',
+                          ].join(' ')}
+                        >
+                          <MessageCircle
+                            className={[
+                              'h-5 w-5',
+                              chat.isRead ? 'text-muted-foreground' : 'text-primary',
+                            ].join(' ')}
+                            aria-hidden
+                          />
+                          {!chat.isRead ? (
+                            <span
+                              className="absolute -right-0.5 -top-0.5 h-2.5 w-2.5 rounded-full bg-primary ring-2 ring-card"
+                              aria-hidden
+                            />
+                          ) : null}
                         </div>
                         <div className="min-w-0 flex-1">
-                          <p className="type-heading truncate">{chat.name}</p>
-                          <p className="type-meta truncate">{chat.preview}</p>
+                          <p
+                            className={[
+                              'truncate',
+                              chat.isRead ? 'text-sm text-muted-foreground' : 'type-heading',
+                            ].join(' ')}
+                          >
+                            {chat.name}
+                          </p>
+                          <p
+                            className={[
+                              'truncate text-xs',
+                              chat.isRead ? 'text-muted-foreground/80' : 'type-meta',
+                            ].join(' ')}
+                          >
+                            {chat.preview}
+                          </p>
                         </div>
-                        <span className="shrink-0 text-xs text-muted-foreground">
-                          {formatDistanceToNow(new Date(chat.at), { addSuffix: true })}
-                        </span>
+                        <div className="flex shrink-0 flex-col items-end gap-0.5">
+                          <span
+                            className={[
+                              'text-xs',
+                              chat.isRead ? 'text-muted-foreground/70' : 'text-muted-foreground',
+                            ].join(' ')}
+                          >
+                            {formatDistanceToNow(new Date(chat.at), { addSuffix: true })}
+                          </span>
+                          {chat.isRead ? (
+                            <span className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground/60">
+                              Read
+                            </span>
+                          ) : null}
+                        </div>
                       </Link>
                     </li>
                   ))}
