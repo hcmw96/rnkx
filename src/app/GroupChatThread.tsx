@@ -1,10 +1,13 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useParams, Link } from "react-router-dom";
+import { LeagueChevronLogo } from "@/components/leagues/LeagueChevronLogo";
+import { clubImageDisplayUrl } from "@/lib/clubImageUpload";
+import { fetchClubByConversationId, type ClubSummary } from "@/lib/clubContext";
 import { invokePushNotify } from "@/lib/pushNotify";
 import { supabase } from "@/services/supabase";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { ArrowLeft, Send, Users } from "lucide-react";
+import { ArrowLeft, Send } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
 import { ChatPremiumGate } from "@/components/chat/ChatPremiumGate";
@@ -34,6 +37,7 @@ export default function GroupChatThread() {
   const [messages, setMessages] = useState<ChatMessageRow[]>([]);
   const [members, setMembers] = useState<Map<string, Member>>(new Map());
   const [groupName, setGroupName] = useState("");
+  const [club, setClub] = useState<ClubSummary | null>(null);
   const [memberCount, setMemberCount] = useState(0);
   const [newMsg, setNewMsg] = useState("");
   const [myAthleteId, setMyAthleteId] = useState<string | null>(null);
@@ -62,12 +66,19 @@ export default function GroupChatThread() {
 
       setMyAthleteId(aid);
 
-      const { data: conv } = await supabase
-        .from("conversations")
-        .select("name")
-        .eq("id", conversationId)
-        .single();
-      if (conv) setGroupName(conv.name || "Group");
+      const { club: clubRow } = await fetchClubByConversationId(conversationId);
+      if (clubRow) {
+        setClub(clubRow);
+        setGroupName(clubRow.name);
+      } else {
+        setClub(null);
+        const { data: conv } = await supabase
+          .from("conversations")
+          .select("name")
+          .eq("id", conversationId)
+          .single();
+        setGroupName(conv?.name?.trim() || "Group chat");
+      }
 
       const { members: memberRows, error: membersErr } = await listConversationMembers(conversationId);
       if (membersErr) {
@@ -162,6 +173,14 @@ export default function GroupChatThread() {
     }
   }
 
+  const clubImageUrl = club ? clubImageDisplayUrl(club.image_url, club.id) : null;
+  const headerTitle = (
+    <div>
+      <h1 className="type-card-title leading-tight">{groupName}</h1>
+      <p className="text-xs text-muted-foreground">{memberCount} members</p>
+    </div>
+  );
+
   return (
     <ChatPremiumGate>
     <div className="app-root">
@@ -170,13 +189,20 @@ export default function GroupChatThread() {
           <Link to="/app/chat" className="text-muted-foreground hover:text-foreground">
             <ArrowLeft className="h-5 w-5" />
           </Link>
-          <div className="w-8 h-8 rounded-full bg-muted flex items-center justify-center">
-            <Users className="h-4 w-4 text-muted-foreground" />
+          <div className="h-9 w-9 shrink-0 overflow-hidden rounded-full border border-border/80 bg-muted">
+            {clubImageUrl ? (
+              <img src={clubImageUrl} alt="" className="h-full w-full object-cover" />
+            ) : (
+              <LeagueChevronLogo className="h-full w-full" />
+            )}
           </div>
-          <div>
-            <h1 className="type-card-title leading-tight">{groupName}</h1>
-            <p className="text-xs text-muted-foreground">{memberCount} members</p>
-          </div>
+          {club ? (
+            <Link to={`/app/leagues/${club.id}`} className="min-w-0 flex-1">
+              {headerTitle}
+            </Link>
+          ) : (
+            <div className="min-w-0 flex-1">{headerTitle}</div>
+          )}
         </div>
       </header>
 

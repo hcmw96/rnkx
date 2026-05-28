@@ -13,6 +13,7 @@ import {
   requestNotificationPermission,
 } from '@/services/onesignal';
 import { supabase } from '@/services/supabase';
+import { fetchClubByConversationId } from '@/lib/clubContext';
 import { resolveAthleteId } from '@/lib/resolveAthleteId';
 import { conversationUnreadKey, isUnread, UNREAD_CHANGED_EVENT } from '@/lib/unreadMessages';
 import { formatDistanceToNow } from 'date-fns';
@@ -186,6 +187,15 @@ export default function NotificationsPage() {
 
     const convoMeta = new Map((convos ?? []).map((c) => [c.id as string, c]));
 
+    const groupConvIds = convIdsWithMessages.filter((cid) => !dmByConvo.has(cid));
+    const clubNameByConvo = new Map<string, string>();
+    await Promise.all(
+      groupConvIds.map(async (cid) => {
+        const { club } = await fetchClubByConversationId(cid);
+        if (club?.name) clubNameByConvo.set(cid, club.name);
+      }),
+    );
+
     const chats: ChatNotificationItem[] = convIdsWithMessages.map((cid) => {
       const dm = dmByConvo.get(cid);
       const conv = convoMeta.get(cid);
@@ -203,7 +213,7 @@ export default function NotificationsPage() {
       }
       return {
         id: cid,
-        name: conv?.name || 'Group chat',
+        name: clubNameByConvo.get(cid) || conv?.name?.trim() || 'Group chat',
         preview: latest.content,
         at: latest.created_at,
         link: `/app/chat/group/${cid}`,

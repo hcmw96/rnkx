@@ -12,6 +12,8 @@ import { formatDistanceToNow } from "date-fns";
 import { Button } from "@/components/ui/button";
 import { usePullToRefresh } from "@/hooks/usePullToRefresh";
 import { toast } from "sonner";
+import { clubImageDisplayUrl } from "@/lib/clubImageUpload";
+import { fetchClubByConversationId } from "@/lib/clubContext";
 import { conversationUnreadKey, isUnread, UNREAD_CHANGED_EVENT } from "@/lib/unreadMessages";
 import type { RealtimeChannel } from "@supabase/supabase-js";
 
@@ -140,18 +142,18 @@ export default function ChatPage() {
 
       const lastMsg = lastMsgs?.[0];
 
-      const { data: league } = await supabase
-        .from("private_leagues")
-        .select("image_url")
-        .eq("conversation_id", convo.id)
-        .maybeSingle();
+      const { club } = await fetchClubByConversationId(convo.id as string);
+      const displayName = club?.name || convo.name?.trim() || "Group chat";
+      const avatar = club?.image_url
+        ? clubImageDisplayUrl(club.image_url, club.id)
+        : null;
 
       const lastMessageAt = lastMsg?.created_at || new Date(0).toISOString();
       results.push({
         id: `group-${convo.id}`,
         type: "group",
-        name: convo.name || "Group Chat",
-        avatar: league?.image_url || null,
+        name: displayName,
+        avatar,
         lastMessage: lastMsg?.content || "No messages yet",
         lastMessageAt,
         unread: isUnread(conversationUnreadKey(convo.id), lastMessageAt),

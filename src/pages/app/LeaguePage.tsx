@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button';
 import { EditLeagueModal } from '@/components/leagues/EditLeagueModal';
 import { LeaderboardRows, type LeaderboardRowData } from '@/components/leaderboard/LeaderboardRows';
 import { clubImageDisplayUrl } from '@/lib/clubImageUpload';
+import { fetchPrivateLeague } from '@/lib/clubContext';
 import { haptic } from '@/lib/haptics';
 import { cn } from '@/lib/utils';
 import { resolveAthleteId } from '@/lib/resolveAthleteId';
@@ -87,21 +88,17 @@ export default function LeaguePage() {
     const aid = await resolveAthleteId(uid);
     setAthleteId(aid);
 
-    const { data: leagueRow, error: leagueErr } = await supabase
-      .from('private_leagues')
-      .select('id, name, image_url, league_type, created_by, conversation_id, invite_code, is_public')
-      .eq('id', leagueId)
-      .maybeSingle();
+    const { league: leagueRow, error: leagueErr } = await fetchPrivateLeague(leagueId);
 
     if (leagueErr || !leagueRow) {
-      toast.error(leagueErr?.message ?? 'Club not found');
+      toast.error(leagueErr ?? 'Club not found');
       setLeague(null);
       setMembers([]);
       setLoading(false);
       return;
     }
 
-    setLeague(leagueRow as League);
+    setLeague(leagueRow as unknown as League);
 
     const { data: memRows, error: memErr } = await supabase
       .from('private_league_members')
