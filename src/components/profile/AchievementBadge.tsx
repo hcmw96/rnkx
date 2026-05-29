@@ -22,7 +22,7 @@ const COLOR_STYLES: Record<
     icon: 'text-electric-cyan',
   },
   gradient: {
-    card: 'border-transparent bg-gradient-to-br from-cyan-500/15 via-neon-lime/12 to-amber-400/15 ring-1 ring-white/10',
+    card: 'border-cyan-400/40 bg-gradient-to-br from-cyan-500/15 via-neon-lime/12 to-amber-400/15 shadow-[inset_0_0_0_1px_rgba(255,255,255,0.08)]',
     iconWrap: 'bg-gradient-to-br from-cyan-500/30 via-neon-lime/25 to-amber-400/30',
     icon: 'text-foreground',
   },
