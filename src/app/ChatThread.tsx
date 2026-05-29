@@ -159,6 +159,8 @@ export default function ChatThread() {
         });
       }
 
+      markConversationRead(conversationUnreadKey(conversationId));
+
       if (friendId) {
         invokePushNotify("notify-new-message", {
           receiver_athlete_id: friendId,

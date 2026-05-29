@@ -21,6 +21,9 @@ declare global {
       path?: string;
       url?: string;
       metadata?: unknown;
+      data?: unknown;
+      custom?: unknown;
+      additionalData?: unknown;
     }) => void;
   }
 }

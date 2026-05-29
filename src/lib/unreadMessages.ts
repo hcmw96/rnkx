@@ -62,8 +62,19 @@ export function getLastRead(conversationKey: string): Date | null {
   return latest;
 }
 
-export function isUnread(conversationKey: string, lastMessageAt: string | null): boolean {
+export function isUnread(
+  conversationKey: string,
+  lastMessageAt: string | null,
+  options?: { myAthleteId?: string | null; lastMessageAthleteId?: string | null },
+): boolean {
   if (!lastMessageAt) return false;
+
+  const myId = options?.myAthleteId?.trim();
+  const senderId = options?.lastMessageAthleteId?.trim();
+  if (myId && senderId && myId === senderId) {
+    return false;
+  }
+
   const msgDate = new Date(lastMessageAt);
   if (isNaN(msgDate.getTime())) return false;
   const lastRead = getLastRead(conversationKey);

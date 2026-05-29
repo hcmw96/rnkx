@@ -159,6 +159,8 @@ export default function GroupChatThread() {
         });
       }
 
+      markConversationRead(conversationUnreadKey(conversationId));
+
       invokePushNotify("notify-new-message", {
         conversation_id: conversationId,
         sender_athlete_id: myAthleteId,

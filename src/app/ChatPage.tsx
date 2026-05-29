@@ -96,6 +96,7 @@ export default function ChatPage() {
         friend_avatar_url: string | null;
         last_message: string | null;
         last_message_at: string | null;
+        last_message_sender_id?: string | null;
       };
       const lastMessageAt = r.last_message_at || new Date(0).toISOString();
       return {
@@ -105,7 +106,10 @@ export default function ChatPage() {
         avatar: r.friend_avatar_url || null,
         lastMessage: r.last_message || "No messages yet",
         lastMessageAt,
-        unread: isUnread(conversationUnreadKey(r.conversation_id), lastMessageAt),
+        unread: isUnread(conversationUnreadKey(r.conversation_id), lastMessageAt, {
+          myAthleteId: athleteId,
+          lastMessageAthleteId: r.last_message_sender_id ?? null,
+        }),
         link: `/app/chat/${r.friend_id}`,
         conversationId: r.conversation_id,
         friendId: r.friend_id,
@@ -135,12 +139,14 @@ export default function ChatPage() {
     for (const convo of convos) {
       const { data: lastMsgs } = await supabase
         .from("conversation_messages")
-        .select("content, created_at")
+        .select("content, created_at, athlete_id")
         .eq("conversation_id", convo.id)
         .order("created_at", { ascending: false })
         .limit(1);
 
-      const lastMsg = lastMsgs?.[0];
+      const lastMsg = lastMsgs?.[0] as
+        | { content?: string; created_at?: string; athlete_id?: string }
+        | undefined;
 
       const { club } = await fetchClubByConversationId(convo.id as string);
       const displayName = club?.name || convo.name?.trim() || "Group chat";
@@ -156,7 +162,10 @@ export default function ChatPage() {
         avatar,
         lastMessage: lastMsg?.content || "No messages yet",
         lastMessageAt,
-        unread: isUnread(conversationUnreadKey(convo.id), lastMessageAt),
+        unread: isUnread(conversationUnreadKey(convo.id as string), lastMessageAt, {
+          myAthleteId: athleteId,
+          lastMessageAthleteId: lastMsg?.athlete_id ?? null,
+        }),
         link: `/app/chat/group/${convo.id}`,
       });
     }

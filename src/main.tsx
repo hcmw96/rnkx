@@ -3,10 +3,9 @@ import ReactDOM from 'react-dom/client';
 import App from './App';
 import { RootErrorBoundary } from '@/components/RootErrorBoundary';
 import { installNotificationOpenHandler } from '@/lib/notificationRouting';
-import { isDespiaNative } from '@/services/onesignal';
 import './index.css';
 
-if (typeof window !== 'undefined' && isDespiaNative()) {
+if (typeof window !== 'undefined') {
   installNotificationOpenHandler();
 }
 
