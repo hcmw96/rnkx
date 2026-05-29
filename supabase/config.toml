@@ -404,6 +404,9 @@ verify_jwt = false
 [functions.notify-rank-change]
 verify_jwt = false
 
+[functions.notify-sync-reminder]
+verify_jwt = false
+
 [functions.notify-workout-scored]
 verify_jwt = false
 
