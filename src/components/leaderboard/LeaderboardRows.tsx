@@ -20,6 +20,8 @@ type LeaderboardRowsProps = {
   league: LeaderboardLeague;
   currentUserId: string | null;
   friendIds: Set<string>;
+  /** Country subtitle under username; off for club leaderboards. */
+  showSubtitle?: boolean;
 };
 
 const LEAGUE_SCORE_CLASS: Record<LeaderboardLeague, string> = {
@@ -37,7 +39,13 @@ const LEAGUE_HOVER_BORDER: Record<LeaderboardLeague, string> = {
   run: 'hover:border-electric-cyan/30',
 };
 
-export function LeaderboardRows({ rows, league, currentUserId, friendIds }: LeaderboardRowsProps) {
+export function LeaderboardRows({
+  rows,
+  league,
+  currentUserId,
+  friendIds,
+  showSubtitle = true,
+}: LeaderboardRowsProps) {
   const scoreClass = LEAGUE_SCORE_CLASS[league];
 
   return (
@@ -75,7 +83,9 @@ export function LeaderboardRows({ rows, league, currentUserId, friendIds }: Lead
             <div className="flex min-w-0 flex-1 items-center justify-between gap-3 pr-1">
               <div className="min-w-0">
                 <p className="type-heading truncate">{item.username}</p>
-                <p className="type-meta mt-0.5 truncate">{countryLabel ?? '—'}</p>
+                {showSubtitle ? (
+                  <p className="type-meta mt-0.5 truncate">{countryLabel ?? '—'}</p>
+                ) : null}
               </div>
               <p
                 className={cn(

@@ -101,6 +101,7 @@ serve(async (req) => {
       });
 
       const osJson = await osRes.json().catch(() => ({}));
+      const errors = (osJson as { errors?: unknown }).errors ?? null;
       console.log('[notify-new-message] onesignal result', {
         requestId,
         receiverAthleteId: trimmedReceiver,
@@ -108,11 +109,79 @@ serve(async (req) => {
         status: osRes.status,
         ok: osRes.ok,
         oneSignalId: (osJson as { id?: unknown }).id ?? null,
-        errors: (osJson as { errors?: unknown }).errors ?? null,
+        errors,
       });
       if (!osRes.ok) {
         console.error('[notify-new-message] OneSignal', osRes.status, osJson);
+      } else if (errors) {
+        console.warn('[notify-new-message] OneSignal delivered with errors (device may be unsubscribed)', {
+          externalUserId,
+          errors,
+        });
       }
+    }
+
+    async function resolveGroupRecipientIds(
+      convId: string,
+      senderId: string,
+    ): Promise<string[]> {
+      const { data: cmRows, error: cmErr } = await supabase
+        .from('conversation_members')
+        .select('athlete_id')
+        .eq('conversation_id', convId);
+
+      if (cmErr) {
+        console.error('[notify-new-message] conversation_members', cmErr);
+      }
+
+      let ids = [...new Set((cmRows ?? []).map((r) => String((r as { athlete_id?: string }).athlete_id ?? '')))].filter(
+        (id) => id.length > 0 && id !== senderId,
+      );
+
+      if (ids.length > 0) {
+        return ids;
+      }
+
+      const { data: leagueRow } = await supabase
+        .from('private_leagues')
+        .select('id')
+        .eq('conversation_id', convId)
+        .maybeSingle();
+
+      const leagueId = (leagueRow as { id?: string } | null)?.id;
+      if (!leagueId) {
+        return ids;
+      }
+
+      const { data: plmRows, error: plmErr } = await supabase
+        .from('private_league_members')
+        .select('athlete_id')
+        .eq('league_id', leagueId)
+        .eq('status', 'accepted');
+
+      if (plmErr) {
+        console.error('[notify-new-message] private_league_members fallback', plmErr);
+        return ids;
+      }
+
+      ids = [...new Set((plmRows ?? []).map((r) => String((r as { athlete_id?: string }).athlete_id ?? '')))].filter(
+        (id) => id.length > 0 && id !== senderId,
+      );
+
+      if (ids.length > 0) {
+        console.log('[notify-new-message] recipients from club members fallback', {
+          conversationId: convId,
+          leagueId,
+          recipientIds: ids,
+        });
+        const toInsert = ids.map((athlete_id) => ({ conversation_id: convId, athlete_id }));
+        await supabase.from('conversation_members').upsert(toInsert, {
+          onConflict: 'conversation_id,athlete_id',
+          ignoreDuplicates: true,
+        });
+      }
+
+      return ids;
     }
 
     /** League / group chat: fan out to all conversation members except the sender */
@@ -127,24 +196,21 @@ serve(async (req) => {
         senderAthleteId,
         previewLen: messageBody.length,
       });
-      const { data: rows, error: memErr } = await supabase
-        .from('conversation_members')
-        .select('athlete_id')
-        .eq('conversation_id', conversationId);
-
-      if (memErr) {
-        console.error('[notify-new-message] conversation_members', memErr);
-        return json({ success: true });
-      }
-
-      const recipientIds = [...new Set((rows ?? []).map((r) => String((r as { athlete_id?: string }).athlete_id ?? '')))].filter(
-        (id) => id.length > 0 && id !== senderAthleteId,
-      );
+      const recipientIds = await resolveGroupRecipientIds(conversationId, senderAthleteId);
       console.log('[notify-new-message] group recipients', {
         requestId,
         recipientCount: recipientIds.length,
         recipientIds,
       });
+
+      if (recipientIds.length === 0) {
+        console.warn('[notify-new-message] no group recipients — push skipped', {
+          requestId,
+          conversationId,
+          senderAthleteId,
+        });
+        return json({ success: true });
+      }
 
       const { data: senderRow } = await supabase
         .from('athletes')
@@ -165,7 +231,6 @@ serve(async (req) => {
       return json({ success: true });
     }
 
-    const senderAthleteId = typeof body.sender_athlete_id === 'string' ? body.sender_athlete_id.trim() : '';
     const receiverAthleteId =
       typeof body.receiver_athlete_id === 'string' ? body.receiver_athlete_id.trim() : '';
     const senderName = typeof body.sender_name === 'string' ? body.sender_name.trim() : 'Someone';

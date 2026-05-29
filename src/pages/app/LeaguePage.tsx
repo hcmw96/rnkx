@@ -327,6 +327,7 @@ export default function LeaguePage() {
                     league={league.league_type === 'run' ? 'run' : 'engine'}
                     currentUserId={athleteId ?? null}
                     friendIds={friendIds}
+                    showSubtitle={false}
                   />
                 )}
               </div>
