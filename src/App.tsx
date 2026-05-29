@@ -5,6 +5,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { Loader2 } from 'lucide-react';
 import { toast, Toaster } from 'sonner';
 import { ProfileGateContext } from '@/context/ProfileGateContext';
+import { AchievementUnlockProvider } from '@/context/AchievementUnlockContext';
 import { ScoreSharePromptProvider } from '@/context/ScoreSharePromptContext';
 import LeaderboardPage from './pages/app/LeaderboardPage';
 import ProfilePage from './pages/app/ProfilePage';
@@ -235,6 +236,7 @@ function SessionRoutes() {
   return (
     <ProfileGateContext.Provider value={{ refetchProfile }}>
       <ScoreSharePromptProvider authUserId={session?.user?.id} enabled={showApp}>
+      <AchievementUnlockProvider authUserId={session?.user?.id} enabled={showApp}>
       <NotificationNavigationBridge enabled={showApp} />
       {welcomeAthleteId && showWelcomeOverlay ? (
         <WelcomeModal
@@ -447,6 +449,7 @@ function SessionRoutes() {
         <Route path="/" element={<Navigate to="/app" replace />} />
         <Route path="*" element={<Navigate to="/app" replace />} />
       </Routes>
+      </AchievementUnlockProvider>
       </ScoreSharePromptProvider>
     </ProfileGateContext.Provider>
   );

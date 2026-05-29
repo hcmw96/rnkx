@@ -14,6 +14,7 @@ import {
   type ProfileCareerStats,
   type ProfileSeasonStats,
 } from '@/lib/profileStats';
+import { cn } from '@/lib/utils';
 import { supabase } from '@/services/supabase';
 
 const ATHLETE_COLUMNS =
@@ -213,15 +214,20 @@ export default function ProfilePage() {
               </button>
 
               <div className="space-y-1">
-                <div className="flex flex-wrap items-center justify-center gap-2">
-                  <h1 className="type-page-title">{athlete.display_name}</h1>
-                  {athlete.is_premium ? (
-                    <span className="rounded-full bg-neon-lime px-2 py-0.5 text-[10px] font-bold tracking-wider text-black">
-                      PREMIUM
-                    </span>
-                  ) : null}
-                </div>
+                <h1 className="type-page-title">{athlete.display_name}</h1>
                 <p className="text-sm text-neon-lime">@{athlete.username ?? '—'}</p>
+                <p className="flex justify-center pt-0.5">
+                  <span
+                    className={cn(
+                      'rounded-full px-2.5 py-0.5 text-xs font-bold uppercase tracking-wide',
+                      athlete.is_premium
+                        ? 'bg-neon-lime/20 text-neon-lime'
+                        : 'bg-muted text-muted-foreground',
+                    )}
+                  >
+                    {athlete.is_premium ? 'Premium' : 'Free'}
+                  </span>
+                </p>
                 {countryName ? (
                   <p className="text-sm text-muted-foreground">
                     {countryFlag ? `${countryFlag} ` : ''}
@@ -296,7 +302,7 @@ export default function ProfilePage() {
                 <h2 className="type-section-label">Achievements</h2>
               </div>
               <p className="text-xs text-muted-foreground">
-                Earn badges by hitting milestones in Season 1. Locked badges show what to aim for next.
+                Earn badges by hitting milestones. Locked badges show what to aim for next.
               </p>
               <div className="grid grid-cols-3 gap-2 sm:gap-3">
                 {achievements.map((badge) => (

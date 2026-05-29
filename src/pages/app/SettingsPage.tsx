@@ -76,6 +76,7 @@ import {
   shouldApplyAppleMaxHrToProfile,
 } from '@/lib/appleMaxHr';
 import { cn } from '@/lib/utils';
+import { useAchievementUnlock } from '@/context/AchievementUnlockContext';
 import { useScoreSharePrompt } from '@/context/ScoreSharePromptContext';
 import { syncAppleWorkoutsToDatabase } from '@/lib/syncActivitiesApple';
 import { fetchRecentWorkouts } from '@/services/despia';
@@ -229,6 +230,7 @@ export default function SettingsPage() {
   const [deleteAccountOpen, setDeleteAccountOpen] = useState(false);
   const [deleteAccountWorking, setDeleteAccountWorking] = useState(false);
   const { promptFromAppleSync } = useScoreSharePrompt();
+  const { refreshAchievements } = useAchievementUnlock();
 
   const loadProfile = useCallback(async () => {
     setLoading(true);
@@ -525,6 +527,7 @@ export default function SettingsPage() {
           try {
             await loadProfile();
             await promptFromAppleSync(athlete.id, workouts, syncResults);
+            await refreshAchievements();
           } catch {
             // profile reload failed silently — sync was still successful
           }

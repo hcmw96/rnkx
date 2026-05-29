@@ -12,6 +12,30 @@ const MOCK_ROWS = [
   { name: 'Taylor M.', initials: 'T', pts: '1,408' },
 ] as const;
 
+export function SocialPreview() {
+  return (
+    <div className="bg-zinc-950">
+      <p className="px-4 pb-3 pt-1 text-center text-xs text-muted-foreground">
+        Friends, clubs, and messages are included with Premium.
+      </p>
+      <div className="grid grid-cols-3 border-y border-border" aria-hidden>
+        {(['Friends', 'Clubs', 'Discover'] as const).map((label, i) => (
+          <div
+            key={label}
+            className={`flex flex-col items-center gap-1 py-3 text-xs font-medium ${
+              i === 0 ? 'border-b-2 border-primary text-primary' : 'text-muted-foreground'
+            }`}
+          >
+            <div className="h-5 w-5 rounded bg-muted/60" />
+            <span>{label}</span>
+          </div>
+        ))}
+      </div>
+      <FriendsPreview />
+    </div>
+  );
+}
+
 export function FriendsPreview() {
   return (
     <div className="space-y-2 bg-card px-3 py-4">

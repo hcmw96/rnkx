@@ -1,6 +1,7 @@
 import { activitySessionScore } from '@/lib/activitySessionScore';
 import { divisionForRank } from '@/lib/division';
 import type { ProfileCareerStats, ProfileSeasonStats } from '@/lib/profileStats';
+import { fetchProfileCareerStats, fetchProfileSeasonStats } from '@/lib/profileStats';
 import { supabase } from '@/services/supabase';
 
 export type AchievementColor = 'gold' | 'lime' | 'cyan' | 'gradient';
@@ -15,6 +16,8 @@ export type AchievementDefinition = {
 
 export type AchievementState = AchievementDefinition & {
   unlocked: boolean;
+  unlockedAt?: string | null;
+  celebratedAt?: string | null;
 };
 
 export const ACHIEVEMENTS: AchievementDefinition[] = [
@@ -29,6 +32,12 @@ export const ACHIEVEMENTS: AchievementDefinition[] = [
   { id: 'recruiter', name: 'Recruiter', criteria: 'Friend joined and scored', color: 'gradient' },
 ];
 
+const ACHIEVEMENT_BY_ID = new Map(ACHIEVEMENTS.map((a) => [a.id, a]));
+
+export function getAchievementDefinition(id: string): AchievementDefinition | undefined {
+  return ACHIEVEMENT_BY_ID.get(id);
+}
+
 function num(v: number | string | null | undefined): number {
   if (v === null || v === undefined) return 0;
   const n = typeof v === 'number' ? v : Number(v);
@@ -39,6 +48,26 @@ function dayKey(iso: string): string {
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return '';
   return d.toISOString().slice(0, 10);
+}
+
+type StoredAchievementRow = {
+  achievement_id: string;
+  unlocked_at: string;
+  celebrated_at: string | null;
+};
+
+async function fetchStoredAchievementRows(athleteId: string): Promise<StoredAchievementRow[]> {
+  const { data, error } = await supabase
+    .from('athlete_achievements')
+    .select('achievement_id, unlocked_at, celebrated_at')
+    .eq('athlete_id', athleteId);
+
+  if (error) {
+    console.warn('[achievements] fetch stored failed', error.message);
+    return [];
+  }
+
+  return (data ?? []) as StoredAchievementRow[];
 }
 
 async function fetchScoredDaysByCategory(athleteId: string): Promise<Map<string, { engine: boolean; run: boolean }>> {
@@ -153,11 +182,11 @@ async function isSeasonOneMember(): Promise<boolean> {
   return name.includes('season 1') || name.startsWith('season 1');
 }
 
-export async function fetchAchievementStates(
+async function computeUnlockEligibility(
   athleteId: string,
   season: ProfileSeasonStats | null,
   career: ProfileCareerStats | null,
-): Promise<AchievementState[]> {
+): Promise<Record<string, boolean>> {
   const engineScore = season?.engineScore ?? 0;
   const runScore = season?.runScore ?? 0;
   const bestSession = career?.bestSession ?? 0;
@@ -198,7 +227,7 @@ export async function fetchAchievementStates(
   const top3 = ranks.some((r) => r <= 3);
   const promoted = ranks.some((r) => divisionForRank(r) !== 'Open');
 
-  const unlockById: Record<string, boolean> = {
+  return {
     founder: seasonOne,
     century: bestSession >= 150,
     'engine-room': engineScore >= 8000,
@@ -209,9 +238,140 @@ export async function fetchAchievementStates(
     'top-3': top3,
     recruiter,
   };
+}
 
-  return ACHIEVEMENTS.map((def) => ({
+function statesFromStored(stored: StoredAchievementRow[]): AchievementState[] {
+  const storedById = new Map(stored.map((r) => [r.achievement_id, r]));
+
+  return ACHIEVEMENTS.map((def) => {
+    const row = storedById.get(def.id);
+    return {
+      ...def,
+      unlocked: !!row,
+      unlockedAt: row?.unlocked_at ?? null,
+      celebratedAt: row?.celebrated_at ?? null,
+    };
+  });
+}
+
+function toAchievementState(def: AchievementDefinition, row?: StoredAchievementRow): AchievementState {
+  return {
     ...def,
-    unlocked: unlockById[def.id] ?? false,
-  }));
+    unlocked: true,
+    unlockedAt: row?.unlocked_at ?? null,
+    celebratedAt: row?.celebrated_at ?? null,
+  };
+}
+
+export type AchievementSyncResult = {
+  states: AchievementState[];
+  /** Unlocks inserted this sync that should be celebrated in-app. */
+  newlyUnlocked: AchievementState[];
+  /** Previously unlocked but not yet celebrated (e.g. app closed mid-modal). */
+  pendingCelebration: AchievementState[];
+};
+
+export async function markAchievementsCelebrated(athleteId: string, achievementIds: string[]): Promise<void> {
+  if (!achievementIds.length) return;
+  const now = new Date().toISOString();
+  const { error } = await supabase
+    .from('athlete_achievements')
+    .update({ celebrated_at: now })
+    .eq('athlete_id', athleteId)
+    .in('achievement_id', achievementIds)
+    .is('celebrated_at', null);
+
+  if (error) {
+    console.warn('[achievements] mark celebrated failed', error.message);
+  }
+}
+
+export async function syncAthleteAchievements(
+  athleteId: string,
+  season?: ProfileSeasonStats | null,
+  career?: ProfileCareerStats | null,
+  allTimePoints?: number,
+): Promise<AchievementSyncResult> {
+  let seasonStats = season ?? null;
+  let careerStats = career ?? null;
+
+  if (!seasonStats) {
+    seasonStats = await fetchProfileSeasonStats(athleteId);
+  }
+
+  if (!careerStats) {
+    let allTime = allTimePoints;
+    if (allTime == null) {
+      const { data } = await supabase.from('athletes').select('total_score').eq('id', athleteId).maybeSingle();
+      allTime = num(data?.total_score);
+    }
+    careerStats = await fetchProfileCareerStats(athleteId, allTime);
+  }
+
+  const [eligibility, storedBefore] = await Promise.all([
+    computeUnlockEligibility(athleteId, seasonStats, careerStats),
+    fetchStoredAchievementRows(athleteId),
+  ]);
+
+  const storedIds = new Set(storedBefore.map((r) => r.achievement_id));
+  const toInsert = ACHIEVEMENTS.filter((def) => eligibility[def.id] && !storedIds.has(def.id));
+
+  const isBackfill = storedBefore.length === 0 && toInsert.length > 1;
+  const now = new Date().toISOString();
+  const insertedIds: string[] = [];
+
+  if (toInsert.length) {
+    const rows = toInsert.map((def) => ({
+      athlete_id: athleteId,
+      achievement_id: def.id,
+      unlocked_at: now,
+      celebrated_at: isBackfill ? now : null,
+    }));
+
+    const { error } = await supabase.from('athlete_achievements').insert(rows);
+    if (error) {
+      console.warn('[achievements] insert failed', error.message);
+    } else {
+      insertedIds.push(...toInsert.map((d) => d.id));
+    }
+  }
+
+  const storedAfter = insertedIds.length
+    ? await fetchStoredAchievementRows(athleteId)
+    : storedBefore;
+
+  const states = statesFromStored(storedAfter);
+
+  const storedById = new Map(storedAfter.map((r) => [r.achievement_id, r]));
+
+  const newlyUnlocked: AchievementState[] = isBackfill
+    ? []
+    : insertedIds
+        .map((id) => {
+          const def = getAchievementDefinition(id);
+          if (!def) return null;
+          return toAchievementState(def, storedById.get(id));
+        })
+        .filter((s): s is AchievementState => s != null);
+
+  const pendingCelebration: AchievementState[] = storedAfter
+    .filter((r) => r.celebrated_at == null && !insertedIds.includes(r.achievement_id))
+    .map((r) => {
+      const def = getAchievementDefinition(r.achievement_id);
+      if (!def) return null;
+      return toAchievementState(def, r);
+    })
+    .filter((s): s is AchievementState => s != null);
+
+  return { states, newlyUnlocked, pendingCelebration };
+}
+
+/** Profile display: sync DB then return badge states. */
+export async function fetchAchievementStates(
+  athleteId: string,
+  season: ProfileSeasonStats | null,
+  career: ProfileCareerStats | null,
+): Promise<AchievementState[]> {
+  const { states } = await syncAthleteAchievements(athleteId, season, career);
+  return states;
 }
