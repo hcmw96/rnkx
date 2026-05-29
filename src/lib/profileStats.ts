@@ -65,8 +65,15 @@ export async function fetchProfileSeasonStats(athleteId: string): Promise<Profil
   return { seasonDisplay, engineScore, runScore };
 }
 
-/** Approximate season percentile from global leaderboard rank (0–100). */
-export async function fetchSeasonPercentile(athleteId: string): Promise<number> {
+export type SeasonStanding = {
+  /** Bar fill: share of athletes you outrank (0–100). */
+  standingPercent: number;
+  /** Label: Top X% (elite tier), e.g. 14 when you outrank 86%. */
+  topPercent: number;
+};
+
+/** Global leaderboard standing for the profile season bar. */
+export async function fetchSeasonStanding(athleteId: string): Promise<SeasonStanding> {
   const [{ data: lb }, { count }] = await Promise.all([
     supabase.from('leaderboard').select('rank').eq('id', athleteId).maybeSingle(),
     supabase.from('leaderboard').select('id', { count: 'exact', head: true }),
@@ -74,9 +81,21 @@ export async function fetchSeasonPercentile(athleteId: string): Promise<number> 
 
   const rank = lb?.rank != null ? numScore(lb.rank as number | string) : 0;
   const total = count ?? 0;
-  if (!rank || !total || total < 2) return 50;
-  const pct = Math.round((1 - (rank - 1) / total) * 100);
-  return Math.max(4, Math.min(96, pct));
+  if (!rank || !total || total < 2) {
+    return { standingPercent: 50, topPercent: 50 };
+  }
+
+  const standingPercent = Math.round((1 - (rank - 1) / total) * 100);
+  const clamped = Math.max(4, Math.min(96, standingPercent));
+  const topPercent = Math.max(1, Math.min(99, 100 - clamped));
+
+  return { standingPercent: clamped, topPercent };
+}
+
+/** @deprecated Use fetchSeasonStanding — returns bar fill only. */
+export async function fetchSeasonPercentile(athleteId: string): Promise<number> {
+  const standing = await fetchSeasonStanding(athleteId);
+  return standing.standingPercent;
 }
 
 function normalizeActivityLabel(raw: string | null | undefined): string {

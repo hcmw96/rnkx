@@ -1,32 +1,19 @@
 import { useCallback, useEffect, useRef, useState, type ChangeEvent } from 'react';
-import {
-  Award,
-  Calendar,
-  Crown,
-  Flame,
-  Lock,
-  Medal,
-  Sunrise,
-  Settings,
-  Target,
-  TrendingUp,
-  Trophy,
-  Zap,
-  type LucideIcon,
-} from 'lucide-react';
+import { Award, Settings } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { format } from 'date-fns';
 import { toast } from 'sonner';
 import { AppShell } from '@/components/app/AppShell';
 import { getCountryByName } from '@/data/countries';
+import { AchievementBadge } from '@/components/profile/AchievementBadge';
+import { fetchAchievementStates, type AchievementState } from '@/lib/achievements';
 import {
   fetchProfileCareerStats,
   fetchProfileSeasonStats,
-  fetchSeasonPercentile,
+  fetchSeasonStanding,
   type ProfileCareerStats,
   type ProfileSeasonStats,
 } from '@/lib/profileStats';
-import { cn } from '@/lib/utils';
 import { supabase } from '@/services/supabase';
 
 const ATHLETE_COLUMNS =
@@ -42,26 +29,6 @@ interface AthleteRow {
   created_at: string | null;
   is_premium: boolean | null;
 }
-
-type BadgeDef = {
-  id: string;
-  name: string;
-  description: string;
-  icon: LucideIcon;
-  unlocked: boolean;
-};
-
-const BADGES: BadgeDef[] = [
-  { id: 'founder', name: 'Founder', description: 'Early RNKX member', icon: Crown, unlocked: true },
-  { id: 'century', name: 'Century', description: '100+ pts in one session', icon: Trophy, unlocked: false },
-  { id: 'iron-week', name: 'Iron Week', description: '5 scored workouts in a week', icon: Flame, unlocked: false },
-  { id: 'speed-demon', name: 'Speed Demon', description: 'Run sub 4:00/km', icon: Zap, unlocked: false },
-  { id: 'engine-room', name: 'Engine Room', description: 'Reach 90% max HR', icon: TrendingUp, unlocked: false },
-  { id: 'consistent', name: 'Consistent', description: '3 week streak', icon: Calendar, unlocked: false },
-  { id: 'top-3', name: 'Top 3', description: 'Top 3 on leaderboard', icon: Medal, unlocked: false },
-  { id: 'early-bird', name: 'Early Bird', description: 'Workout before 7am', icon: Sunrise, unlocked: false },
-  { id: 'double-day', name: 'Double Day', description: '2 scored workouts in one day', icon: Target, unlocked: false },
-];
 
 // Feature flag: hide social card at launch
 const SHOW_SOCIAL_CARD = false;
@@ -94,7 +61,9 @@ export default function ProfilePage() {
   const [athlete, setAthlete] = useState<AthleteRow | null>(null);
   const [seasonStats, setSeasonStats] = useState<ProfileSeasonStats | null>(null);
   const [careerStats, setCareerStats] = useState<ProfileCareerStats | null>(null);
-  const [percentile, setPercentile] = useState(50);
+  const [standingPercent, setStandingPercent] = useState(50);
+  const [topPercent, setTopPercent] = useState(50);
+  const [achievements, setAchievements] = useState<AchievementState[]>([]);
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
 
@@ -131,14 +100,17 @@ export default function ProfilePage() {
     setAthlete(row);
 
     const allTime = numScore(row.total_score);
-    const [season, career, pct] = await Promise.all([
+    const [season, career, standing] = await Promise.all([
       fetchProfileSeasonStats(row.id),
       fetchProfileCareerStats(row.id, allTime),
-      fetchSeasonPercentile(row.id),
+      fetchSeasonStanding(row.id),
     ]);
+    const badgeStates = await fetchAchievementStates(row.id, season, career);
     setSeasonStats(season);
     setCareerStats(career);
-    setPercentile(pct);
+    setStandingPercent(standing.standingPercent);
+    setTopPercent(standing.topPercent);
+    setAchievements(badgeStates);
     setLoading(false);
   }, []);
 
@@ -277,12 +249,12 @@ export default function ProfilePage() {
               <div className="space-y-1.5">
                 <div className="flex justify-between text-xs text-muted-foreground">
                   <span>Season standing</span>
-                  <span>Top {percentile}%</span>
+                  <span>Top {topPercent}%</span>
                 </div>
                 <div className="h-2.5 overflow-hidden rounded-full bg-muted">
                   <div
                     className="h-full rounded-full bg-gradient-to-r from-cyan-500 via-neon-lime to-amber-400 transition-all"
-                    style={{ width: `${percentile}%` }}
+                    style={{ width: `${standingPercent}%` }}
                   />
                 </div>
               </div>
@@ -317,15 +289,18 @@ export default function ProfilePage() {
               </div>
             </article>
 
-            {/* Section 5 — Badges */}
+            {/* Section 5 — Achievements */}
             <article className="space-y-3">
               <div className="flex items-center gap-2">
                 <Award className="h-5 w-5 text-neon-lime" aria-hidden />
                 <h2 className="type-section-label">Achievements</h2>
               </div>
-              <div className="grid grid-cols-4 gap-2 sm:gap-3">
-                {BADGES.map((badge) => (
-                  <BadgeCard key={badge.id} badge={badge} />
+              <p className="text-xs text-muted-foreground">
+                Earn badges by hitting milestones in Season 1. Locked badges show what to aim for next.
+              </p>
+              <div className="grid grid-cols-3 gap-2 sm:gap-3">
+                {achievements.map((badge) => (
+                  <AchievementBadge key={badge.id} achievement={badge} />
                 ))}
               </div>
             </article>
@@ -348,35 +323,10 @@ function StatCard({ label, value }: { label: string; value: string }) {
   return (
     <div className="rounded-xl border border-border bg-card px-3 py-4">
       <p className="type-meta">{label}</p>
-      <p className="type-stat mt-1 text-foreground">{value}</p>
+      <p className="mt-1 font-sans text-lg font-semibold tabular-nums leading-tight text-foreground">
+        {value}
+      </p>
     </div>
   );
 }
 
-function BadgeCard({ badge }: { badge: BadgeDef }) {
-  const Icon = badge.icon;
-  return (
-    <div
-      className={cn(
-        'relative flex flex-col items-center gap-1 rounded-lg border p-2 text-center',
-        badge.unlocked
-          ? 'border-amber-400/70 bg-amber-500/10'
-          : 'border-border bg-muted/20 opacity-50',
-      )}
-      title={badge.description}
-    >
-      <div
-        className={cn(
-          'flex h-9 w-9 items-center justify-center rounded-full',
-          badge.unlocked ? 'bg-amber-500/20 text-amber-300' : 'bg-muted text-muted-foreground',
-        )}
-      >
-        <Icon className="h-4 w-4" aria-hidden />
-      </div>
-      <p className="text-[10px] font-semibold leading-tight text-foreground">{badge.name}</p>
-      {!badge.unlocked ? (
-        <Lock className="absolute right-1 top-1 h-3 w-3 text-muted-foreground" aria-hidden />
-      ) : null}
-    </div>
-  );
-}
