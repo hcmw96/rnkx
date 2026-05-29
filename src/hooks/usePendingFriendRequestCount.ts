@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useState } from 'react';
-import { supabase } from '@/services/supabase';
+import { fetchPendingInviteCount } from '@/lib/notificationCounts';
 import { resolveAthleteId } from '@/lib/resolveAthleteId';
 import { UNREAD_CHANGED_EVENT } from '@/lib/unreadMessages';
+import { supabase } from '@/services/supabase';
 
 /** Incoming friend requests + club invites awaiting action. */
 export function usePendingFriendRequestCount(): number {
@@ -20,27 +21,7 @@ export function usePendingFriendRequestCount(): number {
       setCount(0);
       return;
     }
-
-    const [friendReqRes, clubInviteRes] = await Promise.all([
-      supabase.from('friendships').select('id', { count: 'exact', head: true }).eq('friend_id', aid).eq('status', 'pending'),
-      supabase
-        .from('private_league_members')
-        .select('league_id', { count: 'exact', head: true })
-        .eq('athlete_id', aid)
-        .eq('status', 'pending'),
-    ]);
-
-    if (friendReqRes.error) {
-      console.warn('[friend-requests] count failed:', friendReqRes.error.message);
-      setCount(0);
-      return;
-    }
-    if (clubInviteRes.error) {
-      console.warn('[club-invites] count failed:', clubInviteRes.error.message);
-      setCount(friendReqRes.count ?? 0);
-      return;
-    }
-    setCount((friendReqRes.count ?? 0) + (clubInviteRes.count ?? 0));
+    setCount(await fetchPendingInviteCount(aid));
   }, []);
 
   useEffect(() => {

@@ -1,13 +1,12 @@
 import { Link } from 'react-router-dom';
 import { Bell, MessageCircle, Settings } from 'lucide-react';
 import { haptic } from '@/lib/haptics';
-import { usePendingFriendRequestCount } from '@/hooks/usePendingFriendRequestCount';
+import { useNotificationCount } from '@/hooks/useNotificationCount';
 import { useUnreadCount } from '@/hooks/useUnreadCount';
 
 export function AppHeaderActions() {
   const unreadMessages = useUnreadCount();
-  const pendingFriends = usePendingFriendRequestCount();
-  const notificationCount = pendingFriends;
+  const notificationCount = useNotificationCount();
 
   return (
     <>

@@ -1,14 +1,11 @@
 import { useCallback, useEffect, useState } from 'react';
-import { fetchUnreadMessageCount } from '@/lib/notificationCounts';
+import { fetchTotalNotificationCount } from '@/lib/notificationCounts';
 import { resolveAthleteId } from '@/lib/resolveAthleteId';
 import { UNREAD_CHANGED_EVENT } from '@/lib/unreadMessages';
 import { supabase } from '@/services/supabase';
 
-/**
- * Returns the number of conversations with unread messages for the current user.
- * Subscribes to Realtime and local read-state updates.
- */
-export function useUnreadCount(): number {
+/** Unread messages + pending friend/club invites (matches Notifications page). */
+export function useNotificationCount(): number {
   const [count, setCount] = useState(0);
 
   const fetchCount = useCallback(async () => {
@@ -24,24 +21,32 @@ export function useUnreadCount(): number {
       setCount(0);
       return;
     }
-    setCount(await fetchUnreadMessageCount(aid));
+    setCount(await fetchTotalNotificationCount(aid));
   }, []);
 
   useEffect(() => {
     void fetchCount();
 
-    const onUnreadChanged = () => void fetchCount();
-    window.addEventListener(UNREAD_CHANGED_EVENT, onUnreadChanged);
-
     const channel = supabase
-      .channel('unread-count-watcher')
+      .channel('notification-count')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'friendships' }, () => {
+        void fetchCount();
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'private_league_members' }, () => {
+        void fetchCount();
+      })
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'conversation_messages' }, () => {
         void fetchCount();
       })
       .subscribe();
 
+    const onUnreadChanged = () => void fetchCount();
+    window.addEventListener(UNREAD_CHANGED_EVENT, onUnreadChanged);
+    document.addEventListener('visibilitychange', onUnreadChanged);
+
     return () => {
       window.removeEventListener(UNREAD_CHANGED_EVENT, onUnreadChanged);
+      document.removeEventListener('visibilitychange', onUnreadChanged);
       void supabase.removeChannel(channel);
     };
   }, [fetchCount]);

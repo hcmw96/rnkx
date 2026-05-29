@@ -404,6 +404,9 @@ verify_jwt = false
 [functions.notify-rank-change]
 verify_jwt = false
 
+[functions.update-app-badge]
+verify_jwt = true
+
 [functions.notify-sync-reminder]
 verify_jwt = false
 
