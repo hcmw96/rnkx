@@ -1,14 +1,36 @@
-import { useCallback, useEffect, useState } from 'react';
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useState,
+  type ReactNode,
+} from 'react';
+import { syncAppIconBadge } from '@/lib/appBadgeSync';
 import { fetchTotalNotificationCount } from '@/lib/notificationCounts';
 import { resolveAthleteId } from '@/lib/resolveAthleteId';
 import { UNREAD_CHANGED_EVENT } from '@/lib/unreadMessages';
 import { supabase } from '@/services/supabase';
 
-/** Unread messages + pending friend/club invites (matches Notifications page). */
+const NotificationCountContext = createContext(0);
+
 export function useNotificationCount(): number {
+  return useContext(NotificationCountContext);
+}
+
+type NotificationCountProviderProps = {
+  children: ReactNode;
+  enabled: boolean;
+};
+
+export function NotificationCountProvider({ children, enabled }: NotificationCountProviderProps) {
   const [count, setCount] = useState(0);
 
   const fetchCount = useCallback(async () => {
+    if (!enabled) {
+      setCount(0);
+      return;
+    }
     const {
       data: { user },
     } = await supabase.auth.getUser();
@@ -22,13 +44,19 @@ export function useNotificationCount(): number {
       return;
     }
     setCount(await fetchTotalNotificationCount(aid));
-  }, []);
+  }, [enabled]);
 
   useEffect(() => {
+    if (!enabled) {
+      setCount(0);
+      return;
+    }
+
     void fetchCount();
 
+    const channelName = `notification-count-${crypto.randomUUID()}`;
     const channel = supabase
-      .channel('notification-count')
+      .channel(channelName)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'friendships' }, () => {
         void fetchCount();
       })
@@ -49,7 +77,14 @@ export function useNotificationCount(): number {
       document.removeEventListener('visibilitychange', onUnreadChanged);
       void supabase.removeChannel(channel);
     };
-  }, [fetchCount]);
+  }, [enabled, fetchCount]);
 
-  return count;
+  useEffect(() => {
+    if (!enabled) return;
+    syncAppIconBadge(count);
+  }, [count, enabled]);
+
+  return (
+    <NotificationCountContext.Provider value={count}>{children}</NotificationCountContext.Provider>
+  );
 }

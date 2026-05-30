@@ -27,8 +27,9 @@ export function usePendingFriendRequestCount(): number {
   useEffect(() => {
     void fetchCount();
 
+    const channelName = `friend-request-count-${crypto.randomUUID()}`;
     const channel = supabase
-      .channel('friend-request-count')
+      .channel(channelName)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'friendships' }, () => {
         void fetchCount();
       })

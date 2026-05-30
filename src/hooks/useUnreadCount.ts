@@ -33,8 +33,9 @@ export function useUnreadCount(): number {
     const onUnreadChanged = () => void fetchCount();
     window.addEventListener(UNREAD_CHANGED_EVENT, onUnreadChanged);
 
+    const channelName = `unread-count-${crypto.randomUUID()}`;
     const channel = supabase
-      .channel('unread-count-watcher')
+      .channel(channelName)
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'conversation_messages' }, () => {
         void fetchCount();
       })

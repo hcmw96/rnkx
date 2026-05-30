@@ -1,7 +1,7 @@
 import { Link } from 'react-router-dom';
 import { Bell, MessageCircle, Settings } from 'lucide-react';
 import { haptic } from '@/lib/haptics';
-import { useNotificationCount } from '@/hooks/useNotificationCount';
+import { useNotificationCount } from '@/context/NotificationCountContext';
 import { useUnreadCount } from '@/hooks/useUnreadCount';
 
 export function AppHeaderActions() {
