@@ -23,13 +23,12 @@ import {
   Shield,
   Trash2,
   User,
-  UserPlus,
-  Users,
 } from 'lucide-react';
-import { Link, useLocation, useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import { AppShell } from '@/components/app/AppShell';
 import { PremiumGate } from '@/components/PremiumGate';
+import { SHOW_RECOVERY } from '@/lib/featureFlags';
 import RecoveryPage from '@/pages/app/RecoveryPage';
 import { Button } from '@/components/ui/button';
 import {
@@ -101,15 +100,6 @@ interface AthleteRow {
   is_premium: boolean | null;
   health_data_enabled: boolean | null;
   profile_public: boolean | null;
-}
-
-interface FriendMini {
-  id: string;
-  username: string | null;
-  display_name: string | null;
-  avatar_url: string | null;
-  rank: number | null;
-  total_score: number;
 }
 
 interface TerraConnectionRow {
@@ -219,8 +209,6 @@ export default function SettingsPage() {
   const [usernameDraft, setUsernameDraft] = useState('');
   const [nameSaving, setNameSaving] = useState(false);
   const [usernameSaving, setUsernameSaving] = useState(false);
-  const [friendsMini, setFriendsMini] = useState<FriendMini[]>([]);
-  const [friendsMiniLoading, setFriendsMiniLoading] = useState(false);
   const [assistantOpen, setAssistantOpen] = useState(false);
   const [assistantInput, setAssistantInput] = useState('');
   const [supportBody, setSupportBody] = useState('');
@@ -297,62 +285,8 @@ export default function SettingsPage() {
     void loadProfile();
   }, [loadProfile]);
 
-  const loadFriendsMini = useCallback(async () => {
-    if (!athlete?.id) {
-      setFriendsMini([]);
-      return;
-    }
-    setFriendsMiniLoading(true);
-    const aid = athlete.id;
-    const { data: accepted, error: accErr } = await supabase
-      .from('friendships')
-      .select('id, athlete_id, friend_id, status')
-      .or(`athlete_id.eq.${aid},friend_id.eq.${aid}`)
-      .eq('status', 'accepted');
-
-    if (accErr) {
-      setFriendsMini([]);
-      setFriendsMiniLoading(false);
-      return;
-    }
-    const friendIds = (accepted ?? []).map((r) =>
-      (r as { athlete_id: string; friend_id: string }).athlete_id === aid
-        ? (r as { friend_id: string }).friend_id
-        : (r as { athlete_id: string }).athlete_id,
-    );
-    const unique = [...new Set(friendIds)];
-    if (!unique.length) {
-      setFriendsMini([]);
-      setFriendsMiniLoading(false);
-      return;
-    }
-    const [{ data: aths }, { data: lb }] = await Promise.all([
-      supabase.from('athletes').select('id, username, display_name, avatar_url').in('id', unique),
-      supabase.from('leaderboard').select('id, rank, total_score').in('id', unique),
-    ]);
-    const lbMap = new Map((lb ?? []).map((l) => [l.id as string, l]));
-    setFriendsMini(
-      (aths ?? []).map((a) => {
-        const row = lbMap.get(a.id as string);
-        return {
-          id: a.id as string,
-          username: (a as { username: string | null }).username,
-          display_name: (a as { display_name: string | null }).display_name,
-          avatar_url: (a as { avatar_url: string | null }).avatar_url,
-          rank: row?.rank != null ? Number(row.rank) : null,
-          total_score: row?.total_score != null ? Number(row.total_score) : 0,
-        };
-      }),
-    );
-    setFriendsMiniLoading(false);
-  }, [athlete?.id]);
-
   useEffect(() => {
-    void loadFriendsMini();
-  }, [loadFriendsMini]);
-
-  useEffect(() => {
-    if (!athlete || location.hash !== '#recovery') return;
+    if (!SHOW_RECOVERY || !athlete || location.hash !== '#recovery') return;
     const el = document.getElementById('recovery');
     if (!el) return;
     const timer = window.setTimeout(() => {
@@ -1497,51 +1431,7 @@ export default function SettingsPage() {
               </div>
             </button>
 
-            {/* FRIENDS */}
-            <article className="space-y-3 rounded-xl border border-border bg-card p-4">
-              <div className="flex items-center justify-between gap-2">
-                <div className="flex items-center gap-2">
-                  <Users className="h-5 w-5 text-neon-lime" aria-hidden />
-                  <h2 className="type-section-label">Friends</h2>
-                </div>
-                <Button
-                  type="button"
-                  size="sm"
-                  variant="outline"
-                  className="gap-1 border-neon-lime/40 font-semibold text-neon-lime"
-                  onClick={() => navigate('/app/social/friends')}
-                >
-                  <UserPlus className="h-4 w-4" aria-hidden />
-                  Add
-                </Button>
-              </div>
-              {friendsMiniLoading ? (
-                <p className="type-meta">Loading friends…</p>
-              ) : friendsMini.length === 0 ? (
-                <p className="text-sm text-muted-foreground">No friends yet. Add friends to compare on leaderboards!</p>
-              ) : (
-                <ul className="space-y-2">
-                  {friendsMini.map((f) => (
-                    <li key={f.id}>
-                      <Link
-                        to={`/app/friends/${f.id}`}
-                        className="flex items-center justify-between rounded-lg border border-border/60 bg-zinc-950/40 px-3 py-2 transition-colors hover:border-neon-lime/30 hover:bg-zinc-900/60"
-                      >
-                        <div className="min-w-0">
-                          <p className="truncate type-heading">{f.display_name || f.username}</p>
-                          <p className="type-meta truncate">{f.username ?? '—'}</p>
-                        </div>
-                        <div className="shrink-0 text-right text-xs text-muted-foreground">
-                          <span>#{f.rank ?? '—'}</span>
-                        </div>
-                      </Link>
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </article>
-
-            {/* RECOVERY */}
+            {SHOW_RECOVERY ? (
             <article id="recovery" className="space-y-3 rounded-xl border border-border bg-card p-4">
               <div className="flex items-center gap-2">
                 <Heart className="h-5 w-5 text-neon-lime" aria-hidden />
@@ -1557,6 +1447,7 @@ export default function SettingsPage() {
                 <RecoveryPage embedded />
               </PremiumGate>
             </article>
+            ) : null}
 
             {/* HEALTH DATA */}
             <article className="space-y-3 rounded-xl border border-border bg-card p-4">

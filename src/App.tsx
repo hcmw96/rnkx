@@ -8,6 +8,7 @@ import { ProfileGateContext } from '@/context/ProfileGateContext';
 import { NotificationCountProvider } from '@/context/NotificationCountContext';
 import { AchievementUnlockProvider } from '@/context/AchievementUnlockContext';
 import { ScoreSharePromptProvider } from '@/context/ScoreSharePromptContext';
+import { SHOW_RECOVERY } from '@/lib/featureFlags';
 import LeaderboardPage from './pages/app/LeaderboardPage';
 import ProfilePage from './pages/app/ProfilePage';
 import SettingsPage from './pages/app/SettingsPage';
@@ -371,7 +372,7 @@ function SessionRoutes() {
           <Route path="friends" element={<FriendsPage embedded />} />
           <Route path="leagues" element={<PrivateLeaguesPage embedded />} />
           <Route path="discover" element={<DiscoverClubsPage />} />
-          <Route path="recovery" element={<Navigate to="/app/settings#recovery" replace />} />
+          <Route path="recovery" element={<Navigate to={SHOW_RECOVERY ? '/app/settings#recovery' : '/app/settings'} replace />} />
         </Route>
         <Route path="/app/friends" element={<Navigate to="/app/social/friends" replace />} />
         <Route
@@ -435,7 +436,7 @@ function SessionRoutes() {
           }
         />
         <Route path="/app/leagues" element={<Navigate to="/app/social/leagues" replace />} />
-        <Route path="/app/recovery" element={<Navigate to="/app/settings#recovery" replace />} />
+        <Route path="/app/recovery" element={<Navigate to={SHOW_RECOVERY ? '/app/settings#recovery' : '/app/settings'} replace />} />
         <Route
           path="/app/leagues/:leagueId"
           element={

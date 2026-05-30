@@ -1,11 +1,9 @@
 import { useCallback, useEffect, useRef, useState, type ChangeEvent } from 'react';
-import { Award, Settings } from 'lucide-react';
-import { Link } from 'react-router-dom';
 import { format } from 'date-fns';
 import { toast } from 'sonner';
 import { AppShell } from '@/components/app/AppShell';
+import { ProfileOverviewCard, ProfileProgressCard } from '@/components/profile/ProfileSections';
 import { getCountryByName } from '@/data/countries';
-import { AchievementBadge } from '@/components/profile/AchievementBadge';
 import { fetchAchievementStates, type AchievementState } from '@/lib/achievements';
 import {
   fetchProfileCareerStats,
@@ -14,7 +12,6 @@ import {
   type ProfileCareerStats,
   type ProfileSeasonStats,
 } from '@/lib/profileStats';
-import { cn } from '@/lib/utils';
 import { supabase } from '@/services/supabase';
 
 const ATHLETE_COLUMNS =
@@ -30,9 +27,6 @@ interface AthleteRow {
   created_at: string | null;
   is_premium: boolean | null;
 }
-
-// Feature flag: hide social card at launch
-const SHOW_SOCIAL_CARD = false;
 
 function twoLetterAvatar(username: string | null, displayName: string | null): string {
   const u = (username ?? '').trim();
@@ -174,7 +168,12 @@ export default function ProfilePage() {
 
   return (
     <AppShell>
-      <section className="mx-auto max-w-lg space-y-8 pb-8">
+      <section className="mx-auto max-w-lg space-y-4 pb-8">
+        <div className="space-y-1">
+          <h1 className="type-page-title">Profile</h1>
+          <p className="text-sm text-muted-foreground">Season standing, career stats, and badges.</p>
+        </div>
+
         <input
           ref={fileInputRef}
           type="file"
@@ -190,149 +189,29 @@ export default function ProfilePage() {
           <p className="text-sm text-destructive">Could not load your athlete profile.</p>
         ) : (
           <>
-            {/* Section 1 — Identity */}
-            <div className="flex flex-col items-center gap-3 text-center">
-              <button
-                type="button"
-                onClick={openAvatarPicker}
-                disabled={uploading}
-                className="relative h-32 w-32 shrink-0 overflow-hidden rounded-full border-2 border-neon-lime/40 bg-muted transition hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50"
-                aria-label="Change profile photo"
-              >
-                {athlete.avatar_url ? (
-                  <img src={athlete.avatar_url} alt="" className="h-full w-full object-cover" />
-                ) : (
-                  <span className="flex h-full w-full items-center justify-center text-2xl font-semibold tracking-wide text-foreground">
-                    {initials}
-                  </span>
-                )}
-                {uploading ? (
-                  <span className="absolute inset-0 flex items-center justify-center bg-background/70 text-xs font-medium">
-                    …
-                  </span>
-                ) : null}
-              </button>
+            <ProfileOverviewCard
+              displayName={athlete.display_name}
+              username={athlete.username}
+              isPremium={athlete.is_premium}
+              countryName={countryName}
+              countryFlag={countryFlag}
+              memberSince={memberSinceLabel(athlete.created_at)}
+              avatarUrl={athlete.avatar_url}
+              initials={initials}
+              uploading={uploading}
+              onAvatarClick={openAvatarPicker}
+              seasonDisplay={seasonStats?.seasonDisplay ?? 'Season 1 · Spring 2026'}
+              combinedScore={combinedScore}
+              engineScore={engineScore}
+              runScore={runScore}
+              standingPercent={standingPercent}
+              topPercent={topPercent}
+            />
 
-              <div className="space-y-1">
-                <h1 className="type-page-title">{athlete.display_name}</h1>
-                <p className="text-sm text-neon-lime">@{athlete.username ?? '—'}</p>
-                <p className="flex justify-center pt-0.5">
-                  <span
-                    className={cn(
-                      'rounded-full px-2.5 py-0.5 text-xs font-bold uppercase tracking-wide',
-                      athlete.is_premium
-                        ? 'bg-neon-lime/20 text-neon-lime'
-                        : 'bg-muted text-muted-foreground',
-                    )}
-                  >
-                    {athlete.is_premium ? 'Premium' : 'Free'}
-                  </span>
-                </p>
-                {countryName ? (
-                  <p className="text-sm text-muted-foreground">
-                    {countryFlag ? `${countryFlag} ` : ''}
-                    {countryName}
-                  </p>
-                ) : null}
-                <p className="text-xs text-muted-foreground">{memberSinceLabel(athlete.created_at)}</p>
-              </div>
-            </div>
-
-            {/* Section 2 — Social card (launch flag off) */}
-            {SHOW_SOCIAL_CARD ? (
-              <article className="rounded-xl border border-border bg-card p-5 opacity-60">
-                <p className="type-section-label">Social</p>
-                <p className="mt-2 text-sm text-muted-foreground">Coming Soon</p>
-              </article>
-            ) : null}
-
-            {/* Section 3 — Season score */}
-            <article className="space-y-4 rounded-xl border border-border bg-card p-5">
-              <p className="type-section-label">{seasonStats?.seasonDisplay ?? 'Season 1 · Spring 2026'}</p>
-              <p className="type-stat text-neon-lime">{combinedScore.toLocaleString()}</p>
-              <p className="type-meta">Combined season score</p>
-
-              <div className="space-y-1.5">
-                <div className="flex justify-between text-xs text-muted-foreground">
-                  <span>Season standing</span>
-                  <span>Top {topPercent}%</span>
-                </div>
-                <div className="h-2.5 overflow-hidden rounded-full bg-muted">
-                  <div
-                    className="h-full rounded-full bg-gradient-to-r from-cyan-500 via-neon-lime to-amber-400 transition-all"
-                    style={{ width: `${standingPercent}%` }}
-                  />
-                </div>
-              </div>
-
-              <div className="flex flex-wrap gap-2">
-                <span className="rounded-full border border-border bg-zinc-950/60 px-3 py-1 text-xs font-medium text-foreground">
-                  Engine: {engineScore.toLocaleString()} pts
-                </span>
-                <span className="rounded-full border border-border bg-zinc-950/60 px-3 py-1 text-xs font-medium text-foreground">
-                  Run: {runScore.toLocaleString()} pts
-                </span>
-              </div>
-            </article>
-
-            {/* Section 4 — Career stats */}
-            <article className="space-y-3">
-              <h2 className="type-section-label">Career stats</h2>
-              <div className="grid grid-cols-2 gap-3">
-                <StatCard
-                  label="Scored workouts"
-                  value={String(careerStats?.totalScoredWorkouts ?? 0)}
-                />
-                <StatCard
-                  label="All-time points"
-                  value={(careerStats?.allTimePoints ?? 0).toLocaleString()}
-                />
-                <StatCard
-                  label="Best session"
-                  value={`${(careerStats?.bestSession ?? 0).toLocaleString()} pts`}
-                />
-                <StatCard label="Top activity" value={careerStats?.topActivityType ?? '—'} />
-              </div>
-            </article>
-
-            {/* Section 5 — Achievements */}
-            <article className="space-y-3">
-              <div className="flex items-center gap-2">
-                <Award className="h-5 w-5 text-neon-lime" aria-hidden />
-                <h2 className="type-section-label">Achievements</h2>
-              </div>
-              <p className="text-xs text-muted-foreground">
-                Earn badges by hitting milestones. Locked badges show what to aim for next.
-              </p>
-              <div className="grid grid-cols-3 gap-2 sm:gap-3">
-                {achievements.map((badge) => (
-                  <AchievementBadge key={badge.id} achievement={badge} />
-                ))}
-              </div>
-            </article>
-
-            <Link
-              to="/app/settings"
-              className="flex items-center justify-center gap-2 rounded-xl border border-border bg-card py-3 text-sm font-medium text-muted-foreground transition-colors hover:border-neon-lime/40 hover:text-foreground"
-            >
-              <Settings className="h-4 w-4" aria-hidden />
-              Account &amp; device settings
-            </Link>
+            <ProfileProgressCard careerStats={careerStats} achievements={achievements} />
           </>
         )}
       </section>
     </AppShell>
   );
 }
-
-function StatCard({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="rounded-xl border border-border bg-card px-3 py-4">
-      <p className="type-meta">{label}</p>
-      <p className="mt-1 font-sans text-lg font-semibold tabular-nums leading-tight text-foreground">
-        {value}
-      </p>
-    </div>
-  );
-}
-
