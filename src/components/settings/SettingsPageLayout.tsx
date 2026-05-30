@@ -899,14 +899,12 @@ export function SettingsPageLayout(props: SettingsPageLayoutProps) {
               </SettingsGroup>
             </div>
 
-            <SettingsGroup className="border-destructive/40">
+            <SettingsGroup>
               <SettingsRow
                 icon={LogOut}
                 title="Sign out"
-                titleClassName="text-destructive"
                 chevron={false}
                 onClick={onSignOut}
-                className="hover:bg-destructive/5"
               />
             </SettingsGroup>
 
