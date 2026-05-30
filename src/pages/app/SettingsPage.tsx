@@ -7,46 +7,11 @@ import {
   type ComponentType,
 } from 'react';
 import despia from 'despia-native';
-import {
-  Activity,
-  Check,
-  ChevronRight,
-  CreditCard,
-  FileText,
-  Heart,
-  HelpCircle,
-  Info,
-  LogOut,
-  MessageCircle,
-  RotateCcw,
-  Send,
-  Shield,
-  Trash2,
-  User,
-} from 'lucide-react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
-import { AppShell } from '@/components/app/AppShell';
-import { PremiumGate } from '@/components/PremiumGate';
 import { SHOW_RECOVERY } from '@/lib/featureFlags';
-import RecoveryPage from '@/pages/app/RecoveryPage';
-import { Button } from '@/components/ui/button';
+import { SettingsPageLayout } from '@/components/settings/SettingsPageLayout';
 import {
-  AlertDialog,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from '@/components/ui/alert-dialog';
-import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { Input } from '@/components/ui/input';
-import { Switch } from '@/components/ui/switch';
-import { Textarea } from '@/components/ui/textarea';
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
-import {
-  AppleLogo,
   CorosLogo,
   FitbitLogo,
   GarminLogo,
@@ -74,7 +39,6 @@ import {
   nextProfileMaxHrFromApple,
   shouldApplyAppleMaxHrToProfile,
 } from '@/lib/appleMaxHr';
-import { cn } from '@/lib/utils';
 import { useAchievementUnlock } from '@/context/AchievementUnlockContext';
 import { useScoreSharePrompt } from '@/context/ScoreSharePromptContext';
 import { syncAppleWorkoutsToDatabase } from '@/lib/syncActivitiesApple';
@@ -83,7 +47,7 @@ import { presentPaywall, restoreInAppPurchasesAndApplyPremium } from '@/services
 import { supabase } from '@/services/supabase';
 
 const ATHLETE_COLUMNS =
-  'id,username,display_name,country,avatar_url,total_score,selected_leagues,wearables,user_id,max_hr,max_hr_source,is_premium,health_data_enabled,profile_public';
+  'id,username,display_name,country,avatar_url,total_score,selected_leagues,wearables,user_id,max_hr,max_hr_source,is_premium,health_data_enabled,profile_public,last_synced';
 
 interface AthleteRow {
   id: string;
@@ -100,7 +64,22 @@ interface AthleteRow {
   is_premium: boolean | null;
   health_data_enabled: boolean | null;
   profile_public: boolean | null;
+  last_synced: string | null;
 }
+
+type SettingsDialog =
+  | 'email'
+  | 'displayName'
+  | 'username'
+  | 'password'
+  | 'maxHr'
+  | 'leagues'
+  | 'subscription'
+  | 'support'
+  | 'appleDevice'
+  | 'whoopDevice'
+  | 'terraDevice'
+  | null;
 
 interface TerraConnectionRow {
   id: string;
@@ -135,21 +114,6 @@ function wearableLogoForCode(code: string) {
   return WEARABLE_LOGO_BY_CODE[code.toUpperCase()] ?? null;
 }
 
-function ConnectedBadge() {
-  return (
-    <span className="shrink-0 rounded-full border border-emerald-500/50 bg-emerald-500/15 px-2 py-0.5 text-xs font-semibold text-emerald-400">
-      Connected
-    </span>
-  );
-}
-
-function isDespiaWebView(): boolean {
-  if (typeof window === 'undefined') return false;
-  const hasDespiaBridge = (window as Window & { despia?: unknown }).despia != null;
-  const isIosUa = /iPhone|iPad|iPod/.test(navigator.userAgent);
-  return hasDespiaBridge || isIosUa;
-}
-
 function athleteWearsApple(wearables: string[] | null | undefined): boolean {
   return (wearables ?? []).some((w) => {
     const v = String(w).toLowerCase();
@@ -159,22 +123,6 @@ function athleteWearsApple(wearables: string[] | null | undefined): boolean {
 
 function athleteWearsWhoop(wearables: string[] | null | undefined): boolean {
   return (wearables ?? []).some((w) => String(w).toLowerCase() === 'whoop');
-}
-
-function labelForMaxHrSource(source: string | null | undefined): string {
-  switch (source) {
-    case 'manual':
-      return 'Set manually';
-    case 'whoop_historic':
-    case 'whoop_live':
-      return 'Detected from WHOOP';
-    case 'terra_live':
-      return 'Detected from your wearable';
-    case 'apple_watch':
-      return 'Detected from Apple Watch';
-    default:
-      return source ? `Source: ${source}` : '';
-  }
 }
 
 function parseMaxHrDisplay(v: number | string | null | undefined): number | null {
@@ -199,13 +147,10 @@ export default function SettingsPage() {
   /** Despia iPhone HealthKit probe: null until resolved; irrelevant when DB has no apple wearable. */
   const [appleHkLiveOk, setAppleHkLiveOk] = useState<boolean | null>(null);
   const [appleError, setAppleError] = useState<string | null>(null);
-  const [maxHrEditing, setMaxHrEditing] = useState(false);
   const [maxHrDraft, setMaxHrDraft] = useState('');
   const [maxHrSaving, setMaxHrSaving] = useState(false);
   const [userEmail, setUserEmail] = useState<string | null>(null);
-  const [nameEditing, setNameEditing] = useState(false);
   const [nameDraft, setNameDraft] = useState('');
-  const [usernameEditing, setUsernameEditing] = useState(false);
   const [usernameDraft, setUsernameDraft] = useState('');
   const [nameSaving, setNameSaving] = useState(false);
   const [usernameSaving, setUsernameSaving] = useState(false);
@@ -217,6 +162,8 @@ export default function SettingsPage() {
   const [settingsBusy, setSettingsBusy] = useState(false);
   const [deleteAccountOpen, setDeleteAccountOpen] = useState(false);
   const [deleteAccountWorking, setDeleteAccountWorking] = useState(false);
+  const [settingsDialog, setSettingsDialog] = useState<SettingsDialog>(null);
+  const [terraDialogRow, setTerraDialogRow] = useState<TerraConnectionRow | null>(null);
   const { promptFromAppleSync } = useScoreSharePrompt();
   const { refreshAchievements } = useAchievementUnlock();
 
@@ -658,12 +605,12 @@ export default function SettingsPage() {
     }
   }
 
-  async function saveMaxHrManual() {
-    if (!athlete?.id) return;
+  async function saveMaxHrManual(): Promise<boolean> {
+    if (!athlete?.id) return false;
     const n = Number(maxHrDraft.trim());
     if (!Number.isFinite(n) || n < 60 || n > 240) {
       toast.error('Enter a max heart rate between 60 and 240 bpm.');
-      return;
+      return false;
     }
     setMaxHrSaving(true);
     try {
@@ -673,13 +620,13 @@ export default function SettingsPage() {
         .eq('id', athlete.id);
       if (error) {
         toast.error(error.message);
-        return;
+        return false;
       }
       setAthlete((prev) =>
         prev ? { ...prev, max_hr: Math.round(n), max_hr_source: 'manual' } : prev,
       );
-      setMaxHrEditing(false);
       toast.success('Max HR updated.');
+      return true;
     } finally {
       setMaxHrSaving(false);
     }
@@ -725,34 +672,34 @@ export default function SettingsPage() {
     toast.success('Check your email for a password reset link.');
   }
 
-  async function saveDisplayNameInline() {
-    if (!athlete?.id) return;
+  async function saveDisplayNameInline(): Promise<boolean> {
+    if (!athlete?.id) return false;
     const v = nameDraft.trim();
     if (!v) {
       toast.error('Display name cannot be empty.');
-      return;
+      return false;
     }
     setNameSaving(true);
     try {
       const { error } = await supabase.from('athletes').update({ display_name: v }).eq('id', athlete.id);
       if (error) {
         toast.error(error.message);
-        return;
+        return false;
       }
       setAthlete((prev) => (prev ? { ...prev, display_name: v } : prev));
-      setNameEditing(false);
       toast.success('Name updated.');
+      return true;
     } finally {
       setNameSaving(false);
     }
   }
 
-  async function saveUsernameInline() {
-    if (!athlete?.id) return;
+  async function saveUsernameInline(): Promise<boolean> {
+    if (!athlete?.id) return false;
     const v = usernameDraft.trim().replace(/^@/, '');
     if (!v) {
       toast.error('Username cannot be empty.');
-      return;
+      return false;
     }
     setUsernameSaving(true);
     try {
@@ -763,11 +710,11 @@ export default function SettingsPage() {
         } else {
           toast.error(error.message);
         }
-        return;
+        return false;
       }
       setAthlete((prev) => (prev ? { ...prev, username: v } : prev));
-      setUsernameEditing(false);
       toast.success('Username updated.');
+      return true;
     } finally {
       setUsernameSaving(false);
     }
@@ -831,22 +778,23 @@ export default function SettingsPage() {
     }
   }
 
-  async function sendSupportMessage() {
-    if (!athlete?.id) return;
+  async function sendSupportMessage(): Promise<boolean> {
+    if (!athlete?.id) return false;
     const body = supportBody.trim();
     if (!body) {
       toast.error('Please describe your issue.');
-      return;
+      return false;
     }
     setSupportSending(true);
     try {
       const { error } = await supabase.from('support_messages').insert({ athlete_id: athlete.id, body });
       if (error) {
         toast.error(error.message);
-        return;
+        return false;
       }
       setSupportBody('');
       toast.success('Thanks — our team will get back to you soon.');
+      return true;
     } finally {
       setSupportSending(false);
     }
@@ -881,7 +829,6 @@ export default function SettingsPage() {
     navigate('/app/how-it-works');
   }
 
-  const inDespiaWebView = isDespiaWebView();
   const wearsApple = athleteWearsApple(athlete?.wearables ?? null);
   const appleConnected =
     appleHkLiveOk === true
@@ -890,734 +837,151 @@ export default function SettingsPage() {
         ? false
         : wearsApple;
   const appleCardConnected = appleConnected;
-  const hasAnyDevice =
-    inDespiaWebView || appleConnected || whoopConnection != null || terraConnections.length > 0;
   const hasConnectedSyncDevice =
     athleteWearsApple(athlete?.wearables ?? null) || whoopConnection != null || terraConnections.length > 0;
 
+  const selectedLeagues = effectiveSelectedLeagues();
+  const maxHrDisplay = parseMaxHrDisplay(athlete?.max_hr ?? null);
+
+  function closeSettingsDialog() {
+    setSettingsDialog(null);
+    setTerraDialogRow(null);
+  }
+
+  function openSettingsDialog(dialog: SettingsDialog) {
+    if (!athlete) return;
+    if (dialog === 'displayName') {
+      setNameDraft(athlete.display_name);
+    }
+    if (dialog === 'username') {
+      setUsernameDraft(athlete.username ?? '');
+    }
+    if (dialog === 'maxHr') {
+      const cur = parseMaxHrDisplay(athlete.max_hr);
+      setMaxHrDraft(cur != null ? String(cur) : '');
+    }
+    setSettingsDialog(dialog);
+  }
+
+  function openTerraSettingsDialog(row: TerraConnectionRow) {
+    setTerraDialogRow(row);
+    setSettingsDialog('terraDevice');
+  }
+
+  async function startWhoopConnect() {
+    if (!athlete?.id) return;
+    const {
+      data: { session },
+    } = await supabase.auth.getSession();
+    if (!session?.access_token) {
+      toast.error('Missing auth session.');
+      return;
+    }
+    const statePayload = btoa(
+      JSON.stringify({
+        nonce: 'rnkx_whoop_auth',
+        token: session.access_token,
+        athlete_id: athlete.id,
+      }),
+    )
+      .replace(/\+/g, '-')
+      .replace(/\//g, '_')
+      .replace(/=/g, '');
+    window.location.href = `${WHOOP_OAUTH_AUTHORIZE_BASE}&state=${encodeURIComponent(statePayload)}`;
+  }
+
   return (
-    <AppShell>
-      <TooltipProvider delayDuration={200}>
-      <section className="mx-auto max-w-lg space-y-6">
-        <div className="space-y-1">
-          <h1 className="type-page-title">Settings</h1>
-          <p className="text-sm text-muted-foreground">Devices, account, privacy, and subscription.</p>
-        </div>
-
-        {loading ? (
-          <p className="text-sm text-muted-foreground">Loading settings…</p>
-        ) : !athlete ? (
-          <p className="text-sm text-destructive">Could not load your athlete profile.</p>
-        ) : (
-          <>
-            <AlertDialog open={deleteAccountOpen} onOpenChange={(o) => !deleteAccountWorking && setDeleteAccountOpen(o)}>
-              <AlertDialogContent className="border-border bg-card">
-                <AlertDialogHeader>
-                  <AlertDialogTitle>Delete account permanently?</AlertDialogTitle>
-                  <AlertDialogDescription className="text-left">
-                    Are you sure? This will permanently delete your account and all your data. This cannot be undone.
-                  </AlertDialogDescription>
-                </AlertDialogHeader>
-                <AlertDialogFooter>
-                  <AlertDialogCancel disabled={deleteAccountWorking}>Cancel</AlertDialogCancel>
-                  <Button
-                    type="button"
-                    variant="destructive"
-                    disabled={deleteAccountWorking}
-                    onClick={() => void performDeleteAccount()}
-                  >
-                    {deleteAccountWorking ? 'Deleting…' : 'Delete my account'}
-                  </Button>
-                </AlertDialogFooter>
-              </AlertDialogContent>
-            </AlertDialog>
-
-            <Dialog open={assistantOpen} onOpenChange={setAssistantOpen}>
-              <DialogContent className="max-w-md border-border bg-card">
-                <DialogHeader>
-                  <DialogTitle className="type-card-title">Ask the Assistant</DialogTitle>
-                  <p className="text-sm text-muted-foreground">
-                    Scoring rules and fair-play guidelines are in How It Works.
-                  </p>
-                </DialogHeader>
-                <Input
-                  placeholder="Ask about scoring, leagues, or fair play…"
-                  value={assistantInput}
-                  onChange={(e) => setAssistantInput(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter') handleAssistantSend();
-                  }}
-                />
-                <DialogFooter>
-                  <Button type="button" variant="outline" onClick={() => setAssistantOpen(false)}>
-                    Cancel
-                  </Button>
-                  <Button type="button" className="bg-neon-lime text-black hover:bg-neon-lime/90" onClick={handleAssistantSend}>
-                    View scoring rules
-                  </Button>
-                </DialogFooter>
-              </DialogContent>
-            </Dialog>
-
-            <article className="rounded-xl border border-border bg-card p-5 shadow-sm">
-              <div className="flex items-start justify-between gap-2">
-                <div className="flex items-center gap-2">
-                  <h2 className="type-card-title">Max HR</h2>
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <button
-                        type="button"
-                        className="rounded-full p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
-                        aria-label="About max heart rate"
-                      >
-                        <Info className="h-4 w-4" />
-                      </button>
-                    </TooltipTrigger>
-                    <TooltipContent className="max-w-xs text-left" side="top">
-                      Your max heart rate is used to calculate workout intensity and scores accurately
-                    </TooltipContent>
-                  </Tooltip>
-                </div>
-                {!maxHrEditing ? (
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    className="shrink-0"
-                    onClick={() => {
-                      const cur = parseMaxHrDisplay(athlete.max_hr);
-                      setMaxHrDraft(cur != null ? String(cur) : '');
-                      setMaxHrEditing(true);
-                    }}
-                  >
-                    Edit
-                  </Button>
-                ) : null}
-              </div>
-              {!maxHrEditing ? (
-                <div className="mt-3 space-y-1">
-                  <p className="type-stat text-foreground tabular-nums">
-                    {parseMaxHrDisplay(athlete.max_hr) != null
-                      ? `${parseMaxHrDisplay(athlete.max_hr)} bpm`
-                      : 'Not set'}
-                  </p>
-                  <p className="type-meta">
-                    {labelForMaxHrSource(athlete.max_hr_source) ||
-                      (parseMaxHrDisplay(athlete.max_hr) != null ? '—' : '')}
-                  </p>
-                </div>
-              ) : (
-                <div className="mt-3 flex flex-col gap-3 sm:flex-row sm:items-end">
-                  <div className="flex-1 space-y-1">
-                    <label htmlFor="max-hr-input" className="text-xs font-medium text-muted-foreground">
-                      Beats per minute (bpm)
-                    </label>
-                    <Input
-                      id="max-hr-input"
-                      type="number"
-                      inputMode="numeric"
-                      min={60}
-                      max={240}
-                      value={maxHrDraft}
-                      onChange={(e) => setMaxHrDraft(e.target.value)}
-                      className="max-w-[12rem]"
-                      placeholder="e.g. 185"
-                    />
-                  </div>
-                  <div className="flex gap-2">
-                    <Button
-                      type="button"
-                      size="sm"
-                      disabled={maxHrSaving}
-                      onClick={() => void saveMaxHrManual()}
-                    >
-                      {maxHrSaving ? 'Saving…' : 'Save'}
-                    </Button>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      disabled={maxHrSaving}
-                      onClick={() => setMaxHrEditing(false)}
-                    >
-                      Cancel
-                    </Button>
-                  </div>
-                </div>
-              )}
-            </article>
-
-            <article className="rounded-xl border border-border bg-card p-5 shadow-sm">
-              <h2 className="type-card-title">Connected Devices</h2>
-
-              <div className="mt-4 space-y-3">
-                <div className="rounded-lg border border-border bg-muted/20 px-3 py-3">
-                  <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-3">
-                    <div className="flex min-w-0 flex-1 items-center gap-3">
-                      <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg bg-muted/50">
-                        <WhoopLogo className="h-8 max-w-[3rem]" />
-                      </div>
-                      <div className="min-w-0 flex-1">
-                        <p className="font-medium text-foreground">WHOOP</p>
-                        <p className="type-meta">Direct connection</p>
-                      </div>
-                      {whoopConnection ? <ConnectedBadge /> : null}
-                    </div>
-                    {whoopConnection ? (
-                      <Button
-                        type="button"
-                        variant="destructive"
-                        size="sm"
-                        className="h-8 shrink-0 self-start text-xs sm:self-center"
-                        disabled={disconnectingWhoop}
-                        onClick={() => void handleWhoopDisconnect()}
-                      >
-                        {disconnectingWhoop ? '…' : 'Disconnect'}
-                      </Button>
-                    ) : (
-                      <Button
-                        type="button"
-                        variant="secondary"
-                        size="sm"
-                        className="h-8 shrink-0 self-start text-xs font-semibold sm:self-center"
-                        onClick={async () => {
-                          const {
-                            data: { session },
-                          } = await supabase.auth.getSession();
-                          if (!session?.access_token) {
-                            toast.error('Missing auth session.');
-                            return;
-                          }
-                          const statePayload = btoa(
-                            JSON.stringify({
-                              nonce: 'rnkx_whoop_auth',
-                              token: session.access_token,
-                              athlete_id: athlete.id,
-                            }),
-                          )
-                            .replace(/\+/g, '-')
-                            .replace(/\//g, '_')
-                            .replace(/=/g, '');
-                          window.location.href = `${WHOOP_OAUTH_AUTHORIZE_BASE}&state=${encodeURIComponent(statePayload)}`;
-                        }}
-                      >
-                        Connect WHOOP
-                      </Button>
-                    )}
-                  </div>
-                </div>
-
-                <div className="rounded-lg border border-border bg-muted/20 px-3 py-3">
-                    <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-3">
-                      <div className="flex min-w-0 flex-1 items-center gap-3">
-                        <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg bg-muted/50">
-                          <AppleLogo className="h-8 w-8" />
-                        </div>
-                        <div className="min-w-0 flex-1">
-                          <p className="font-medium text-foreground">Apple Watch</p>
-                          <p className="type-meta">HealthKit</p>
-                        </div>
-                        {appleCardConnected ? <ConnectedBadge /> : null}
-                      </div>
-                      {!appleCardConnected ? (
-                        <Button
-                          type="button"
-                          variant="secondary"
-                          size="sm"
-                          className="h-8 shrink-0 self-start text-xs font-semibold sm:self-center"
-                          disabled={appleConnecting}
-                          onClick={() => void handleConnectAppleWatch()}
-                        >
-                          {appleConnecting ? '…' : 'Connect Apple Watch'}
-                        </Button>
-                      ) : (
-                        <Button
-                          type="button"
-                          variant="destructive"
-                          size="sm"
-                          className="h-8 shrink-0 self-start text-xs sm:self-center"
-                          disabled={appleConnecting}
-                          onClick={() => void handleDisconnectAppleWatch()}
-                        >
-                          {appleConnecting ? '…' : 'Disconnect'}
-                        </Button>
-                      )}
-                    </div>
-                    {appleCardConnected ? (
-                      <p className="mt-2 text-xs text-muted-foreground">
-                        To fully disconnect, go to iOS Settings {'>'} Health {'>'} Data Access
-                      </p>
-                    ) : null}
-                    {appleError ? (
-                      <p className="mt-2 text-xs text-destructive">{appleError}</p>
-                    ) : null}
-                </div>
-
-                {terraConnections.map((row) => {
-                  const Logo = wearableLogoForCode(row.provider);
-                  const name = providerLabel(row.provider);
-                  return (
-                    <div
-                      key={row.id}
-                      className="flex flex-col gap-2 rounded-lg border border-border bg-muted/20 px-3 py-3 sm:flex-row sm:items-center sm:gap-3"
-                    >
-                      <div className="flex min-w-0 flex-1 items-center gap-3">
-                        <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg bg-muted/50">
-                          {Logo ? (
-                            <Logo className="h-8 max-w-[3rem]" />
-                          ) : (
-                            <span className="text-xs font-semibold text-muted-foreground">
-                              {row.provider.slice(0, 3)}
-                            </span>
-                          )}
-                        </div>
-                        <div className="min-w-0 flex-1">
-                          <p className="font-medium text-foreground">{name}</p>
-                        </div>
-                        <ConnectedBadge />
-                      </div>
-                      <Button
-                        type="button"
-                        variant="destructive"
-                        size="sm"
-                        className="h-8 shrink-0 self-start text-xs sm:self-center"
-                        disabled={disconnectingId === row.id}
-                        onClick={() => void handleTerraDisconnect(row)}
-                      >
-                        {disconnectingId === row.id ? '…' : 'Disconnect'}
-                      </Button>
-                    </div>
-                  );
-                })}
-
-                {!hasAnyDevice ? (
-                  <div className="rounded-lg border border-dashed border-border bg-muted/10 px-3 py-6 text-center">
-                    <p className="type-heading">No devices connected</p>
-                    <p className="mt-1 text-xs text-muted-foreground">Connect devices to sync your workouts</p>
-                  </div>
-                ) : null}
-              </div>
-
-              <Button
-                type="button"
-                variant="outline"
-                className="mt-4 w-full font-semibold"
-                disabled={terraConnecting}
-                onClick={() => void openTerraWidget()}
-              >
-                {terraConnecting ? 'Opening…' : '+ Connect Device'}
-              </Button>
-            </article>
-
-            <Button
-              type="button"
-              className="w-full font-semibold bg-neon-lime text-black hover:bg-neon-lime/90"
-              disabled={syncing || !hasConnectedSyncDevice}
-              onClick={() => void handleSync()}
-            >
-              {!hasConnectedSyncDevice ? 'Connect a device to sync' : syncing ? 'Syncing…' : 'Sync workouts'}
-            </Button>
-
-            {/* ACCOUNT */}
-            <article className="space-y-4 rounded-xl border border-border bg-card p-4">
-              <div className="flex items-center gap-2 border-b border-border/60 pb-3">
-                <User className="h-5 w-5 text-neon-lime" aria-hidden />
-                <h2 className="type-section-label">Account</h2>
-              </div>
-              <div className="space-y-1 border-b border-border/40 pb-3">
-                <p className="type-meta uppercase tracking-wide">Email</p>
-                <p className="text-sm text-foreground">{userEmail ?? '—'}</p>
-              </div>
-              <div className="space-y-2 border-b border-border/40 pb-3">
-                <div className="flex items-center justify-between gap-2">
-                  <p className="type-meta uppercase tracking-wide">Name</p>
-                  {!nameEditing ? (
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      className="h-8 text-xs text-neon-lime hover:text-neon-lime"
-                      onClick={() => {
-                        setNameDraft(athlete.display_name);
-                        setNameEditing(true);
-                      }}
-                    >
-                      Edit
-                    </Button>
-                  ) : null}
-                </div>
-                {!nameEditing ? (
-                  <p className="type-heading">{athlete.display_name}</p>
-                ) : (
-                  <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-                    <Input
-                      value={nameDraft}
-                      onChange={(e) => setNameDraft(e.target.value)}
-                      className="sm:max-w-xs"
-                      placeholder="Display name"
-                    />
-                    <div className="flex gap-2">
-                      <Button type="button" size="sm" disabled={nameSaving} onClick={() => void saveDisplayNameInline()}>
-                        {nameSaving ? 'Saving…' : 'Save'}
-                      </Button>
-                      <Button type="button" variant="ghost" size="sm" disabled={nameSaving} onClick={() => setNameEditing(false)}>
-                        Cancel
-                      </Button>
-                    </div>
-                  </div>
-                )}
-              </div>
-              <div className="space-y-2 border-b border-border/40 pb-3">
-                <div className="flex items-center justify-between gap-2">
-                  <p className="type-meta uppercase tracking-wide">Username</p>
-                  {!usernameEditing ? (
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      className="h-8 text-xs text-neon-lime hover:text-neon-lime"
-                      onClick={() => {
-                        setUsernameDraft(athlete.username ?? '');
-                        setUsernameEditing(true);
-                      }}
-                    >
-                      Edit
-                    </Button>
-                  ) : null}
-                </div>
-                {!usernameEditing ? (
-                  <p className="type-meta">{athlete.username ?? '—'}</p>
-                ) : (
-                  <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-                    <Input
-                      value={usernameDraft}
-                      onChange={(e) => setUsernameDraft(e.target.value)}
-                      className="sm:max-w-xs"
-                      placeholder="username"
-                    />
-                    <div className="flex gap-2">
-                      <Button
-                        type="button"
-                        size="sm"
-                        disabled={usernameSaving}
-                        onClick={() => void saveUsernameInline()}
-                      >
-                        {usernameSaving ? 'Saving…' : 'Save'}
-                      </Button>
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        disabled={usernameSaving}
-                        onClick={() => setUsernameEditing(false)}
-                      >
-                        Cancel
-                      </Button>
-                    </div>
-                  </div>
-                )}
-              </div>
-              <div className="flex items-start justify-between gap-3 pt-1">
-                <div>
-                  <p className="type-meta uppercase tracking-wide">Password</p>
-                  <p className="mt-1 text-xs text-muted-foreground">Secure your account via email reset</p>
-                </div>
-                <button
-                  type="button"
-                  className="shrink-0 text-sm font-semibold text-neon-lime hover:underline"
-                  onClick={() => void handlePasswordResetEmail()}
-                >
-                  Change
-                </button>
-              </div>
-            </article>
-
-            {/* COMPETITION LEAGUES */}
-            <article className="space-y-3 rounded-xl border border-border bg-card p-4">
-              <div className="flex items-center gap-2">
-                <Activity className="h-5 w-5 text-neon-lime" aria-hidden />
-                <h2 className="type-section-label">Competition Leagues</h2>
-              </div>
-              <p className="text-xs leading-relaxed text-muted-foreground">
-                Select one or both leagues to compete in. You can change this anytime.
-              </p>
-              <button
-                type="button"
-                disabled={settingsBusy}
-                className={cn(
-                  'flex w-full flex-col rounded-xl border bg-zinc-950/50 px-4 py-3 text-left transition',
-                  effectiveSelectedLeagues().includes('run')
-                    ? 'border-cyan-400/70 ring-1 ring-cyan-500/35'
-                    : 'border-border hover:border-muted-foreground/30',
-                )}
-                onClick={() => void toggleCompetitionLeague('run')}
-              >
-                <div className="flex items-center gap-3">
-                  <div
-                    className={cn(
-                      'flex h-8 w-8 items-center justify-center rounded-full border-2 text-cyan-300',
-                      effectiveSelectedLeagues().includes('run') ? 'border-cyan-400 bg-cyan-500/15' : 'border-muted-foreground/35',
-                    )}
-                  >
-                    {effectiveSelectedLeagues().includes('run') ? <Check className="h-4 w-4" strokeWidth={3} /> : null}
-                  </div>
-                  <div className="flex-1">
-                    <p className="font-semibold text-foreground">Run League</p>
-                    <p className="text-xs text-cyan-200/80">Pace-based scoring</p>
-                  </div>
-                </div>
-              </button>
-              <button
-                type="button"
-                disabled={settingsBusy}
-                className={cn(
-                  'flex w-full flex-col rounded-xl border bg-zinc-950/50 px-4 py-3 text-left transition',
-                  effectiveSelectedLeagues().includes('engine')
-                    ? 'border-neon-lime/70 ring-1 ring-neon-lime/25'
-                    : 'border-border hover:border-muted-foreground/30',
-                )}
-                onClick={() => void toggleCompetitionLeague('engine')}
-              >
-                <div className="flex items-center gap-3">
-                  <div
-                    className={cn(
-                      'flex h-8 w-8 items-center justify-center rounded-full border-2 text-neon-lime',
-                      effectiveSelectedLeagues().includes('engine')
-                        ? 'border-neon-lime bg-neon-lime/10'
-                        : 'border-muted-foreground/35',
-                    )}
-                  >
-                    {effectiveSelectedLeagues().includes('engine') ? <Check className="h-4 w-4" strokeWidth={3} /> : null}
-                  </div>
-                  <div className="flex-1">
-                    <p className="font-semibold text-foreground">Engine League</p>
-                    <p className="text-xs text-emerald-200/80">Heart rate-based scoring</p>
-                  </div>
-                </div>
-              </button>
-            </article>
-
-            {/* HOW IT WORKS */}
-            <button
-              type="button"
-              className="flex w-full items-center gap-3 rounded-xl border border-border bg-card p-4 text-left transition hover:bg-muted/30"
-              onClick={() => navigate('/app/how-it-works')}
-            >
-              <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-muted/50">
-                <HelpCircle className="h-5 w-5 text-neon-lime" aria-hidden />
-              </div>
-              <div className="min-w-0 flex-1">
-                <p className="font-semibold text-foreground">How It Works</p>
-                <p className="type-meta">View scoring rules & fair play guidelines</p>
-              </div>
-              <ChevronRight className="h-5 w-5 shrink-0 text-muted-foreground" aria-hidden />
-            </button>
-
-            {/* ASK ASSISTANT */}
-            <button
-              type="button"
-              className="flex w-full items-center gap-3 rounded-xl border border-border bg-card p-4 text-left transition hover:bg-muted/30"
-              onClick={() => setAssistantOpen(true)}
-            >
-              <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-muted/50">
-                <MessageCircle className="h-5 w-5 text-neon-lime" aria-hidden />
-              </div>
-              <div className="min-w-0 flex-1">
-                <p className="font-semibold text-foreground">Ask the Assistant</p>
-                <p className="type-meta">Get help with scoring & rules</p>
-              </div>
-              <div className="flex h-9 w-9 items-center justify-center rounded-full bg-emerald-500/15 text-emerald-400 ring-1 ring-emerald-500/30">
-                <MessageCircle className="h-4 w-4" aria-hidden />
-              </div>
-            </button>
-
-            {SHOW_RECOVERY ? (
-            <article id="recovery" className="space-y-3 rounded-xl border border-border bg-card p-4">
-              <div className="flex items-center gap-2">
-                <Heart className="h-5 w-5 text-neon-lime" aria-hidden />
-                <h2 className="type-section-label">Recovery</h2>
-              </div>
-              <PremiumGate
-                athleteId={athlete.id}
-                userId={athlete.user_id ?? undefined}
-                badge="PREMIUM"
-                title="Recovery insights"
-                description="Trend charts, load guidance, and readiness — included with RNKX Premium"
-              >
-                <RecoveryPage embedded />
-              </PremiumGate>
-            </article>
-            ) : null}
-
-            {/* HEALTH DATA */}
-            <article className="space-y-3 rounded-xl border border-border bg-card p-4">
-              <div className="flex items-center gap-2">
-                <Heart className="h-5 w-5 text-neon-lime" aria-hidden />
-                <h2 className="type-section-label">Health Data</h2>
-              </div>
-              <div className="flex items-start justify-between gap-4">
-                <div className="min-w-0">
-                  <p className="type-heading">Share health data</p>
-                  <p className="type-meta">Allow RNKX to sync your health metrics</p>
-                </div>
-                <Switch
-                  checked={athlete.health_data_enabled ?? true}
-                  disabled={settingsBusy}
-                  onCheckedChange={(v) => void setHealthDataEnabled(v)}
-                  className="data-[state=checked]:bg-neon-lime"
-                />
-              </div>
-            </article>
-
-            {/* PRIVACY */}
-            <article className="space-y-3 rounded-xl border border-border bg-card p-4">
-              <div className="flex items-center gap-2">
-                <Shield className="h-5 w-5 text-neon-lime" aria-hidden />
-                <h2 className="type-section-label">Privacy</h2>
-              </div>
-              <div className="flex items-start justify-between gap-4">
-                <div className="min-w-0">
-                  <p className="type-heading">Public profile</p>
-                  <p className="type-meta">Others can see your rank on leaderboards</p>
-                </div>
-                <Switch
-                  checked={athlete.profile_public ?? true}
-                  disabled={settingsBusy}
-                  onCheckedChange={(v) => void setProfilePublic(v)}
-                  className="data-[state=checked]:bg-neon-lime"
-                />
-              </div>
-            </article>
-
-            {/* SUBSCRIPTION */}
-            <article className="space-y-4 rounded-xl border border-border bg-card p-4">
-              <div className="flex items-center gap-2">
-                <CreditCard className="h-5 w-5 text-neon-lime" aria-hidden />
-                <h2 className="type-section-label">Subscription</h2>
-              </div>
-              <div className="flex items-center justify-between rounded-lg border border-border/60 bg-zinc-950/40 px-3 py-2">
-                <span className="text-sm text-muted-foreground">Current Plan</span>
-                <span
-                  className={cn(
-                    'rounded-full px-2.5 py-0.5 text-xs font-bold uppercase tracking-wide',
-                    athlete.is_premium ? 'bg-neon-lime/20 text-neon-lime' : 'bg-muted text-muted-foreground',
-                  )}
-                >
-                  {athlete.is_premium ? 'Premium' : 'Free'}
-                </span>
-              </div>
-              {!athlete.is_premium ? (
-                <div className="relative overflow-hidden rounded-xl border border-neon-lime/35 bg-gradient-to-br from-zinc-900 to-zinc-950 p-4">
-                  <span className="absolute right-3 top-3 rounded bg-neon-lime px-2 py-0.5 text-xs font-bold uppercase text-black">
-                    BEST VALUE
-                  </span>
-                  <p className="pr-20 text-sm font-semibold text-foreground">Unlock friends, clubs & insights</p>
-                  <p className="mt-1 text-xs text-muted-foreground">£79.99 /year · £6.70/month</p>
-                  <Button
-                    type="button"
-                    className="mt-4 w-full bg-neon-lime font-semibold text-black hover:bg-neon-lime/90"
-                    onClick={() => {
-                      const uid = athlete.user_id;
-                      if (uid) presentPaywall(uid);
-                      else window.location.href = '/premium';
-                    }}
-                  >
-                    Unlock Premium
-                  </Button>
-                </div>
-              ) : (
-                <p className="text-sm text-muted-foreground">You have an active Premium subscription. Thank you for supporting RNKX!</p>
-              )}
-            </article>
-
-            {/* RESTORE PURCHASES */}
-            <button
-              type="button"
-              disabled={restorePurchasing}
-              className="flex w-full items-start gap-3 rounded-xl border border-border bg-card p-4 text-left transition hover:bg-muted/30 disabled:pointer-events-none disabled:opacity-50"
-              onClick={() => void handleRestorePurchases()}
-            >
-              <RotateCcw className="mt-0.5 h-5 w-5 shrink-0 text-neon-lime" aria-hidden />
-              <div className="min-w-0">
-                <p className="font-semibold text-foreground">Restore Purchases</p>
-                <p className="mt-1 text-xs text-muted-foreground">
-                  Restores a previously purchased subscription after reinstalling or changing devices
-                </p>
-              </div>
-            </button>
-
-            {/* CONTACT SUPPORT */}
-            <article className="space-y-3 rounded-xl border border-border bg-card p-4">
-              <div className="flex items-center gap-2">
-                <MessageCircle className="h-5 w-5 text-neon-lime" aria-hidden />
-                <h2 className="type-section-label">Contact Support</h2>
-              </div>
-              <p className="text-sm text-muted-foreground">Need help? Send us a message</p>
-              <Textarea
-                placeholder="Describe your issue or question…"
-                value={supportBody}
-                onChange={(e) => setSupportBody(e.target.value)}
-                className="min-h-[100px] resize-none border-border bg-background"
-              />
-              <Button
-                type="button"
-                className="w-full bg-neon-lime font-semibold text-black hover:bg-neon-lime/90"
-                disabled={supportSending}
-                onClick={() => void sendSupportMessage()}
-              >
-                <Send className="h-4 w-4" aria-hidden />
-                {supportSending ? 'Sending…' : 'Send Message'}
-              </Button>
-            </article>
-
-            {/* LEGAL */}
-            <article className="space-y-2 rounded-xl border border-border bg-card p-4">
-              <div className="flex items-center gap-2 pb-2">
-                <FileText className="h-5 w-5 text-neon-lime" aria-hidden />
-                <h2 className="type-section-label">Legal</h2>
-              </div>
-              {(
-                [
-                  ['Privacy Policy', '/privacy'],
-                  ['Terms & Conditions', '/terms'],
-                  ['User Waiver', '/waiver'],
-                  ['Cookies Policy', '/cookies'],
-                ] as const
-              ).map(([label, path]) => (
-                <button
-                  key={path}
-                  type="button"
-                  className="flex w-full items-center justify-between rounded-lg border border-transparent px-2 py-2 text-left text-sm text-foreground hover:border-border hover:bg-muted/20"
-                  onClick={() => openLegal(path)}
-                >
-                  {label}
-                  <ChevronRight className="h-4 w-4 text-muted-foreground" aria-hidden />
-                </button>
-              ))}
-            </article>
-
-            <Button
-              type="button"
-              variant="outline"
-              className="w-full border-border bg-zinc-950 py-6 font-semibold text-foreground hover:bg-zinc-900"
-              onClick={() => void handleSignOut()}
-            >
-              <LogOut className="h-4 w-4" aria-hidden />
-              Sign out
-            </Button>
-
-            <button
-              type="button"
-              className="flex w-full items-center justify-center gap-2 py-3 text-sm font-semibold text-destructive hover:underline"
-              onClick={() => setDeleteAccountOpen(true)}
-            >
-              <Trash2 className="h-4 w-4" aria-hidden />
-              Delete account
-            </button>
-          </>
-        )}
-      </section>
-      </TooltipProvider>
-    </AppShell>
+    <SettingsPageLayout
+      loading={loading}
+      athlete={athlete}
+      userEmail={userEmail}
+      terraConnections={terraConnections}
+      whoopConnected={whoopConnection != null}
+      appleConnected={appleCardConnected}
+      appleError={appleError}
+      appleConnecting={appleConnecting}
+      disconnectingWhoop={disconnectingWhoop}
+      disconnectingId={disconnectingId}
+      terraConnecting={terraConnecting}
+      syncing={syncing}
+      hasConnectedSyncDevice={hasConnectedSyncDevice}
+      selectedLeagues={selectedLeagues}
+      maxHrDisplay={maxHrDisplay}
+      settingsBusy={settingsBusy}
+      settingsDialog={settingsDialog}
+      terraDialogRow={terraDialogRow}
+      nameDraft={nameDraft}
+      nameSaving={nameSaving}
+      usernameDraft={usernameDraft}
+      usernameSaving={usernameSaving}
+      maxHrDraft={maxHrDraft}
+      maxHrSaving={maxHrSaving}
+      supportBody={supportBody}
+      supportSending={supportSending}
+      restorePurchasing={restorePurchasing}
+      assistantOpen={assistantOpen}
+      assistantInput={assistantInput}
+      deleteAccountOpen={deleteAccountOpen}
+      deleteAccountWorking={deleteAccountWorking}
+      wearableLogoForCode={wearableLogoForCode}
+      onSync={() => void handleSync()}
+      onOpenDialog={openSettingsDialog}
+      onOpenTerraDialog={openTerraSettingsDialog}
+      onCloseDialog={closeSettingsDialog}
+      onConnectDevice={() => void openTerraWidget()}
+      onConnectApple={() => void handleConnectAppleWatch()}
+      onDisconnectApple={() => void handleDisconnectAppleWatch()}
+      onConnectWhoop={() => void startWhoopConnect()}
+      onDisconnectWhoop={() => void handleWhoopDisconnect()}
+      onDisconnectTerra={(row) => void handleTerraDisconnect(row)}
+      onNameDraftChange={setNameDraft}
+      onSaveDisplayName={() =>
+        void saveDisplayNameInline().then((ok) => {
+          if (ok) closeSettingsDialog();
+        })
+      }
+      onUsernameDraftChange={setUsernameDraft}
+      onSaveUsername={() =>
+        void saveUsernameInline().then((ok) => {
+          if (ok) closeSettingsDialog();
+        })
+      }
+      onMaxHrDraftChange={setMaxHrDraft}
+      onSaveMaxHr={() =>
+        void saveMaxHrManual().then((ok) => {
+          if (ok) closeSettingsDialog();
+        })
+      }
+      onPasswordReset={() => {
+        void handlePasswordResetEmail();
+        closeSettingsDialog();
+      }}
+      onToggleLeague={(league) => void toggleCompetitionLeague(league)}
+      onHealthDataChange={(value) => void setHealthDataEnabled(value)}
+      onProfilePublicChange={(value) => void setProfilePublic(value)}
+      onRestorePurchases={() => void handleRestorePurchases()}
+      onUnlockPremium={() => {
+        if (!athlete) return;
+        const uid = athlete.user_id;
+        if (uid) presentPaywall(uid);
+        else window.location.href = '/premium';
+      }}
+      onNavigateHowItWorks={() => navigate('/app/how-it-works')}
+      onOpenAssistant={() => setAssistantOpen(true)}
+      onCloseAssistant={() => setAssistantOpen(false)}
+      onAssistantInputChange={setAssistantInput}
+      onAssistantSend={handleAssistantSend}
+      onSupportBodyChange={setSupportBody}
+      onSendSupport={() =>
+        void sendSupportMessage().then((ok) => {
+          if (ok) closeSettingsDialog();
+        })
+      }
+      onOpenLegal={openLegal}
+      onSignOut={() => void handleSignOut()}
+      onDeleteAccountOpen={() => setDeleteAccountOpen(true)}
+      onDeleteAccountClose={(open) => !deleteAccountWorking && setDeleteAccountOpen(open)}
+      onDeleteAccountConfirm={() => void performDeleteAccount()}
+    />
   );
 }
