@@ -225,10 +225,7 @@ export function SettingsPageLayout(props: SettingsPageLayoutProps) {
   return (
     <AppShell>
       <section className="mx-auto max-w-lg space-y-5 pb-8">
-        <div className="space-y-1">
-          <h1 className="type-page-title">Settings</h1>
-          <p className="text-sm text-muted-foreground">Devices, account, privacy, and subscription.</p>
-        </div>
+        <h1 className="type-page-title">Settings</h1>
 
         {loading ? (
           <p className="text-sm text-muted-foreground">Loading settings…</p>

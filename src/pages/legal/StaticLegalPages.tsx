@@ -1,47 +1,56 @@
-import type { ReactNode } from 'react';
-
-function LegalDoc({ title, children }: { title: string; children: ReactNode }) {
-  return (
-    <div className="min-h-screen bg-background px-4 py-10 text-foreground">
-      <article className="mx-auto max-w-lg space-y-4">
-        <h1 className="type-page-title text-neon-lime">{title}</h1>
-        <div className="space-y-3 text-sm leading-relaxed text-muted-foreground">{children}</div>
-      </article>
-    </div>
-  );
-}
+import { LegalDocLayout, LegalSections } from '@/pages/legal/LegalDocLayout';
+import {
+  COOKIES_POLICY_SECTIONS,
+  LEGAL_LAST_UPDATED,
+  PRIVACY_POLICY_SECTIONS,
+  TERMS_SECTIONS,
+  WAIVER_SECTIONS,
+} from '@/pages/legal/legalContent';
 
 export function PrivacyPolicyPageRoute() {
   return (
-    <LegalDoc title="Privacy Policy">
-      <p>
-        RNKX respects your privacy. This page will host the full privacy policy. Until then, contact support if you
-        have questions about how we use account and workout data.
-      </p>
-    </LegalDoc>
+    <LegalDocLayout
+      title="Privacy Policy"
+      lastUpdated={LEGAL_LAST_UPDATED}
+      intro="This policy describes how RNKX handles your personal and workout-related data."
+    >
+      <LegalSections sections={PRIVACY_POLICY_SECTIONS} />
+    </LegalDocLayout>
   );
 }
 
 export function TermsPageRoute() {
   return (
-    <LegalDoc title="Terms & Conditions">
-      <p>The full RNKX terms of use will be published here.</p>
-    </LegalDoc>
+    <LegalDocLayout
+      title="Terms & Conditions"
+      lastUpdated={LEGAL_LAST_UPDATED}
+      intro="Please read these terms carefully before using RNKX."
+    >
+      <LegalSections sections={TERMS_SECTIONS} />
+    </LegalDocLayout>
   );
 }
 
 export function WaiverPageRoute() {
   return (
-    <LegalDoc title="User Waiver">
-      <p>The participation and liability waiver associated with RNKX leagues will be listed here.</p>
-    </LegalDoc>
+    <LegalDocLayout
+      title="User Waiver"
+      lastUpdated={LEGAL_LAST_UPDATED}
+      intro="Assumption of risk and release of liability for physical activity and competition features."
+    >
+      <LegalSections sections={WAIVER_SECTIONS} />
+    </LegalDocLayout>
   );
 }
 
 export function CookiesPageRoute() {
   return (
-    <LegalDoc title="Cookies Policy">
-      <p>Information about cookies and tracking technologies used by RNKX will appear here.</p>
-    </LegalDoc>
+    <LegalDocLayout
+      title="Cookies Policy"
+      lastUpdated={LEGAL_LAST_UPDATED}
+      intro="How RNKX uses cookies, local storage, and related technologies."
+    >
+      <LegalSections sections={COOKIES_POLICY_SECTIONS} />
+    </LegalDocLayout>
   );
 }
