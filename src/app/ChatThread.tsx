@@ -1,6 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useParams, Link } from "react-router-dom";
-import { invokePushNotify } from "@/lib/pushNotify";
 import { supabase } from "@/services/supabase";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -24,7 +23,6 @@ export default function ChatThread() {
   const [messages, setMessages] = useState<ChatMessageRow[]>([]);
   const [newMsg, setNewMsg] = useState("");
   const [myAthleteId, setMyAthleteId] = useState<string | null>(null);
-  const [myDisplayName, setMyDisplayName] = useState("");
   const [friendName, setFriendName] = useState("");
   const [friendAvatar, setFriendAvatar] = useState<string | null>(null);
   const [conversationId, setConversationId] = useState<string | null>(null);
@@ -63,14 +61,7 @@ export default function ChatThread() {
         return;
       }
 
-      const { data: athlete } = await supabase
-        .from("athletes")
-        .select("display_name, username")
-        .eq("id", aid)
-        .single();
-
       setMyAthleteId(aid);
-      setMyDisplayName(athlete?.display_name || athlete?.username || "");
 
       const { data: friend } = await supabase
         .from("athletes")
@@ -160,15 +151,6 @@ export default function ChatThread() {
       }
 
       markConversationRead(conversationUnreadKey(conversationId));
-
-      if (friendId) {
-        invokePushNotify("notify-new-message", {
-          receiver_athlete_id: friendId,
-          sender_athlete_id: myAthleteId,
-          sender_name: myDisplayName || "Someone",
-          preview: content,
-        });
-      }
     } catch (err) {
       const message = err instanceof Error ? err.message : "Could not send message";
       toast.error(message);

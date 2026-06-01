@@ -4,6 +4,11 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { activitySessionScore } from '@/lib/activitySessionScore';
 import {
+  activityScoringOutcome,
+  workoutScoringOutcome,
+  type ScoringOutcome,
+} from '@/lib/adminScoringOutcome';
+import {
   ADMIN_PASSWORD,
   hasAdminUiAccess,
   isAllowlistedAdminUsername,
@@ -43,6 +48,8 @@ type WorkoutRow = {
   avg_pace_per_km: number | string | null;
   engine_score: number | string | null;
   run_score: number | string | null;
+  status: string | null;
+  reject_reason: string | null;
 };
 
 type ActivityRow = {
@@ -53,6 +60,7 @@ type ActivityRow = {
   avg_hr_percent: number | string | null;
   avg_pace_seconds: number | string | null;
   league_type: string | null;
+  status: string | null;
 };
 
 type ConnectionSummary = {
@@ -294,29 +302,27 @@ export default function AdminPage() {
     const fallbackMaxHr = Math.max(1, 220 - Number(selectedAthlete.age ?? 30));
     const effectiveMaxHr = maxHr != null && Number.isFinite(maxHr) && maxHr > 0 ? maxHr : fallbackMaxHr;
 
-    const workoutsRows = detailWorkouts
-      .filter((row) => {
-        const score = detailTab === 'engine' ? Number(row.engine_score ?? 0) : Number(row.run_score ?? 0);
-        return score > 0;
-      })
-      .map((row) => {
-        const duration = Number(row.duration_min ?? 0);
-        const avgHr = row.avg_hr != null ? Number(row.avg_hr) : null;
-        const hrPercent = avgHr != null && effectiveMaxHr > 0 ? (avgHr / effectiveMaxHr) * 100 : null;
-        const pace = row.avg_pace_per_km != null ? Number(row.avg_pace_per_km) : null;
-        const score = detailTab === 'engine' ? Number(row.engine_score ?? 0) : Number(row.run_score ?? 0);
-        return {
-          id: `workout-${row.id}`,
-          source: 'Apple',
-          date: row.started_at,
-          activityType: row.activity_type ?? '—',
-          duration: Number.isFinite(duration) ? Math.round(duration) : 0,
-          avgHr,
-          hrPercent,
-          pace,
-          score,
-        };
-      });
+    const workoutsRows = detailWorkouts.map((row) => {
+      const duration = Number(row.duration_min ?? 0);
+      const avgHr = row.avg_hr != null ? Number(row.avg_hr) : null;
+      const hrPercent = avgHr != null && effectiveMaxHr > 0 ? (avgHr / effectiveMaxHr) * 100 : null;
+      const pace = row.avg_pace_per_km != null ? Number(row.avg_pace_per_km) : null;
+      const score = detailTab === 'engine' ? Number(row.engine_score ?? 0) : Number(row.run_score ?? 0);
+      const scoring: ScoringOutcome = workoutScoringOutcome(detailTab, row, effectiveMaxHr);
+      return {
+        id: `workout-${row.id}`,
+        source: 'Apple',
+        date: row.started_at,
+        activityType: row.activity_type ?? '—',
+        duration: Number.isFinite(duration) ? Math.round(duration) : 0,
+        avgHr,
+        hrPercent,
+        pace,
+        score,
+        scoring,
+        workoutStatus: row.status ?? '—',
+      };
+    });
 
     const activitiesRows = detailActivities
       .filter((row) => (detailTab === 'engine' ? row.league_type !== 'run' : row.league_type === 'run'))
@@ -326,6 +332,7 @@ export default function AdminPage() {
         const pace = row.avg_pace_seconds != null ? Number(row.avg_pace_seconds) : null;
         const score = activitySessionScore(detailTab, duration, hrPercent, pace);
         const derivedAvgHr = hrPercent != null ? Math.round((hrPercent / 100) * effectiveMaxHr) : null;
+        const scoring = activityScoringOutcome(detailTab, row);
         return {
           id: `activity-${row.id}`,
           source: 'Terra/WHOOP',
@@ -336,6 +343,8 @@ export default function AdminPage() {
           hrPercent,
           pace,
           score,
+          scoring,
+          workoutStatus: row.status ?? '—',
         };
       });
 
@@ -522,6 +531,7 @@ export default function AdminPage() {
                   <tr>
                     <th className="pb-2">Source</th>
                     <th className="pb-2">Date</th>
+                    <th className="pb-2">Counted</th>
                     <th className="pb-2">Activity</th>
                     <th className="pb-2 text-right">Duration (min)</th>
                     {detailTab === 'engine' ? (
@@ -543,7 +553,23 @@ export default function AdminPage() {
                   {detailRows.map((row) => (
                     <tr key={row.id} className="border-t border-border/60">
                       <td className="py-2">{row.source}</td>
-                      <td className="py-2">{dateOnly(row.date)}</td>
+                      <td className="py-2 whitespace-nowrap">{dateOnly(row.date)}</td>
+                      <td className="py-2">
+                        <span
+                          className={
+                            row.scoring.counted
+                              ? 'font-semibold text-neon-lime'
+                              : 'font-medium text-muted-foreground'
+                          }
+                        >
+                          {row.scoring.label}
+                        </span>
+                        {row.scoring.detail ? (
+                          <p className="mt-0.5 max-w-[9rem] text-[11px] leading-snug text-muted-foreground">
+                            {row.scoring.detail}
+                          </p>
+                        ) : null}
+                      </td>
                       <td className="py-2">{row.activityType}</td>
                       <td className="py-2 text-right">{row.duration}</td>
                       {detailTab === 'engine' ? (

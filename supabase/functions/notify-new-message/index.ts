@@ -233,7 +233,9 @@ serve(async (req) => {
 
     const receiverAthleteId =
       typeof body.receiver_athlete_id === 'string' ? body.receiver_athlete_id.trim() : '';
-    const senderName = typeof body.sender_name === 'string' ? body.sender_name.trim() : 'Someone';
+    const senderAthleteIdForDm =
+      typeof body.sender_athlete_id === 'string' ? body.sender_athlete_id.trim() : '';
+    let senderName = typeof body.sender_name === 'string' ? body.sender_name.trim() : '';
     const preview = typeof body.preview === 'string' ? body.preview.trim() : '';
 
     if (!receiverAthleteId) {
@@ -241,18 +243,30 @@ serve(async (req) => {
       return json({ success: true });
     }
 
-    const dmPath = senderAthleteId
-      ? `/app/chat/${senderAthleteId}`
+    if (!senderName && senderAthleteIdForDm) {
+      const { data: senderRow } = await supabase
+        .from('athletes')
+        .select('username, display_name')
+        .eq('id', senderAthleteIdForDm)
+        .maybeSingle();
+      const sr = senderRow as { username?: string | null; display_name?: string | null } | null;
+      const u = sr?.username != null ? String(sr.username).trim() : '';
+      const d = sr?.display_name != null ? String(sr.display_name).trim() : '';
+      senderName = u || d || 'Someone';
+    }
+
+    const dmPath = senderAthleteIdForDm
+      ? `/app/chat/${senderAthleteIdForDm}`
       : '/app/chat';
 
     console.log('[notify-new-message] direct payload', {
       requestId,
       receiverAthleteId,
-      senderAthleteId,
+      senderAthleteId: senderAthleteIdForDm,
       previewLen: preview.length,
       path: dmPath,
     });
-    await notifyAthlete(receiverAthleteId, senderName, preview || 'New message', dmPath);
+    await notifyAthlete(receiverAthleteId, senderName || 'Someone', preview || 'New message', dmPath);
   } catch (e) {
     console.error('[notify-new-message]', e);
   }

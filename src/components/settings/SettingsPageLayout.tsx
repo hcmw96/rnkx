@@ -41,6 +41,7 @@ import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '
 import { Input } from '@/components/ui/input';
 import { Switch } from '@/components/ui/switch';
 import { Textarea } from '@/components/ui/textarea';
+import { SCORING_ASSISTANT_SUGGESTIONS } from '@/lib/scoringAssistant';
 import {
   ConnectBadge,
   SettingsGroup,
@@ -64,7 +65,6 @@ type SettingsDialog =
   | 'displayName'
   | 'username'
   | 'password'
-  | 'maxHr'
   | 'leagues'
   | 'subscription'
   | 'support'
@@ -108,13 +108,12 @@ export type SettingsPageLayoutProps = {
   nameSaving: boolean;
   usernameDraft: string;
   usernameSaving: boolean;
-  maxHrDraft: string;
-  maxHrSaving: boolean;
   supportBody: string;
   supportSending: boolean;
   restorePurchasing: boolean;
   assistantOpen: boolean;
   assistantInput: string;
+  assistantReply: string | null;
   deleteAccountOpen: boolean;
   deleteAccountWorking: boolean;
   wearableLogoForCode: (code: string) => ComponentType<{ className?: string }> | null;
@@ -132,8 +131,6 @@ export type SettingsPageLayoutProps = {
   onSaveDisplayName: () => void;
   onUsernameDraftChange: (value: string) => void;
   onSaveUsername: () => void;
-  onMaxHrDraftChange: (value: string) => void;
-  onSaveMaxHr: () => void;
   onPasswordReset: () => void;
   onToggleLeague: (league: 'engine' | 'run') => void;
   onHealthDataChange: (value: boolean) => void;
@@ -141,10 +138,10 @@ export type SettingsPageLayoutProps = {
   onRestorePurchases: () => void;
   onUnlockPremium: () => void;
   onNavigateHowItWorks: () => void;
-  onOpenAssistant: () => void;
-  onCloseAssistant: () => void;
+  onAssistantOpenChange: (open: boolean) => void;
   onAssistantInputChange: (value: string) => void;
   onAssistantSend: () => void;
+  onAssistantSuggestion: (question: string) => void;
   onSupportBodyChange: (value: string) => void;
   onSendSupport: () => void;
   onOpenLegal: (path: string) => void;
@@ -178,13 +175,12 @@ export function SettingsPageLayout(props: SettingsPageLayoutProps) {
     nameSaving,
     usernameDraft,
     usernameSaving,
-    maxHrDraft,
-    maxHrSaving,
     supportBody,
     supportSending,
     restorePurchasing,
     assistantOpen,
     assistantInput,
+    assistantReply,
     deleteAccountOpen,
     deleteAccountWorking,
     wearableLogoForCode,
@@ -202,8 +198,6 @@ export function SettingsPageLayout(props: SettingsPageLayoutProps) {
     onSaveDisplayName,
     onUsernameDraftChange,
     onSaveUsername,
-    onMaxHrDraftChange,
-    onSaveMaxHr,
     onPasswordReset,
     onToggleLeague,
     onHealthDataChange,
@@ -211,10 +205,10 @@ export function SettingsPageLayout(props: SettingsPageLayoutProps) {
     onRestorePurchases,
     onUnlockPremium,
     onNavigateHowItWorks,
-    onOpenAssistant,
-    onCloseAssistant,
+    onAssistantOpenChange,
     onAssistantInputChange,
     onAssistantSend,
+    onAssistantSuggestion,
     onSupportBodyChange,
     onSendSupport,
     onOpenLegal,
@@ -264,32 +258,63 @@ export function SettingsPageLayout(props: SettingsPageLayoutProps) {
               </AlertDialogContent>
             </AlertDialog>
 
-            <Dialog open={assistantOpen} onOpenChange={(open) => !open && onCloseAssistant()}>
+            <Dialog open={assistantOpen} onOpenChange={onAssistantOpenChange}>
               <DialogContent className="max-w-md border-border bg-card">
                 <DialogHeader>
                   <DialogTitle className="type-card-title">Ask the Assistant</DialogTitle>
                   <p className="text-sm text-muted-foreground">
-                    Scoring rules and fair-play guidelines are in How It Works.
+                    Quick answers about scoring, leagues, and fair play.
                   </p>
                 </DialogHeader>
-                <Input
-                  placeholder="Ask about scoring, leagues, or fair play…"
-                  value={assistantInput}
-                  onChange={(e) => onAssistantInputChange(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter') onAssistantSend();
-                  }}
-                />
-                <DialogFooter>
-                  <Button type="button" variant="outline" onClick={onCloseAssistant}>
-                    Cancel
+                <div className="space-y-3">
+                  <Input
+                    placeholder="Ask about scoring, leagues, or fair play…"
+                    value={assistantInput}
+                    onChange={(e) => onAssistantInputChange(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') onAssistantSend();
+                    }}
+                  />
+                  <div className="flex flex-wrap gap-2">
+                    {SCORING_ASSISTANT_SUGGESTIONS.map((suggestion) => (
+                      <button
+                        key={suggestion}
+                        type="button"
+                        className="rounded-full border border-border/80 bg-muted/30 px-2.5 py-1 text-left text-[11px] text-muted-foreground transition hover:border-neon-lime/40 hover:text-foreground"
+                        onClick={() => onAssistantSuggestion(suggestion)}
+                      >
+                        {suggestion}
+                      </button>
+                    ))}
+                  </div>
+                  {assistantReply ? (
+                    <div className="rounded-lg border border-border/80 bg-zinc-950/50 p-3">
+                      <p className="text-xs font-semibold uppercase tracking-wide text-neon-lime">Answer</p>
+                      <p className="mt-1.5 text-sm leading-relaxed text-foreground">{assistantReply}</p>
+                    </div>
+                  ) : null}
+                </div>
+                <DialogFooter className="gap-2 sm:gap-0">
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    className="sm:mr-auto"
+                    onClick={() => {
+                      onAssistantOpenChange(false);
+                      onNavigateHowItWorks();
+                    }}
+                  >
+                    Full rules
+                  </Button>
+                  <Button type="button" variant="outline" onClick={() => onAssistantOpenChange(false)}>
+                    Close
                   </Button>
                   <Button
                     type="button"
                     className="bg-neon-lime text-black hover:bg-neon-lime/90"
                     onClick={onAssistantSend}
                   >
-                    View scoring rules
+                    Ask
                   </Button>
                 </DialogFooter>
               </DialogContent>
@@ -370,34 +395,6 @@ export function SettingsPageLayout(props: SettingsPageLayoutProps) {
                       </Button>
                       <Button type="button" onClick={onPasswordReset}>
                         Send reset email
-                      </Button>
-                    </DialogFooter>
-                  </>
-                ) : null}
-
-                {settingsDialog === 'maxHr' ? (
-                  <>
-                    <DialogHeader>
-                      <DialogTitle>Max heart rate</DialogTitle>
-                      <p className="text-sm text-muted-foreground">
-                        Used to calculate workout intensity and scores.
-                      </p>
-                    </DialogHeader>
-                    <Input
-                      type="number"
-                      inputMode="numeric"
-                      min={60}
-                      max={240}
-                      value={maxHrDraft}
-                      onChange={(e) => onMaxHrDraftChange(e.target.value)}
-                      placeholder="e.g. 185"
-                    />
-                    <DialogFooter>
-                      <Button type="button" variant="outline" onClick={onCloseDialog}>
-                        Cancel
-                      </Button>
-                      <Button type="button" disabled={maxHrSaving} onClick={onSaveMaxHr}>
-                        {maxHrSaving ? 'Saving…' : 'Save'}
                       </Button>
                     </DialogFooter>
                   </>
@@ -508,7 +505,9 @@ export function SettingsPageLayout(props: SettingsPageLayoutProps) {
                   <>
                     <DialogHeader>
                       <DialogTitle>Contact support</DialogTitle>
-                      <p className="text-sm text-muted-foreground">Message the team — we&apos;ll get back to you.</p>
+                      <p className="text-sm text-muted-foreground">
+                        Send us a message — we&apos;ll get back to you as soon as possible.
+                      </p>
                     </DialogHeader>
                     <Textarea
                       placeholder="Describe your issue or question…"
@@ -696,7 +695,8 @@ export function SettingsPageLayout(props: SettingsPageLayoutProps) {
                 <SettingsRow
                   icon={Heart}
                   title="Max heart rate"
-                  subtitle={maxHrSourceLabel(athlete.max_hr_source)}
+                  subtitle={`${maxHrSourceLabel(athlete.max_hr_source)} · not editable`}
+                  chevron={false}
                   trailing={
                     maxHrDisplay != null ? (
                       <span className="text-sm font-medium tabular-nums text-muted-foreground">
@@ -704,7 +704,6 @@ export function SettingsPageLayout(props: SettingsPageLayoutProps) {
                       </span>
                     ) : undefined
                   }
-                  onClick={() => onOpenDialog('maxHr')}
                 />
                 <SettingsRowDivider />
                 <SettingsRow
@@ -864,7 +863,7 @@ export function SettingsPageLayout(props: SettingsPageLayoutProps) {
                   icon={MessageCircle}
                   title="Ask the Assistant"
                   subtitle="Get help with scoring"
-                  onClick={onOpenAssistant}
+                  onClick={() => onAssistantOpenChange(true)}
                 />
                 <SettingsRowDivider />
                 <SettingsRow

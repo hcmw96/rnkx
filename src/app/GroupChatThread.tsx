@@ -3,7 +3,6 @@ import { useParams, Link } from "react-router-dom";
 import { LeagueChevronLogo } from "@/components/leagues/LeagueChevronLogo";
 import { clubImageDisplayUrl } from "@/lib/clubImageUpload";
 import { fetchClubByConversationId, type ClubSummary } from "@/lib/clubContext";
-import { invokePushNotify } from "@/lib/pushNotify";
 import { supabase } from "@/services/supabase";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -160,12 +159,6 @@ export default function GroupChatThread() {
       }
 
       markConversationRead(conversationUnreadKey(conversationId));
-
-      invokePushNotify("notify-new-message", {
-        conversation_id: conversationId,
-        sender_athlete_id: myAthleteId,
-        message_body: content,
-      });
     } catch (err) {
       const message = err instanceof Error ? err.message : "Could not send message";
       toast.error(message);

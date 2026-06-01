@@ -43,6 +43,7 @@ import { useAchievementUnlock } from '@/context/AchievementUnlockContext';
 import { useScoreSharePrompt } from '@/context/ScoreSharePromptContext';
 import { syncAppleWorkoutsToDatabase } from '@/lib/syncActivitiesApple';
 import { fetchRecentWorkouts } from '@/services/despia';
+import { getScoringAssistantReply } from '@/lib/scoringAssistant';
 import { presentPaywall, restoreInAppPurchasesAndApplyPremium } from '@/services/revenuecat';
 import { supabase } from '@/services/supabase';
 
@@ -72,7 +73,6 @@ type SettingsDialog =
   | 'displayName'
   | 'username'
   | 'password'
-  | 'maxHr'
   | 'leagues'
   | 'subscription'
   | 'support'
@@ -147,8 +147,6 @@ export default function SettingsPage() {
   /** Despia iPhone HealthKit probe: null until resolved; irrelevant when DB has no apple wearable. */
   const [appleHkLiveOk, setAppleHkLiveOk] = useState<boolean | null>(null);
   const [appleError, setAppleError] = useState<string | null>(null);
-  const [maxHrDraft, setMaxHrDraft] = useState('');
-  const [maxHrSaving, setMaxHrSaving] = useState(false);
   const [userEmail, setUserEmail] = useState<string | null>(null);
   const [nameDraft, setNameDraft] = useState('');
   const [usernameDraft, setUsernameDraft] = useState('');
@@ -156,6 +154,7 @@ export default function SettingsPage() {
   const [usernameSaving, setUsernameSaving] = useState(false);
   const [assistantOpen, setAssistantOpen] = useState(false);
   const [assistantInput, setAssistantInput] = useState('');
+  const [assistantReply, setAssistantReply] = useState<string | null>(null);
   const [supportBody, setSupportBody] = useState('');
   const [supportSending, setSupportSending] = useState(false);
   const [restorePurchasing, setRestorePurchasing] = useState(false);
@@ -605,33 +604,6 @@ export default function SettingsPage() {
     }
   }
 
-  async function saveMaxHrManual(): Promise<boolean> {
-    if (!athlete?.id) return false;
-    const n = Number(maxHrDraft.trim());
-    if (!Number.isFinite(n) || n < 60 || n > 240) {
-      toast.error('Enter a max heart rate between 60 and 240 bpm.');
-      return false;
-    }
-    setMaxHrSaving(true);
-    try {
-      const { error } = await supabase
-        .from('athletes')
-        .update({ max_hr: Math.round(n), max_hr_source: 'manual' })
-        .eq('id', athlete.id);
-      if (error) {
-        toast.error(error.message);
-        return false;
-      }
-      setAthlete((prev) =>
-        prev ? { ...prev, max_hr: Math.round(n), max_hr_source: 'manual' } : prev,
-      );
-      toast.success('Max HR updated.');
-      return true;
-    } finally {
-      setMaxHrSaving(false);
-    }
-  }
-
   async function handleWhoopDisconnect() {
     if (!athlete?.id || !whoopConnection) return;
     setDisconnectingWhoop(true);
@@ -823,10 +795,21 @@ export default function SettingsPage() {
     }
   }
 
+  function handleAssistantOpenChange(open: boolean) {
+    setAssistantOpen(open);
+    if (!open) {
+      setAssistantInput('');
+      setAssistantReply(null);
+    }
+  }
+
   function handleAssistantSend() {
-    setAssistantOpen(false);
-    setAssistantInput('');
-    navigate('/app/how-it-works');
+    setAssistantReply(getScoringAssistantReply(assistantInput));
+  }
+
+  function handleAssistantSuggestion(question: string) {
+    setAssistantInput(question);
+    setAssistantReply(getScoringAssistantReply(question));
   }
 
   const wearsApple = athleteWearsApple(athlete?.wearables ?? null);
@@ -855,10 +838,6 @@ export default function SettingsPage() {
     }
     if (dialog === 'username') {
       setUsernameDraft(athlete.username ?? '');
-    }
-    if (dialog === 'maxHr') {
-      const cur = parseMaxHrDisplay(athlete.max_hr);
-      setMaxHrDraft(cur != null ? String(cur) : '');
     }
     setSettingsDialog(dialog);
   }
@@ -914,13 +893,12 @@ export default function SettingsPage() {
       nameSaving={nameSaving}
       usernameDraft={usernameDraft}
       usernameSaving={usernameSaving}
-      maxHrDraft={maxHrDraft}
-      maxHrSaving={maxHrSaving}
       supportBody={supportBody}
       supportSending={supportSending}
       restorePurchasing={restorePurchasing}
       assistantOpen={assistantOpen}
       assistantInput={assistantInput}
+      assistantReply={assistantReply}
       deleteAccountOpen={deleteAccountOpen}
       deleteAccountWorking={deleteAccountWorking}
       wearableLogoForCode={wearableLogoForCode}
@@ -946,12 +924,6 @@ export default function SettingsPage() {
           if (ok) closeSettingsDialog();
         })
       }
-      onMaxHrDraftChange={setMaxHrDraft}
-      onSaveMaxHr={() =>
-        void saveMaxHrManual().then((ok) => {
-          if (ok) closeSettingsDialog();
-        })
-      }
       onPasswordReset={() => {
         void handlePasswordResetEmail();
         closeSettingsDialog();
@@ -967,10 +939,10 @@ export default function SettingsPage() {
         else window.location.href = '/premium';
       }}
       onNavigateHowItWorks={() => navigate('/app/how-it-works')}
-      onOpenAssistant={() => setAssistantOpen(true)}
-      onCloseAssistant={() => setAssistantOpen(false)}
+      onAssistantOpenChange={handleAssistantOpenChange}
       onAssistantInputChange={setAssistantInput}
       onAssistantSend={handleAssistantSend}
+      onAssistantSuggestion={handleAssistantSuggestion}
       onSupportBodyChange={setSupportBody}
       onSendSupport={() =>
         void sendSupportMessage().then((ok) => {

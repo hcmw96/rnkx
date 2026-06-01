@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { Bell, Check, MessageCircle, UserPlus, Users, X } from 'lucide-react';
 import { AppShell } from '@/components/app/AppShell';
 import { Button } from '@/components/ui/button';
+import { fetchChatNotifications } from '@/lib/chatInboxNotifications';
 import { invokePushNotify } from '@/lib/pushNotify';
 import {
   checkNativePushEnabled,
@@ -13,16 +14,9 @@ import {
   requestNotificationPermission,
 } from '@/services/onesignal';
 import { supabase } from '@/services/supabase';
-import { fetchClubByConversationId } from '@/lib/clubContext';
 import { resolveAthleteId } from '@/lib/resolveAthleteId';
-import { conversationUnreadKey, isUnread, UNREAD_CHANGED_EVENT } from '@/lib/unreadMessages';
+import { UNREAD_CHANGED_EVENT } from '@/lib/unreadMessages';
 import { formatDistanceToNow } from 'date-fns';
-
-type FriendRequestItem = {
-  id: string;
-  username: string;
-  avatarUrl: string | null;
-};
 
 type ChatNotificationItem = {
   id: string;
@@ -31,6 +25,12 @@ type ChatNotificationItem = {
   at: string;
   link: string;
   isRead: boolean;
+};
+
+type FriendRequestItem = {
+  id: string;
+  username: string;
+  avatarUrl: string | null;
 };
 
 type ClubInviteItem = {
@@ -74,14 +74,14 @@ export default function NotificationsPage() {
     setAthleteId(aid);
     void isPushRegistered().then(setPushRegistered);
 
-    const [{ data: incRows }, { data: memberships }, { data: pendingClubRows }] = await Promise.all([
+    const [{ data: incRows }, { data: pendingClubRows }, chatItems] = await Promise.all([
       supabase
         .from('friendships')
         .select('id, athlete_id')
         .eq('friend_id', aid)
         .eq('status', 'pending'),
-      supabase.from('conversation_members').select('conversation_id').eq('athlete_id', aid),
       supabase.from('private_league_members').select('league_id').eq('athlete_id', aid).eq('status', 'pending'),
+      fetchChatNotifications(aid),
     ]);
 
     const requesterIds = [...new Set((incRows ?? []).map((r) => r.athlete_id as string))];
@@ -134,99 +134,7 @@ export default function NotificationsPage() {
       setClubInvites([]);
     }
 
-    const convoIds = (memberships ?? []).map((m) => m.conversation_id as string);
-    if (!convoIds.length) {
-      setChatNotifications([]);
-      setLoading(false);
-      return;
-    }
-
-    const { data: msgs } = await supabase
-      .from('conversation_messages')
-      .select('conversation_id, athlete_id, content, created_at')
-      .in('conversation_id', convoIds)
-      .neq('athlete_id', aid)
-      .order('created_at', { ascending: false });
-
-    const latestByConv = new Map<
-      string,
-      { content: string; created_at: string }
-    >();
-    for (const m of msgs ?? []) {
-      const cid = m.conversation_id as string;
-      if (!latestByConv.has(cid)) {
-        latestByConv.set(cid, {
-          content: (m.content as string) || 'New message',
-          created_at: m.created_at as string,
-        });
-      }
-    }
-
-    const convIdsWithMessages = [...latestByConv.keys()];
-    if (!convIdsWithMessages.length) {
-      setChatNotifications([]);
-      setLoading(false);
-      return;
-    }
-
-    const [{ data: dmRows }, { data: convos }] = await Promise.all([
-      supabase.rpc('list_dm_inbox', { p_athlete_id: aid }),
-      supabase.from('conversations').select('id, name, is_group').in('id', convIdsWithMessages),
-    ]);
-
-    const dmByConvo = new Map<string, { name: string; link: string }>();
-    for (const row of (Array.isArray(dmRows) ? dmRows : []) as Record<string, unknown>[]) {
-      const cid = String(row.conversation_id ?? '');
-      const fid = String(row.friend_id ?? '');
-      if (!cid || !fid) continue;
-      dmByConvo.set(cid, {
-        name: String(row.friend_username ?? 'Direct message'),
-        link: `/app/chat/${fid}`,
-      });
-    }
-
-    const convoMeta = new Map((convos ?? []).map((c) => [c.id as string, c]));
-
-    const groupConvIds = convIdsWithMessages.filter((cid) => !dmByConvo.has(cid));
-    const clubNameByConvo = new Map<string, string>();
-    await Promise.all(
-      groupConvIds.map(async (cid) => {
-        const { club } = await fetchClubByConversationId(cid);
-        if (club?.name) clubNameByConvo.set(cid, club.name);
-      }),
-    );
-
-    const chats: ChatNotificationItem[] = convIdsWithMessages.map((cid) => {
-      const dm = dmByConvo.get(cid);
-      const conv = convoMeta.get(cid);
-      const latest = latestByConv.get(cid)!;
-      const unread = isUnread(conversationUnreadKey(cid), latest.created_at);
-      if (dm) {
-        return {
-          id: cid,
-          name: dm.name,
-          preview: latest.content,
-          at: latest.created_at,
-          link: dm.link,
-          isRead: !unread,
-        };
-      }
-      return {
-        id: cid,
-        name: clubNameByConvo.get(cid) || conv?.name?.trim() || 'Group chat',
-        preview: latest.content,
-        at: latest.created_at,
-        link: `/app/chat/group/${cid}`,
-        isRead: !unread,
-      };
-    });
-
-    chats.sort((a, b) => {
-      if (a.isRead !== b.isRead) return a.isRead ? 1 : -1;
-      return new Date(b.at).getTime() - new Date(a.at).getTime();
-    });
-
-    setChatNotifications(chats.slice(0, 40));
+    setChatNotifications(chatItems);
     setLoading(false);
   }, []);
 

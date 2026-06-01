@@ -169,11 +169,6 @@ export default function ProfilePage() {
   return (
     <AppShell>
       <section className="mx-auto max-w-lg space-y-4 pb-8">
-        <div className="space-y-1">
-          <h1 className="type-page-title">Profile</h1>
-          <p className="text-sm text-muted-foreground">Season standing, career stats, and badges.</p>
-        </div>
-
         <input
           ref={fileInputRef}
           type="file"
