@@ -710,7 +710,7 @@ export function SettingsPageLayout(props: SettingsPageLayoutProps) {
                   icon={Plus}
                   title="Connect new device"
                   titleClassName="text-neon-lime"
-                  subtitle={terraConnecting ? 'Opening…' : 'Garmin, Polar, Coros & more'}
+                  subtitle={terraConnecting ? 'Opening…' : 'Garmin'}
                   onClick={onConnectDevice}
                   disabled={terraConnecting}
                 />

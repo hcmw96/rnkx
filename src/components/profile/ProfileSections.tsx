@@ -79,7 +79,7 @@ function ProfileIdentity({
       <div className="min-w-0 flex-1 space-y-1.5 text-left">
         <h1 className="truncate font-sans text-xl font-bold leading-tight text-foreground">{displayName}</h1>
 
-        <div className="flex items-center justify-between gap-3">
+        <div className="flex items-center gap-2">
           <p className="min-w-0 truncate text-sm font-medium text-neon-lime">@{username ?? '—'}</p>
           <span
             className={cn(

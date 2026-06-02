@@ -38,6 +38,7 @@ export default function FriendsPage({ embedded = false }: FriendsPageProps) {
   const [incoming, setIncoming] = useState<(FriendshipRow & { requester: AthleteLite })[]>([]);
   const [outgoing, setOutgoing] = useState<(FriendshipRow & { recipient: AthleteLite })[]>([]);
   const [friends, setFriends] = useState<FriendWithMeta[]>([]);
+  const [cancellingOutgoingId, setCancellingOutgoingId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
   const loadFriendsData = useCallback(async () => {
@@ -197,11 +198,14 @@ export default function FriendsPage({ embedded = false }: FriendsPageProps) {
 
   const sendRequest = async (friendId: string) => {
     if (!athleteId) return;
-    const { error } = await supabase.from('friendships').insert({
-      athlete_id: athleteId,
-      friend_id: friendId,
-      status: 'pending',
-    });
+    const { error } = await supabase.from('friendships').upsert(
+      {
+        athlete_id: athleteId,
+        friend_id: friendId,
+        status: 'pending',
+      },
+      { onConflict: 'athlete_id,friend_id' },
+    );
     if (error) {
       if (error.code === '23505') {
         toast.error('Friend request already exists.');
@@ -217,6 +221,24 @@ export default function FriendsPage({ embedded = false }: FriendsPageProps) {
     });
     setSearch('');
     setResults([]);
+  };
+
+  const cancelOutgoingRequest = async (rowId: string) => {
+    if (!athleteId) return;
+    setCancellingOutgoingId(rowId);
+    const { error } = await supabase
+      .from('friendships')
+      .update({ status: 'declined' })
+      .eq('id', rowId)
+      .eq('athlete_id', athleteId)
+      .eq('status', 'pending');
+    setCancellingOutgoingId(null);
+    if (error) {
+      toast.error(error.message);
+      return;
+    }
+    setOutgoing((prev) => prev.filter((r) => r.id !== rowId));
+    toast.success('Request cancelled.');
   };
 
   const respond = async (rowId: string, accept: boolean) => {
@@ -322,9 +344,20 @@ export default function FriendsPage({ embedded = false }: FriendsPageProps) {
                       </p>
                       <p className="type-meta truncate">{r.recipient.username ?? '—'}</p>
                     </div>
-                    <span className="shrink-0 rounded-full border border-border bg-muted/40 px-2 py-0.5 text-[11px] text-muted-foreground">
-                      Pending
-                    </span>
+                    <div className="flex shrink-0 items-center gap-1.5">
+                      <span className="shrink-0 rounded-full border border-border bg-muted/40 px-2 py-0.5 text-[11px] text-muted-foreground">
+                        Pending
+                      </span>
+                      <button
+                        type="button"
+                        aria-label="Cancel friend request"
+                        disabled={cancellingOutgoingId === r.id}
+                        onClick={() => void cancelOutgoingRequest(r.id)}
+                        className="flex h-6 w-6 items-center justify-center rounded-full border border-border bg-muted/30 text-foreground transition hover:bg-muted/50 disabled:opacity-50"
+                      >
+                        <X className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
                   </li>
                 ))}
               </ul>
