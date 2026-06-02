@@ -1,3 +1,4 @@
+import * as React from 'react';
 import type { ComponentType } from 'react';
 import {
   Activity,
@@ -42,6 +43,8 @@ import { Input } from '@/components/ui/input';
 import { Switch } from '@/components/ui/switch';
 import { Textarea } from '@/components/ui/textarea';
 import { SCORING_ASSISTANT_SUGGESTIONS } from '@/lib/scoringAssistant';
+import { type CompetitionDoc, COMPETITION_GUIDE, COMPETITION_RULES } from '@/lib/competitionDocs';
+import { DocViewerSheet } from '@/components/settings/DocViewerSheet';
 import {
   ConnectBadge,
   SettingsGroup,
@@ -137,7 +140,6 @@ export type SettingsPageLayoutProps = {
   onProfilePublicChange: (value: boolean) => void;
   onRestorePurchases: () => void;
   onUnlockPremium: () => void;
-  onNavigateHowItWorks: () => void;
   onAssistantOpenChange: (open: boolean) => void;
   onAssistantInputChange: (value: string) => void;
   onAssistantSend: () => void;
@@ -204,7 +206,6 @@ export function SettingsPageLayout(props: SettingsPageLayoutProps) {
     onProfilePublicChange,
     onRestorePurchases,
     onUnlockPremium,
-    onNavigateHowItWorks,
     onAssistantOpenChange,
     onAssistantInputChange,
     onAssistantSend,
@@ -217,6 +218,8 @@ export function SettingsPageLayout(props: SettingsPageLayoutProps) {
     onDeleteAccountClose,
     onDeleteAccountConfirm,
   } = props;
+
+  const [activeDoc, setActiveDoc] = React.useState<CompetitionDoc | null>(null);
 
   const appleSubtitle = appleConnected
     ? formatSyncAgo(athlete?.last_synced)
@@ -298,7 +301,7 @@ export function SettingsPageLayout(props: SettingsPageLayoutProps) {
                     className="sm:mr-auto"
                     onClick={() => {
                       onAssistantOpenChange(false);
-                      onNavigateHowItWorks();
+                      setActiveDoc(COMPETITION_RULES);
                     }}
                   >
                     Full rules
@@ -850,10 +853,17 @@ export function SettingsPageLayout(props: SettingsPageLayoutProps) {
               <SettingsSectionHeader icon={HelpCircle} label="Help & info" />
               <SettingsGroup>
                 <SettingsRow
-                  icon={HelpCircle}
-                  title="How it works"
-                  subtitle="Scoring & fair play"
-                  onClick={onNavigateHowItWorks}
+                  icon={Trophy}
+                  title="Competition Guide"
+                  subtitle="Leagues, scoring & rules explained"
+                  onClick={() => setActiveDoc(COMPETITION_GUIDE)}
+                />
+                <SettingsRowDivider />
+                <SettingsRow
+                  icon={AlignLeft}
+                  title="Official Competition Rules"
+                  subtitle="Full platform rules v2.0"
+                  onClick={() => setActiveDoc(COMPETITION_RULES)}
                 />
                 <SettingsRowDivider />
                 <SettingsRow
@@ -917,6 +927,8 @@ export function SettingsPageLayout(props: SettingsPageLayoutProps) {
           </>
         )}
       </section>
+
+      <DocViewerSheet doc={activeDoc} onClose={() => setActiveDoc(null)} />
     </AppShell>
   );
 }

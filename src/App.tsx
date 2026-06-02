@@ -28,7 +28,6 @@ import JoinLeaguePage from './pages/JoinLeaguePage';
 import AthleteAuth from './pages/AthleteAuth';
 import WhoopCallback from './pages/auth/WhoopCallback';
 import Onboarding from './pages/Onboarding';
-import HowItWorksPage from './pages/app/HowItWorksPage';
 import NotificationsPage from './pages/app/NotificationsPage';
 import { NotificationNavigationBridge } from '@/components/NotificationNavigationBridge';
 import {
@@ -341,18 +340,6 @@ function SessionRoutes() {
               <Navigate to="/onboarding" replace />
             ) : (
               <SettingsPage />
-            )
-          }
-        />
-        <Route
-          path="/app/how-it-works"
-          element={
-            !session ? (
-              <Navigate to="/auth" replace />
-            ) : !profileComplete ? (
-              <Navigate to="/onboarding" replace />
-            ) : (
-              <HowItWorksPage />
             )
           }
         />

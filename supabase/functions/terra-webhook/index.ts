@@ -58,7 +58,7 @@ async function processTerraWorkouts(params: {
       durationMin,
       leagues: athlete.selected_leagues,
     }));
-    if (durationMin < 15) { skipped++; continue; }
+    if (durationMin <= 15) { skipped++; continue; }
 
     const startTimeRaw = workout.metadata?.start_time as string | undefined;
     if (!startTimeRaw || typeof startTimeRaw !== 'string') {

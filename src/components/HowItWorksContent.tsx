@@ -72,7 +72,7 @@ export function HowItWorksScrollBody() {
             <span className="select-none pt-px text-base" aria-hidden>
               ⏱
             </span>
-            <span>Activities must be 15+ minutes</span>
+            <span>Activities must be longer than 15 minutes</span>
           </li>
           <li className="flex gap-3 rounded-lg border border-zinc-800/80 bg-zinc-900/60 px-3 py-2.5">
             <span className="select-none pt-px text-base" aria-hidden>
@@ -102,8 +102,7 @@ export function HowItWorksScrollBody() {
             <div className="space-y-1">
               <p className="font-sans text-xs font-semibold uppercase tracking-wider text-orange-200/90">Pro Tip</p>
               <p className="text-sm text-orange-50/95">
-                Train consistently each week to earn <span className="font-semibold text-[#FBBF24]">bonus points</span>
-                !
+                Train consistently Mon–Sun to earn a weekly bonus: 3–4 workouts = <span className="font-semibold text-[#FBBF24]">+10 pts</span>, 5–6 = <span className="font-semibold text-[#FBBF24]">+25 pts</span>, 7+ = <span className="font-semibold text-[#FBBF24]">+50 pts</span>. Only scored sessions count.
               </p>
             </div>
           </div>

@@ -10,6 +10,15 @@ import despia from 'despia-native';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import { SHOW_RECOVERY } from '@/lib/featureFlags';
+import {
+  AlertDialog,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
+import { Button } from '@/components/ui/button';
 import { SettingsPageLayout } from '@/components/settings/SettingsPageLayout';
 import {
   CorosLogo,
@@ -144,6 +153,9 @@ export default function SettingsPage() {
   const [disconnectingId, setDisconnectingId] = useState<string | null>(null);
   const [disconnectingWhoop, setDisconnectingWhoop] = useState(false);
   const [appleConnecting, setAppleConnecting] = useState(false);
+  const [showHkSyncWarning, setShowHkSyncWarning] = useState(false);
+
+  const HK_SYNC_WARNING_KEY = 'hasSeenHealthKitSyncWarning';
   /** Despia iPhone HealthKit probe: null until resolved; irrelevant when DB has no apple wearable. */
   const [appleHkLiveOk, setAppleHkLiveOk] = useState<boolean | null>(null);
   const [appleError, setAppleError] = useState<string | null>(null);
@@ -569,6 +581,9 @@ export default function SettingsPage() {
       setAthlete((prev) => (prev ? { ...prev, wearables: nextWearables } : prev));
       setAppleHkLiveOk(true);
       toast.success('Apple Watch connected!');
+      if (!localStorage.getItem(HK_SYNC_WARNING_KEY)) {
+        setShowHkSyncWarning(true);
+      }
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Could not connect Apple Watch.';
       setAppleError(message);
@@ -869,7 +884,13 @@ export default function SettingsPage() {
     window.location.href = `${WHOOP_OAUTH_AUTHORIZE_BASE}&state=${encodeURIComponent(statePayload)}`;
   }
 
+  function dismissHkSyncWarning() {
+    localStorage.setItem(HK_SYNC_WARNING_KEY, 'true');
+    setShowHkSyncWarning(false);
+  }
+
   return (
+  <>
     <SettingsPageLayout
       loading={loading}
       athlete={athlete}
@@ -938,7 +959,6 @@ export default function SettingsPage() {
         if (uid) presentPaywall(uid);
         else window.location.href = '/premium';
       }}
-      onNavigateHowItWorks={() => navigate('/app/how-it-works')}
       onAssistantOpenChange={handleAssistantOpenChange}
       onAssistantInputChange={setAssistantInput}
       onAssistantSend={handleAssistantSend}
@@ -955,5 +975,27 @@ export default function SettingsPage() {
       onDeleteAccountClose={(open) => !deleteAccountWorking && setDeleteAccountOpen(open)}
       onDeleteAccountConfirm={() => void performDeleteAccount()}
     />
+
+    <AlertDialog open={showHkSyncWarning} onOpenChange={(open) => !open && dismissHkSyncWarning()}>
+      <AlertDialogContent className="border-border bg-card">
+        <AlertDialogHeader>
+          <AlertDialogTitle>Important — Sync Your Workouts</AlertDialogTitle>
+          <AlertDialogDescription className="text-sm leading-relaxed text-muted-foreground">
+            RNKX can only score workouts that have been manually synced. If you have trained this
+            week, please open the Health app and sync your recent workouts now before Sunday
+            midnight GMT — otherwise they won't count towards this week's leaderboard.
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <Button
+            className="w-full bg-neon-lime text-black hover:bg-neon-lime/90"
+            onClick={dismissHkSyncWarning}
+          >
+            Got it
+          </Button>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
+  </>
   );
 }

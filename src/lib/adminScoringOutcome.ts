@@ -1,4 +1,9 @@
 import { activitySessionScore } from '@/lib/activitySessionScore';
+import { runLeagueSessionScore } from '@/lib/runLeaguePpm';
+import {
+  cappedScoringDurationMinutes,
+  sessionDurationQualifiesForScoring,
+} from '@/lib/scoringSessionRules';
 
 export type ScoringOutcome = {
   counted: boolean;
@@ -7,7 +12,7 @@ export type ScoringOutcome = {
 };
 
 const REJECT_LABELS: Record<string, string> = {
-  duration_too_short: 'Under 15 minutes',
+  duration_too_short: 'Must be longer than 15 minutes',
   no_qualifying_score: 'No qualifying score',
   implausible_pace_hr_combo: 'Fast pace with low heart rate',
   duplicate: 'Duplicate workout',
@@ -25,8 +30,8 @@ export function recomputeWorkoutEngineScore(
   effectiveMaxHr: number,
   avgPaceSecPerKm: number | null,
 ): number {
-  if (durationMin < 15 || avgHr == null || effectiveMaxHr <= 0) return 0;
-  const duration = Math.min(durationMin, 120);
+  if (!sessionDurationQualifiesForScoring(durationMin) || avgHr == null || effectiveMaxHr <= 0) return 0;
+  const duration = cappedScoringDurationMinutes(durationMin);
   const hrPct = (avgHr / effectiveMaxHr) * 100;
   if (avgPaceSecPerKm != null && avgPaceSecPerKm < 240 && hrPct < 60) return 0;
 
@@ -51,43 +56,15 @@ export function recomputeWorkoutEngineScore(
 
 const RUN_TYPES = new Set(['running', 'run', 'outdoor_run', 'indoor_run', 'trail_run', 'treadmill']);
 
-/** Mirrors Apple `process_activity` run bands for admin diagnostics. */
+/** Mirrors `process_activity` Run League PPM lookup for admin diagnostics. */
 export function recomputeWorkoutRunScore(
   durationMin: number,
   activityType: string | null,
   paceSecPerKm: number | null,
 ): number {
-  if (durationMin < 15 || paceSecPerKm == null || paceSecPerKm <= 0) return 0;
   const type = (activityType ?? '').toLowerCase();
   if (!RUN_TYPES.has(type)) return 0;
-
-  const duration = Math.min(durationMin, 120);
-  const p = paceSecPerKm;
-  const raw =
-    p < 209
-      ? duration * 5.6
-      : p < 240
-        ? duration * 5.2
-        : p < 270
-          ? duration * 4.7
-          : p < 300
-            ? duration * 4.1
-            : p < 330
-              ? duration * 3.5
-              : p < 360
-                ? duration * 3.0
-                : p < 390
-                  ? duration * 2.6
-                  : p < 420
-                    ? duration * 2.2
-                    : p < 450
-                      ? duration * 1.7
-                      : p < 480
-                        ? duration * 1.2
-                        : p < 540
-                          ? duration * 0.7
-                          : 0;
-  return Math.round(raw * 10) / 10;
+  return runLeagueSessionScore(paceSecPerKm, durationMin);
 }
 
 export function workoutScoringOutcome(
@@ -187,6 +164,8 @@ export function activityScoringOutcome(
   return {
     counted: false,
     label: 'No',
-    detail: duration < 15 ? 'Under 15 minutes' : 'Below scoring threshold',
+    detail: !sessionDurationQualifiesForScoring(duration)
+      ? 'Must be over 15 minutes'
+      : 'Below scoring threshold',
   };
 }

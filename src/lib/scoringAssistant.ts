@@ -12,7 +12,7 @@ const ENTRIES: AssistantEntry[] = [
   {
     keywords: ['run', 'pace', 'running', 'km', 'speed', 'marathon'],
     answer:
-      'Run League scores from average pace (seconds per km). Faster pace earns more points per minute (for example, ~5:00/km is about 3.5 pts/min). The activity must be a run type and at least 15 minutes.',
+      'Run League scores from average pace (seconds per km) using a points-per-minute lookup table (faster pace = more points per minute). The activity must be a run type and longer than 15 minutes. Session points round up to a whole number.',
   },
   {
     keywords: ['league', 'leagues', 'both', 'engine and run', 'compete'],
@@ -21,12 +21,13 @@ const ENTRIES: AssistantEntry[] = [
   },
   {
     keywords: ['15', 'minute', 'minutes', 'short', 'duration', 'long enough'],
-    answer: 'Activities must be at least 15 minutes to qualify for scoring. Shorter workouts are not counted.',
+    answer:
+      'Activities must be longer than 15 minutes to qualify for scoring. A session of exactly 15 minutes does not count.',
   },
   {
     keywords: ['2', 'two', 'daily', 'cap', 'limit', 'per day', 'max activities'],
     answer:
-      'You can have at most 2 scored activities per calendar day. Additional qualifying workouts that day will not add points (daily cap).',
+      'You can have at most 2 scored activities per calendar day. If more than 2 qualify, only your two highest-scoring sessions that day count.',
   },
   {
     keywords: ['season', 'seasons', 'reset', 'weekly', 'ranking', 'standings'],
@@ -55,7 +56,8 @@ const ENTRIES: AssistantEntry[] = [
   },
   {
     keywords: ['bonus', 'consistent', 'streak', 'weekly bonus'],
-    answer: 'Training consistently each week can earn bonus points. Keep showing up through the season to climb the leaderboard.',
+    answer:
+      'Train consistently (Mon–Sun week) to earn a weekly bonus: 3–4 qualifying workouts = +10 pts, 5–6 = +25 pts, 7+ = +50 pts. Only sessions that scored more than 0 points count. The bonus is awarded automatically at the start of the following week.',
   },
   {
     keywords: ['premium', 'pay', 'subscription'],
