@@ -39,8 +39,8 @@ type LegalDocLayoutProps = {
 
 export function LegalDocLayout({ title, lastUpdated, intro, children }: LegalDocLayoutProps) {
   return (
-    <div className="min-h-screen bg-background px-4 py-10 text-foreground">
-      <article className="mx-auto max-w-lg space-y-5">
+    <div className="fixed inset-0 overflow-y-auto bg-background text-foreground">
+      <article className="mx-auto max-w-lg space-y-5 px-4 py-10">
         <header className="space-y-2">
           <button
             type="button"
