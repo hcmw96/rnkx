@@ -61,6 +61,7 @@ type SettingsRowProps = {
   disabled?: boolean;
   titleClassName?: string;
   className?: string;
+  compact?: boolean;
 };
 
 export function SettingsRow({
@@ -74,6 +75,7 @@ export function SettingsRow({
   disabled,
   titleClassName,
   className,
+  compact,
 }: SettingsRowProps) {
   const interactive = Boolean(onClick) && !disabled;
   const showChevron = chevron ?? interactive;
@@ -85,7 +87,8 @@ export function SettingsRow({
         onClick={onClick}
         disabled={disabled}
         className={cn(
-          'flex w-full items-center gap-3 px-4 py-3.5 text-left transition hover:bg-muted/30 active:bg-muted/40 disabled:opacity-50',
+          'flex w-full items-center gap-3 px-4 text-left transition hover:bg-muted/30 active:bg-muted/40 disabled:opacity-50',
+          compact ? 'py-2.5' : 'py-3.5',
           className,
         )}
       >
@@ -97,13 +100,14 @@ export function SettingsRow({
           trailing={trailing}
           showChevron={showChevron}
           titleClassName={titleClassName}
+          compact={compact}
         />
       </button>
     );
   }
 
   return (
-    <div className={cn('flex w-full items-center gap-3 px-4 py-3.5 text-left', className)}>
+    <div className={cn('flex w-full items-center gap-3 px-4 text-left', compact ? 'py-2.5' : 'py-3.5', className)}>
       <SettingsRowContent
         Icon={Icon}
         iconNode={iconNode}
@@ -112,6 +116,7 @@ export function SettingsRow({
         trailing={trailing}
         showChevron={showChevron}
         titleClassName={titleClassName}
+        compact={compact}
       />
     </div>
   );
@@ -125,6 +130,7 @@ function SettingsRowContent({
   trailing,
   showChevron,
   titleClassName,
+  compact,
 }: {
   Icon?: ComponentType<{ className?: string }>;
   iconNode?: ReactNode;
@@ -133,16 +139,22 @@ function SettingsRowContent({
   trailing?: ReactNode;
   showChevron: boolean;
   titleClassName?: string;
+  compact?: boolean;
 }) {
   return (
     <>
       {Icon || iconNode ? (
-        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-muted/40 text-muted-foreground">
-          {iconNode ?? (Icon ? <Icon className="h-4 w-4" aria-hidden /> : null)}
+        <div
+          className={cn(
+            'flex shrink-0 items-center justify-center rounded-lg bg-muted/40 text-muted-foreground',
+            compact ? 'h-8 w-8' : 'h-9 w-9',
+          )}
+        >
+          {iconNode ?? (Icon ? <Icon className={cn(compact ? 'h-3.5 w-3.5' : 'h-4 w-4')} aria-hidden /> : null)}
         </div>
       ) : null}
       <div className="min-w-0 flex-1">
-        <p className={cn('text-sm font-medium text-foreground', titleClassName)}>{title}</p>
+        <p className={cn('font-medium text-foreground', compact ? 'text-[13px]' : 'text-sm', titleClassName)}>{title}</p>
         {subtitle ? <p className="truncate text-xs text-muted-foreground">{subtitle}</p> : null}
       </div>
       <div className="flex shrink-0 items-center gap-2">

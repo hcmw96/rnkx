@@ -855,28 +855,28 @@ export function SettingsPageLayout(props: SettingsPageLayoutProps) {
                 <SettingsRow
                   icon={Trophy}
                   title="Competition Guide"
-                  subtitle="Leagues, scoring & rules explained"
+                  compact
                   onClick={() => setActiveDoc(COMPETITION_GUIDE)}
                 />
                 <SettingsRowDivider />
                 <SettingsRow
                   icon={AlignLeft}
                   title="Official Competition Rules"
-                  subtitle="Full platform rules v2.0"
+                  compact
                   onClick={() => setActiveDoc(COMPETITION_RULES)}
                 />
                 <SettingsRowDivider />
                 <SettingsRow
                   icon={MessageCircle}
                   title="Ask the Assistant"
-                  subtitle="Get help with scoring"
+                  compact
                   onClick={() => onAssistantOpenChange(true)}
                 />
                 <SettingsRowDivider />
                 <SettingsRow
                   icon={Mail}
                   title="Contact support"
-                  subtitle="Message the team"
+                  compact
                   onClick={() => onOpenDialog('support')}
                 />
               </SettingsGroup>
@@ -898,6 +898,7 @@ export function SettingsPageLayout(props: SettingsPageLayoutProps) {
                     <SettingsRow
                       icon={FileText}
                       title={label}
+                      compact
                       onClick={() => onOpenLegal(path)}
                     />
                   </div>
@@ -910,6 +911,7 @@ export function SettingsPageLayout(props: SettingsPageLayoutProps) {
                 icon={LogOut}
                 title="Sign out"
                 chevron={false}
+                compact
                 onClick={onSignOut}
               />
             </SettingsGroup>

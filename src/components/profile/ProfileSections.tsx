@@ -30,13 +30,13 @@ type ProfileIdentityProps = {
   onAvatarClick: () => void;
 };
 
-function parseMemberSince(label: string): { heading: string; date: string | null } {
+function parseMemberSince(label: string): { fullLabel: string } {
   const trimmed = label.trim();
   const match = /^Member since\s+(.+)$/i.exec(trimmed);
   if (match) {
-    return { heading: 'Member since', date: match[1].trim() };
+    return { fullLabel: `Member since ${match[1].trim()}` };
   }
-  return { heading: trimmed, date: null };
+  return { fullLabel: trimmed };
 }
 
 function ProfileIdentity({
@@ -51,7 +51,7 @@ function ProfileIdentity({
   uploading,
   onAvatarClick,
 }: ProfileIdentityProps) {
-  const { heading: memberSinceHeading, date: memberSinceDate } = parseMemberSince(memberSince);
+  const { fullLabel: memberSinceLabel } = parseMemberSince(memberSince);
 
   return (
     <header className="flex items-start gap-4">
@@ -100,10 +100,7 @@ function ProfileIdentity({
           </p>
         ) : null}
 
-        <div className="text-xs leading-snug text-muted-foreground">
-          <p>{memberSinceHeading}</p>
-          {memberSinceDate ? <p>{memberSinceDate}</p> : null}
-        </div>
+        <p className="text-xs leading-snug text-muted-foreground">{memberSinceLabel}</p>
       </div>
     </header>
   );

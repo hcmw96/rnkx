@@ -36,6 +36,7 @@ export default function FriendsPage({ embedded = false }: FriendsPageProps) {
   const [results, setResults] = useState<AthleteLite[]>([]);
   const [searching, setSearching] = useState(false);
   const [incoming, setIncoming] = useState<(FriendshipRow & { requester: AthleteLite })[]>([]);
+  const [outgoing, setOutgoing] = useState<(FriendshipRow & { recipient: AthleteLite })[]>([]);
   const [friends, setFriends] = useState<FriendWithMeta[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -46,6 +47,7 @@ export default function FriendsPage({ embedded = false }: FriendsPageProps) {
       setAthleteId(undefined);
       setAuthUserId(undefined);
       setIncoming([]);
+      setOutgoing([]);
       setFriends([]);
       setLoading(false);
       return;
@@ -59,6 +61,7 @@ export default function FriendsPage({ embedded = false }: FriendsPageProps) {
     setAthleteId(aid);
     if (!aid) {
       setIncoming([]);
+      setOutgoing([]);
       setFriends([]);
       setLoading(false);
       return;
@@ -87,6 +90,37 @@ export default function FriendsPage({ embedded = false }: FriendsPageProps) {
           ...(r as FriendshipRow),
           requester: requesterMap.get(r.athlete_id as string) ?? {
             id: r.athlete_id,
+            username: null,
+            display_name: null,
+            avatar_url: null,
+          },
+        })),
+      );
+    }
+
+    const { data: outRows, error: outErr } = await supabase
+      .from('friendships')
+      .select('id, athlete_id, friend_id, status')
+      .eq('athlete_id', aid)
+      .eq('status', 'pending');
+
+    if (outErr) {
+      toast.error(outErr.message);
+    } else {
+      const ids = [...new Set((outRows ?? []).map((r) => r.friend_id))];
+      let recipientMap = new Map<string, AthleteLite>();
+      if (ids.length) {
+        const { data: ath } = await supabase
+          .from('athletes')
+          .select('id, username, display_name, avatar_url')
+          .in('id', ids);
+        recipientMap = new Map((ath ?? []).map((a) => [a.id as string, a as AthleteLite]));
+      }
+      setOutgoing(
+        (outRows ?? []).map((r) => ({
+          ...(r as FriendshipRow),
+          recipient: recipientMap.get(r.friend_id as string) ?? {
+            id: r.friend_id,
             username: null,
             display_name: null,
             avatar_url: null,
@@ -265,6 +299,32 @@ export default function FriendsPage({ embedded = false }: FriendsPageProps) {
                         <X className="h-4 w-4" />
                       </Button>
                     </div>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+
+          <div className="space-y-2">
+            <h2 className="type-heading">Outgoing requests</h2>
+            {loading ? null : outgoing.length === 0 ? (
+              <p className="text-xs text-muted-foreground">No sent requests.</p>
+            ) : (
+              <ul className="space-y-2">
+                {outgoing.map((r) => (
+                  <li
+                    key={r.id}
+                    className="flex items-center justify-between gap-2 rounded-lg border border-border bg-card p-3"
+                  >
+                    <div className="min-w-0">
+                      <p className="type-heading truncate">
+                        {r.recipient.display_name || r.recipient.username || 'Athlete'}
+                      </p>
+                      <p className="type-meta truncate">{r.recipient.username ?? '—'}</p>
+                    </div>
+                    <span className="shrink-0 rounded-full border border-border bg-muted/40 px-2 py-0.5 text-[11px] text-muted-foreground">
+                      Pending
+                    </span>
                   </li>
                 ))}
               </ul>
