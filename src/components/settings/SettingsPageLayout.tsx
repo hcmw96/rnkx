@@ -226,8 +226,6 @@ export function SettingsPageLayout(props: SettingsPageLayoutProps) {
   return (
     <AppShell>
       <section className="mx-auto max-w-lg space-y-5 pb-8">
-        <h1 className="type-page-title">Settings</h1>
-
         {loading ? (
           <p className="text-sm text-muted-foreground">Loading settings…</p>
         ) : !athlete ? (

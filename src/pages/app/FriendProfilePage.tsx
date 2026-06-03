@@ -6,9 +6,7 @@ import { AppShell } from '@/components/app/AppShell';
 import { ProfileOverviewCard } from '@/components/profile/ProfileSections';
 import { Button } from '@/components/ui/button';
 import { getCountryByName } from '@/data/countries';
-import { activitySessionScore } from '@/lib/activitySessionScore';
 import { fetchProfileSeasonStats, fetchSeasonStanding } from '@/lib/profileStats';
-import { cn } from '@/lib/utils';
 import { supabase } from '@/services/supabase';
 
 interface FriendAthlete {
@@ -18,19 +16,8 @@ interface FriendAthlete {
   avatar_url: string | null;
   country: string | null;
   total_score: number | null;
-  profile_public: boolean | null;
   created_at: string | null;
   is_premium: boolean | null;
-}
-
-interface FriendActivity {
-  id: string;
-  activity_type: string | null;
-  league_type: string;
-  activity_date: string;
-  duration_minutes: number | null;
-  avg_hr_percent: number | null;
-  avg_pace_seconds: number | null;
 }
 
 function twoLetterAvatar(username: string | null, displayName: string | null): string {
@@ -48,14 +35,6 @@ function memberSinceLabel(createdAt: string | null | undefined): string {
   const d = new Date(createdAt);
   if (Number.isNaN(d.getTime())) return 'Member since —';
   return `Member since ${format(d, 'MMMM yyyy')}`;
-}
-
-function activityLabel(activityType: string | null, leagueType: string): string {
-  const value = String(activityType ?? '').toLowerCase();
-  if (value.includes('run')) return 'Running';
-  if (value.includes('strength')) return 'Strength';
-  if (leagueType === 'run') return 'Running';
-  return 'Engine';
 }
 
 async function resolveMyAthleteId(uid: string): Promise<string | undefined> {
@@ -90,7 +69,6 @@ export default function FriendProfilePage() {
   const [runScore, setRunScore] = useState(0);
   const [standingPercent, setStandingPercent] = useState(50);
   const [topPercent, setTopPercent] = useState(50);
-  const [activities, setActivities] = useState<FriendActivity[]>([]);
 
   const load = useCallback(async () => {
     if (!friendId) {
@@ -132,9 +110,7 @@ export default function FriendProfilePage() {
     const [{ data: athlete, error: athleteErr }, season, standing] = await Promise.all([
       supabase
         .from('athletes')
-        .select(
-          'id, username, display_name, avatar_url, country, total_score, profile_public, created_at, is_premium',
-        )
+        .select('id, username, display_name, avatar_url, country, total_score, created_at, is_premium')
         .eq('id', friendId)
         .maybeSingle(),
       fetchProfileSeasonStats(friendId),
@@ -144,7 +120,6 @@ export default function FriendProfilePage() {
     if (athleteErr || !athlete) {
       setError(athleteErr?.message ?? 'Athlete not found.');
       setFriend(null);
-      setActivities([]);
       setLoading(false);
       return;
     }
@@ -155,32 +130,6 @@ export default function FriendProfilePage() {
     setRunScore(season.runScore);
     setStandingPercent(standing.standingPercent);
     setTopPercent(standing.topPercent);
-
-    const profilePublic = athlete.profile_public ?? true;
-    if (!profilePublic) {
-      setActivities([]);
-      setLoading(false);
-      return;
-    }
-
-    const { data: rows, error: actErr } = await supabase
-      .from('activities')
-      .select(
-        'id,activity_type,league_type,activity_date,duration_minutes,avg_hr_percent,avg_pace_seconds',
-      )
-      .eq('athlete_id', friendId)
-      .eq('status', 'scored')
-      .order('workout_start_time', { ascending: false, nullsFirst: false })
-      .order('activity_date', { ascending: false })
-      .limit(25);
-
-    if (actErr) {
-      setError(actErr.message);
-      setActivities([]);
-    } else {
-      setActivities((rows as FriendActivity[] | null) ?? []);
-    }
-
     setLoading(false);
   }, [friendId, navigate]);
 
@@ -226,83 +175,22 @@ export default function FriendProfilePage() {
             {error}
           </p>
         ) : friend ? (
-          <>
-            <ProfileOverviewCard
-              displayName={displayName}
-              username={friend.username}
-              isPremium={friend.is_premium}
-              countryName={countryName}
-              countryFlag={countryFlag}
-              memberSince={memberSinceLabel(friend.created_at)}
-              avatarUrl={friend.avatar_url}
-              initials={initials}
-              seasonDisplay={seasonDisplay}
-              combinedScore={combinedScore}
-              engineScore={engineScore}
-              runScore={runScore}
-              standingPercent={standingPercent}
-              topPercent={topPercent}
-            />
-
-            <div className="rounded-xl border border-border bg-card p-4">
-              <h2 className="type-section-label">Workout history</h2>
-              {friend.profile_public === false ? (
-                <p className="mt-3 text-sm text-muted-foreground">This athlete keeps their profile private.</p>
-              ) : !activities.length ? (
-                <p className="mt-3 text-sm text-muted-foreground">No scored workouts yet.</p>
-              ) : (
-                <ul className="mt-3 space-y-2">
-                  {activities.map((activity) => {
-                    const leagueType = activity.league_type === 'run' ? 'run' : 'engine';
-                    const duration = Math.max(0, Number(activity.duration_minutes ?? 0));
-                    const score = activitySessionScore(
-                      leagueType,
-                      duration,
-                      activity.avg_hr_percent != null ? Number(activity.avg_hr_percent) : null,
-                      activity.avg_pace_seconds != null ? Number(activity.avg_pace_seconds) : null,
-                    );
-                    return (
-                      <li
-                        key={activity.id}
-                        className="flex items-center justify-between rounded-lg border border-border/60 bg-zinc-950/40 px-3 py-2.5"
-                      >
-                        <div className="min-w-0">
-                          <p className="type-heading truncate">
-                            {activityLabel(activity.activity_type, leagueType)}
-                          </p>
-                          <p className="type-meta mt-0.5">
-                            {new Date(`${activity.activity_date}T12:00:00`).toLocaleDateString()} · {duration}{' '}
-                            min
-                          </p>
-                        </div>
-                        <div className="ml-3 shrink-0 pr-2 text-right">
-                          <span
-                            className={cn(
-                              'inline-flex rounded-full px-2 py-0.5 text-xs font-semibold uppercase tracking-wide',
-                              leagueType === 'run'
-                                ? 'bg-cyan-500/15 text-cyan-300'
-                                : 'bg-orange-500/15 text-orange-300',
-                            )}
-                          >
-                            {leagueType === 'run' ? 'Run' : 'Engine'}
-                          </span>
-                          <p
-                            className={cn(
-                              'type-stat mt-1',
-                              leagueType === 'run' ? 'text-secondary' : 'text-primary',
-                            )}
-                          >
-                            {score.toLocaleString()}
-                          </p>
-                          <p className="type-stat-unit">pts</p>
-                        </div>
-                      </li>
-                    );
-                  })}
-                </ul>
-              )}
-            </div>
-          </>
+          <ProfileOverviewCard
+            displayName={displayName}
+            username={friend.username}
+            isPremium={friend.is_premium}
+            countryName={countryName}
+            countryFlag={countryFlag}
+            memberSince={memberSinceLabel(friend.created_at)}
+            avatarUrl={friend.avatar_url}
+            initials={initials}
+            seasonDisplay={seasonDisplay}
+            combinedScore={combinedScore}
+            engineScore={engineScore}
+            runScore={runScore}
+            standingPercent={standingPercent}
+            topPercent={topPercent}
+          />
         ) : null}
       </section>
     </AppShell>
