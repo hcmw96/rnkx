@@ -787,10 +787,6 @@ export default function SettingsPage() {
     }
   }
 
-  function openLegal(path: string) {
-    window.open(`${window.location.origin}${path}`, '_blank', 'noopener,noreferrer');
-  }
-
   async function handleRestorePurchases() {
     setRestorePurchasing(true);
     try {
@@ -969,7 +965,6 @@ export default function SettingsPage() {
           if (ok) closeSettingsDialog();
         })
       }
-      onOpenLegal={openLegal}
       onSignOut={() => void handleSignOut()}
       onDeleteAccountOpen={() => setDeleteAccountOpen(true)}
       onDeleteAccountClose={(open) => !deleteAccountWorking && setDeleteAccountOpen(open)}

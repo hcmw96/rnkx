@@ -1,9 +1,13 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
+import { format } from 'date-fns';
 import { ArrowLeft, MessageCircle } from 'lucide-react';
 import { AppShell } from '@/components/app/AppShell';
+import { ProfileOverviewCard } from '@/components/profile/ProfileSections';
 import { Button } from '@/components/ui/button';
+import { getCountryByName } from '@/data/countries';
 import { activitySessionScore } from '@/lib/activitySessionScore';
+import { fetchProfileSeasonStats, fetchSeasonStanding } from '@/lib/profileStats';
 import { cn } from '@/lib/utils';
 import { supabase } from '@/services/supabase';
 
@@ -15,6 +19,8 @@ interface FriendAthlete {
   country: string | null;
   total_score: number | null;
   profile_public: boolean | null;
+  created_at: string | null;
+  is_premium: boolean | null;
 }
 
 interface FriendActivity {
@@ -25,6 +31,23 @@ interface FriendActivity {
   duration_minutes: number | null;
   avg_hr_percent: number | null;
   avg_pace_seconds: number | null;
+}
+
+function twoLetterAvatar(username: string | null, displayName: string | null): string {
+  const u = (username ?? '').trim();
+  if (u.length >= 2) return u.slice(0, 2).toUpperCase();
+  if (u.length === 1) return `${u}${(displayName ?? '?').charAt(0)}`.toUpperCase().slice(0, 2);
+  const d = (displayName ?? '').trim();
+  if (d.length >= 2) return d.slice(0, 2).toUpperCase();
+  if (d.length === 1) return `${d}?`.toUpperCase();
+  return '??';
+}
+
+function memberSinceLabel(createdAt: string | null | undefined): string {
+  if (!createdAt) return 'Member since —';
+  const d = new Date(createdAt);
+  if (Number.isNaN(d.getTime())) return 'Member since —';
+  return `Member since ${format(d, 'MMMM yyyy')}`;
 }
 
 function activityLabel(activityType: string | null, leagueType: string): string {
@@ -62,7 +85,11 @@ export default function FriendProfilePage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [friend, setFriend] = useState<FriendAthlete | null>(null);
-  const [rank, setRank] = useState<number | null>(null);
+  const [seasonDisplay, setSeasonDisplay] = useState('Season 1 · Spring 2026');
+  const [engineScore, setEngineScore] = useState(0);
+  const [runScore, setRunScore] = useState(0);
+  const [standingPercent, setStandingPercent] = useState(50);
+  const [topPercent, setTopPercent] = useState(50);
   const [activities, setActivities] = useState<FriendActivity[]>([]);
 
   const load = useCallback(async () => {
@@ -102,13 +129,16 @@ export default function FriendProfilePage() {
       return;
     }
 
-    const [{ data: athlete, error: athleteErr }, { data: lb }] = await Promise.all([
+    const [{ data: athlete, error: athleteErr }, season, standing] = await Promise.all([
       supabase
         .from('athletes')
-        .select('id, username, display_name, avatar_url, country, total_score, profile_public')
+        .select(
+          'id, username, display_name, avatar_url, country, total_score, profile_public, created_at, is_premium',
+        )
         .eq('id', friendId)
         .maybeSingle(),
-      supabase.from('leaderboard').select('rank, total_score').eq('id', friendId).maybeSingle(),
+      fetchProfileSeasonStats(friendId),
+      fetchSeasonStanding(friendId),
     ]);
 
     if (athleteErr || !athlete) {
@@ -120,7 +150,11 @@ export default function FriendProfilePage() {
     }
 
     setFriend(athlete as FriendAthlete);
-    setRank(lb?.rank != null ? Number(lb.rank) : null);
+    setSeasonDisplay(season.seasonDisplay);
+    setEngineScore(season.engineScore);
+    setRunScore(season.runScore);
+    setStandingPercent(standing.standingPercent);
+    setTopPercent(standing.topPercent);
 
     const profilePublic = athlete.profile_public ?? true;
     if (!profilePublic) {
@@ -155,22 +189,28 @@ export default function FriendProfilePage() {
   }, [load]);
 
   const displayName = friend?.display_name?.trim() || friend?.username || 'Athlete';
-  const initial = displayName.charAt(0).toUpperCase() || '?';
-  const totalScore =
-    friend?.total_score != null ? Math.round(Number(friend.total_score)) : null;
+  const countryMeta = friend?.country ? getCountryByName(friend.country) : null;
+  const countryName = countryMeta?.name ?? friend?.country ?? null;
+  const countryFlag = countryMeta?.flag ?? '';
+  const initials = friend ? twoLetterAvatar(friend.username, friend.display_name) : '??';
+  const combinedScore = engineScore + runScore;
 
   return (
     <AppShell>
-      <section className="mx-auto max-w-lg space-y-4">
-        <div className="flex items-center gap-2">
+      <section className="mx-auto max-w-lg space-y-4 pb-8">
+        <div className="flex items-center justify-between gap-2">
           <Button type="button" variant="ghost" size="icon" className="shrink-0" asChild>
             <Link to="/app/friends" aria-label="Back to friends">
               <ArrowLeft className="h-5 w-5" />
             </Link>
           </Button>
-          <h1 className="type-page-title min-w-0 flex-1 truncate">{displayName}</h1>
           {friendId ? (
-            <Button type="button" size="sm" className="shrink-0 gap-1.5 bg-neon-lime text-black hover:bg-neon-lime/90" asChild>
+            <Button
+              type="button"
+              size="sm"
+              className="shrink-0 gap-1.5 bg-neon-lime text-black hover:bg-neon-lime/90"
+              asChild
+            >
               <Link to={`/app/chat/${friendId}`}>
                 <MessageCircle className="h-4 w-4" />
                 Message
@@ -187,32 +227,22 @@ export default function FriendProfilePage() {
           </p>
         ) : friend ? (
           <>
-            <div className="flex items-center gap-4 rounded-xl border border-border bg-card p-4">
-              <div className="relative h-16 w-16 shrink-0 overflow-hidden rounded-full border border-border/80 bg-muted">
-                {friend.avatar_url ? (
-                  <img src={friend.avatar_url} alt="" className="h-full w-full object-cover" />
-                ) : (
-                  <span className="flex h-full w-full items-center justify-center text-xs font-semibold text-muted-foreground">
-                    {initial}
-                  </span>
-                )}
-              </div>
-              <div className="min-w-0 flex-1">
-                <p className="type-heading truncate">{displayName}</p>
-                <p className="type-meta truncate">{friend.username ?? '—'}</p>
-                <div className="mt-2 flex flex-wrap items-baseline gap-4">
-                  <span className="type-meta">
-                    Rank <span className="type-stat text-foreground">{rank != null ? `#${rank}` : '—'}</span>
-                  </span>
-                  {totalScore != null ? (
-                    <span className="type-meta">
-                      Score <span className="type-stat text-primary">{totalScore.toLocaleString()}</span>
-                      <span className="type-stat-unit ml-1">pts</span>
-                    </span>
-                  ) : null}
-                </div>
-              </div>
-            </div>
+            <ProfileOverviewCard
+              displayName={displayName}
+              username={friend.username}
+              isPremium={friend.is_premium}
+              countryName={countryName}
+              countryFlag={countryFlag}
+              memberSince={memberSinceLabel(friend.created_at)}
+              avatarUrl={friend.avatar_url}
+              initials={initials}
+              seasonDisplay={seasonDisplay}
+              combinedScore={combinedScore}
+              engineScore={engineScore}
+              runScore={runScore}
+              standingPercent={standingPercent}
+              topPercent={topPercent}
+            />
 
             <div className="rounded-xl border border-border bg-card p-4">
               <h2 className="type-section-label">Workout history</h2>
@@ -237,7 +267,9 @@ export default function FriendProfilePage() {
                         className="flex items-center justify-between rounded-lg border border-border/60 bg-zinc-950/40 px-3 py-2.5"
                       >
                         <div className="min-w-0">
-                          <p className="type-heading truncate">{activityLabel(activity.activity_type, leagueType)}</p>
+                          <p className="type-heading truncate">
+                            {activityLabel(activity.activity_type, leagueType)}
+                          </p>
                           <p className="type-meta mt-0.5">
                             {new Date(`${activity.activity_date}T12:00:00`).toLocaleDateString()} · {duration}{' '}
                             min

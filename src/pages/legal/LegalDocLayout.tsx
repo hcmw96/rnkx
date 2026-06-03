@@ -35,16 +35,20 @@ type LegalDocLayoutProps = {
   lastUpdated: string;
   intro?: string;
   children: ReactNode;
+  /** Defaults to browser back navigation. */
+  onBack?: () => void;
 };
 
-export function LegalDocLayout({ title, lastUpdated, intro, children }: LegalDocLayoutProps) {
+export function LegalDocLayout({ title, lastUpdated, intro, children, onBack }: LegalDocLayoutProps) {
+  const handleBack = onBack ?? (() => window.history.back());
+
   return (
-    <div className="fixed inset-0 overflow-y-auto bg-background text-foreground">
+    <div className="fixed inset-0 overflow-y-auto overflow-x-hidden bg-background text-foreground overscroll-y-contain [-webkit-overflow-scrolling:touch] pt-[var(--safe-area-top)] pb-[var(--safe-area-bottom)] pl-[var(--safe-area-left)] pr-[var(--safe-area-right)]">
       <article className="mx-auto max-w-lg space-y-5 px-4 py-10">
         <header className="space-y-2">
           <button
             type="button"
-            onClick={() => window.history.back()}
+            onClick={handleBack}
             className="inline-block text-sm text-muted-foreground transition hover:text-foreground"
           >
             ← Back

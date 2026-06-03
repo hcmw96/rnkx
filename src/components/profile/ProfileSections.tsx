@@ -26,8 +26,9 @@ type ProfileIdentityProps = {
   memberSince: string;
   avatarUrl: string | null;
   initials: string;
-  uploading: boolean;
-  onAvatarClick: () => void;
+  uploading?: boolean;
+  /** Omit for read-only profiles (e.g. viewing a friend). */
+  onAvatarClick?: () => void;
 };
 
 function parseMemberSince(label: string): { fullLabel: string } {
@@ -48,33 +49,51 @@ function ProfileIdentity({
   memberSince,
   avatarUrl,
   initials,
-  uploading,
+  uploading = false,
   onAvatarClick,
 }: ProfileIdentityProps) {
   const { fullLabel: memberSinceLabel } = parseMemberSince(memberSince);
 
+  const avatarInner = (
+    <>
+      {avatarUrl ? (
+        <img src={avatarUrl} alt="" className="h-full w-full object-cover" />
+      ) : (
+        <span className="flex h-full w-full items-center justify-center text-lg font-semibold tracking-wide text-foreground">
+          {initials}
+        </span>
+      )}
+      {uploading ? (
+        <span className="absolute inset-0 flex items-center justify-center bg-background/70 text-xs font-medium">
+          …
+        </span>
+      ) : null}
+    </>
+  );
+
+  const avatarClassName =
+    'relative h-20 w-20 shrink-0 overflow-hidden rounded-full border-2 border-neon-lime/50 bg-muted';
+
   return (
     <header className="flex items-start gap-4">
-      <button
-        type="button"
-        onClick={onAvatarClick}
-        disabled={uploading}
-        className="relative h-20 w-20 shrink-0 overflow-hidden rounded-full border-2 border-neon-lime/50 bg-muted transition hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50"
-        aria-label="Change profile photo"
-      >
-        {avatarUrl ? (
-          <img src={avatarUrl} alt="" className="h-full w-full object-cover" />
-        ) : (
-          <span className="flex h-full w-full items-center justify-center text-lg font-semibold tracking-wide text-foreground">
-            {initials}
-          </span>
-        )}
-        {uploading ? (
-          <span className="absolute inset-0 flex items-center justify-center bg-background/70 text-xs font-medium">
-            …
-          </span>
-        ) : null}
-      </button>
+      {onAvatarClick ? (
+        <button
+          type="button"
+          onClick={onAvatarClick}
+          disabled={uploading}
+          className={cn(
+            avatarClassName,
+            'transition hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50',
+          )}
+          aria-label="Change profile photo"
+        >
+          {avatarInner}
+        </button>
+      ) : (
+        <div className={avatarClassName} aria-hidden>
+          {avatarInner}
+        </div>
+      )}
 
       <div className="min-w-0 flex-1 space-y-1.5 text-left">
         <h1 className="truncate font-sans text-xl font-bold leading-tight text-foreground">{displayName}</h1>

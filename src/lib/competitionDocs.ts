@@ -1,69 +1,177 @@
+import type { LegalSection } from '@/pages/legal/LegalDocLayout';
+import { LEGAL_LAST_UPDATED } from '@/pages/legal/legalContent';
+
+export const COMPETITION_DOCS_LAST_UPDATED = LEGAL_LAST_UPDATED;
+
 export type CompetitionDoc = {
   id: 'guide' | 'rules';
   title: string;
-  sections: string[];
+  lastUpdated: string;
+  intro?: string;
+  sections: LegalSection[];
 };
 
 export const COMPETITION_GUIDE: CompetitionDoc = {
   id: 'guide',
   title: 'Competition Guide',
+  lastUpdated: COMPETITION_DOCS_LAST_UPDATED,
+  intro:
+    'RNKX converts real-world training into competition points across leagues, divisions and clubs.',
   sections: [
-    `Welcome to RNKX. RNKX converts real-world training into competition points across leagues, divisions and clubs.`,
-
-    `Run League\n\nRun League scores indoor and outdoor running activities. Your score is based on average pace and workout duration. Faster running earns more points.\n\nExample: A 45-minute run at approximately 5:00/km pace may earn around 150–180 points.`,
-
-    `Engine League\n\nEngine League scores all other supported activity types including Strength Training, Functional Fitness, HIIT, Conditioning, and Hybrid Training. Your score is based on average heart rate effort and workout duration. Higher sustained effort earns more points.\n\nExample: A 45-minute workout averaging approximately 75–80% of maximum heart rate may earn around 140–180 points.`,
-
-    `Session Rules\n\nTo score points: workouts must exceed 15 minutes; the correct workout type must be selected; a maximum of two scoring workouts per day count; if more than two workouts are completed, only the two highest scoring workouts count; workouts scoring zero points do not contribute towards weekly consistency bonuses.`,
-
-    `Weekly Consistency Bonus\n\nRNKX rewards consistent training. Additional points are awarded for completing multiple scoring workouts during the same Monday–Sunday period. Your current progress towards the next bonus is displayed within the app. Consistency bonuses are automatically added when earned.`,
-
-    `Divisions\n\nRNKX currently operates four divisions: Open, Challenger, Pro, Elite. Promotion and relegation occur at season end based on performance.`,
-
-    `Clubs\n\nRNKX includes Public Clubs and Private Clubs. Club leaderboards use the same Run League and Engine League scoring used throughout RNKX.`,
-
-    `Fair Play\n\nRNKX uses automated systems to identify suspicious activity. Manipulated, artificial or fraudulent workout data may result in score removal, suspension or account termination.`,
-
-    `Why Didn't My Workout Score?\n\nA workout may not score if: it was under 15 minutes; the incorrect workout type was selected; it did not meet the minimum scoring threshold; two higher-scoring workouts had already been recorded that day; the activity could not be verified by RNKX.`,
-
-    `Full Rules: The full RNKX Competition Rules & Platform Policy are available within Settings.`,
+    {
+      heading: 'Run League',
+      paragraphs: [
+        'Run League scores indoor and outdoor running activities. Your score is based on average pace and workout duration. Faster running earns more points.',
+        'Example: A 45-minute run at approximately 5:00/km pace may earn around 150–180 points.',
+      ],
+    },
+    {
+      heading: 'Engine League',
+      paragraphs: [
+        'Engine League scores all other supported activity types including Strength Training, Functional Fitness, HIIT, Conditioning, and Hybrid Training. Your score is based on average heart rate effort and workout duration. Higher sustained effort earns more points.',
+        'Example: A 45-minute workout averaging approximately 75–80% of maximum heart rate may earn around 140–180 points.',
+      ],
+    },
+    {
+      heading: 'Session Rules',
+      paragraphs: [
+        'To score points: workouts must exceed 15 minutes; the correct workout type must be selected; a maximum of two scoring workouts per day count; if more than two workouts are completed, only the two highest scoring workouts count; workouts scoring zero points do not contribute towards weekly consistency bonuses.',
+      ],
+    },
+    {
+      heading: 'Weekly Consistency Bonus',
+      paragraphs: [
+        'RNKX rewards consistent training. Additional points are awarded for completing multiple scoring workouts during the same Monday–Sunday period. Your current progress towards the next bonus is displayed within the app. Consistency bonuses are automatically added when earned.',
+      ],
+    },
+    {
+      heading: 'Divisions',
+      paragraphs: [
+        'RNKX currently operates four divisions: Open, Challenger, Pro, Elite. Promotion and relegation occur at season end based on performance.',
+      ],
+    },
+    {
+      heading: 'Clubs',
+      paragraphs: [
+        'RNKX includes Public Clubs and Private Clubs. Club leaderboards use the same Run League and Engine League scoring used throughout RNKX.',
+      ],
+    },
+    {
+      heading: 'Fair Play',
+      paragraphs: [
+        'RNKX uses automated systems to identify suspicious activity. Manipulated, artificial or fraudulent workout data may result in score removal, suspension or account termination.',
+      ],
+    },
+    {
+      heading: "Why Didn't My Workout Score?",
+      paragraphs: [
+        'A workout may not score if: it was under 15 minutes; the incorrect workout type was selected; it did not meet the minimum scoring threshold; two higher-scoring workouts had already been recorded that day; the activity could not be verified by RNKX.',
+      ],
+    },
+    {
+      heading: 'Full rules',
+      paragraphs: [
+        'The full RNKX Competition Rules & Platform Policy are available within Settings.',
+      ],
+    },
   ],
 };
 
 export const COMPETITION_RULES: CompetitionDoc = {
   id: 'rules',
   title: 'Official Competition Rules',
+  lastUpdated: COMPETITION_DOCS_LAST_UPDATED,
+  intro: 'Version 2.0 — rules governing RNKX competition, scoring, and fair play.',
   sections: [
-    `RNKX Official Competition Rules — Version 2.0`,
-
-    `1. RNKX Philosophy\n\nRNKX is a digital performance competition platform that converts real-world training into structured competition. Built around five principles: Real Effort Wins; Fair Competition; Consistency Over Extremes; Global Accessibility; Data Integrity First.`,
-
-    `2. Eligibility\n\nYou may use RNKX if you meet the minimum legal age requirement in your country, have a compatible device or approved data source, and agree to share activity data required for scoring. RNKX may suspend or terminate accounts involved in fraud, abuse, data manipulation or platform exploitation.`,
-
-    `3. Data Sources & Verification\n\nSupported sources include smart watches, fitness wearables, mobile health platforms, approved third-party fitness services, and Terra-connected devices. All activity data must be generated by the user, recorded from an approved source, timestamp accurate, and physiologically realistic. RNKX reserves the right to review, flag, adjust or remove activities where data integrity cannot be confirmed.`,
-
-    `4. League Structure\n\nRNKX contains two global competition leagues: Run League (indoor and outdoor running) and Engine League (all other supported activity types including strength training, conditioning, functional fitness, HIIT and hybrid training). Activities are automatically assigned based on workout type. Divisions: Open, Challenger, Pro, Elite. All users begin in Open Division. Promotion and relegation occur at season end.`,
-
-    `5. Seasons\n\nSeasons typically last 6–8 weeks. Scores count from the date a user joins. Activities are counted using workout timestamp, not sync time. Leaderboards update continuously. At season end: rankings are finalised, promotions and relegations applied, leaderboards reset, historical achievements remain visible. Tiebreakers: 1) Total Verified Sessions 2) Total Active Training Days 3) Earliest Time Final Score Was Achieved.`,
-
-    `6. Supported Devices\n\nApple, Garmin, WHOOP, Polar, Fitbit, Samsung, COROS, Strava, Oura, MyZone. Supported devices may change over time.`,
-
-    `7. Scoring System\n\nSession rules: correct workout type must be selected; session must exceed 15 minutes; maximum two scoring sessions per day; if more than two completed, only the two highest scoring count; sessions scoring zero do not contribute to weekly consistency bonus totals. Final score = Points Per Minute × Duration. Where multiple devices record the same activity, RNKX determines a single official activity — duplicates do not score twice.`,
-
-    `8. Run League Scoring\n\nBased on average pace per kilometre and workout duration. Faster running earns more points. RNKX uses a continuous scoring model to ensure small differences in performance result in proportionate scoring differences.`,
-
-    `9. Engine League Scoring\n\nBased on average heart rate effort and workout duration. Higher sustained effort earns more points. Where available, RNKX uses device-reported maximum heart rate. Where unavailable, RNKX estimates maximum heart rate using approved methodologies.`,
-
-    `10. Weekly Consistency Bonus\n\nAdditional points awarded for completing multiple scoring workouts within the same Monday–Sunday period. Bonus progress displayed within the app. Bonuses automatically applied when thresholds are achieved.`,
-
-    `11. Clubs\n\nPublic Clubs may be joined by any eligible user. Private Clubs require approval or invitation. Club leaderboards use the same scoring rules as global leagues. Club participation does not affect eligibility for global rankings, promotions or relegations.`,
-
-    `12. Chat & Community Behaviour\n\nHarassment, abuse, threats, hate speech, spam or disruptive behaviour may result in restrictions, suspension or permanent account removal.`,
-
-    `13. Anti-Cheat & Fair Play\n\nProhibited: GPS manipulation, artificial activity generation, synthetic data injection, attaching devices to moving objects, uploading another person's activity, multi-account farming, exploiting scoring systems. RNKX may remove activities, adjust scores, suspend or permanently ban where cheating is suspected.`,
-
-    `14. Appeals\n\nAppeals must be submitted within 24 hours of the relevant scoring period and include: activity date, device used, supporting evidence. RNKX review decisions are final.`,
-
-    `15. Platform Changes\n\nRNKX may update scoring systems, division structures, supported devices, bonus thresholds or platform rules. Material changes will be communicated in advance where possible.`,
+    {
+      heading: '1. RNKX Philosophy',
+      paragraphs: [
+        'RNKX is a digital performance competition platform that converts real-world training into structured competition. Built around five principles: Real Effort Wins; Fair Competition; Consistency Over Extremes; Global Accessibility; Data Integrity First.',
+      ],
+    },
+    {
+      heading: '2. Eligibility',
+      paragraphs: [
+        'You may use RNKX if you meet the minimum legal age requirement in your country, have a compatible device or approved data source, and agree to share activity data required for scoring. RNKX may suspend or terminate accounts involved in fraud, abuse, data manipulation or platform exploitation.',
+      ],
+    },
+    {
+      heading: '3. Data Sources & Verification',
+      paragraphs: [
+        'Supported sources include smart watches, fitness wearables, mobile health platforms, approved third-party fitness services, and Terra-connected devices. All activity data must be generated by the user, recorded from an approved source, timestamp accurate, and physiologically realistic. RNKX reserves the right to review, flag, adjust or remove activities where data integrity cannot be confirmed.',
+      ],
+    },
+    {
+      heading: '4. League Structure',
+      paragraphs: [
+        'RNKX contains two global competition leagues: Run League (indoor and outdoor running) and Engine League (all other supported activity types including strength training, conditioning, functional fitness, HIIT and hybrid training). Activities are automatically assigned based on workout type. Divisions: Open, Challenger, Pro, Elite. All users begin in Open Division. Promotion and relegation occur at season end.',
+      ],
+    },
+    {
+      heading: '5. Seasons',
+      paragraphs: [
+        'Seasons typically last 6–8 weeks. Scores count from the date a user joins. Activities are counted using workout timestamp, not sync time. Leaderboards update continuously. At season end: rankings are finalised, promotions and relegations applied, leaderboards reset, historical achievements remain visible. Tiebreakers: 1) Total Verified Sessions 2) Total Active Training Days 3) Earliest Time Final Score Was Achieved.',
+      ],
+    },
+    {
+      heading: '6. Supported Devices',
+      paragraphs: [
+        'Apple, Garmin, WHOOP, Polar, Fitbit, Samsung, COROS, Strava, Oura, MyZone. Supported devices may change over time.',
+      ],
+    },
+    {
+      heading: '7. Scoring System',
+      paragraphs: [
+        'Session rules: correct workout type must be selected; session must exceed 15 minutes; maximum two scoring sessions per day; if more than two completed, only the two highest scoring count; sessions scoring zero do not contribute to weekly consistency bonus totals. Final score = Points Per Minute × Duration. Where multiple devices record the same activity, RNKX determines a single official activity — duplicates do not score twice.',
+      ],
+    },
+    {
+      heading: '8. Run League Scoring',
+      paragraphs: [
+        'Based on average pace per kilometre and workout duration. Faster running earns more points. RNKX uses a continuous scoring model to ensure small differences in performance result in proportionate scoring differences.',
+      ],
+    },
+    {
+      heading: '9. Engine League Scoring',
+      paragraphs: [
+        'Based on average heart rate effort and workout duration. Higher sustained effort earns more points. Where available, RNKX uses device-reported maximum heart rate. Where unavailable, RNKX estimates maximum heart rate using approved methodologies.',
+      ],
+    },
+    {
+      heading: '10. Weekly Consistency Bonus',
+      paragraphs: [
+        'Additional points awarded for completing multiple scoring workouts within the same Monday–Sunday period. Bonus progress displayed within the app. Bonuses automatically applied when thresholds are achieved.',
+      ],
+    },
+    {
+      heading: '11. Clubs',
+      paragraphs: [
+        'Public Clubs may be joined by any eligible user. Private Clubs require approval or invitation. Club leaderboards use the same scoring rules as global leagues. Club participation does not affect eligibility for global rankings, promotions or relegations.',
+      ],
+    },
+    {
+      heading: '12. Chat & Community Behaviour',
+      paragraphs: [
+        'Harassment, abuse, threats, hate speech, spam or disruptive behaviour may result in restrictions, suspension or permanent account removal.',
+      ],
+    },
+    {
+      heading: '13. Anti-Cheat & Fair Play',
+      paragraphs: [
+        "Prohibited: GPS manipulation, artificial activity generation, synthetic data injection, attaching devices to moving objects, uploading another person's activity, multi-account farming, exploiting scoring systems. RNKX may remove activities, adjust scores, suspend or permanently ban where cheating is suspected.",
+      ],
+    },
+    {
+      heading: '14. Appeals',
+      paragraphs: [
+        'Appeals must be submitted within 24 hours of the relevant scoring period and include: activity date, device used, supporting evidence. RNKX review decisions are final.',
+      ],
+    },
+    {
+      heading: '15. Platform Changes',
+      paragraphs: [
+        'RNKX may update scoring systems, division structures, supported devices, bonus thresholds or platform rules. Material changes will be communicated in advance where possible.',
+      ],
+    },
   ],
 };

@@ -43,7 +43,7 @@ import { Input } from '@/components/ui/input';
 import { Switch } from '@/components/ui/switch';
 import { Textarea } from '@/components/ui/textarea';
 import { SCORING_ASSISTANT_SUGGESTIONS } from '@/lib/scoringAssistant';
-import { type CompetitionDoc, COMPETITION_GUIDE, COMPETITION_RULES } from '@/lib/competitionDocs';
+import { APP_DOCUMENTS, type AppDocument } from '@/lib/appDocuments';
 import { DocViewerSheet } from '@/components/settings/DocViewerSheet';
 import {
   ConnectBadge,
@@ -146,7 +146,6 @@ export type SettingsPageLayoutProps = {
   onAssistantSuggestion: (question: string) => void;
   onSupportBodyChange: (value: string) => void;
   onSendSupport: () => void;
-  onOpenLegal: (path: string) => void;
   onSignOut: () => void;
   onDeleteAccountOpen: () => void;
   onDeleteAccountClose: (open: boolean) => void;
@@ -212,14 +211,13 @@ export function SettingsPageLayout(props: SettingsPageLayoutProps) {
     onAssistantSuggestion,
     onSupportBodyChange,
     onSendSupport,
-    onOpenLegal,
     onSignOut,
     onDeleteAccountOpen,
     onDeleteAccountClose,
     onDeleteAccountConfirm,
   } = props;
 
-  const [activeDoc, setActiveDoc] = React.useState<CompetitionDoc | null>(null);
+  const [activeDoc, setActiveDoc] = React.useState<AppDocument | null>(null);
 
   const appleSubtitle = appleConnected
     ? formatSyncAgo(athlete?.last_synced)
@@ -301,7 +299,7 @@ export function SettingsPageLayout(props: SettingsPageLayoutProps) {
                     className="sm:mr-auto"
                     onClick={() => {
                       onAssistantOpenChange(false);
-                      setActiveDoc(COMPETITION_RULES);
+                      setActiveDoc(APP_DOCUMENTS.rules);
                     }}
                   >
                     Full rules
@@ -856,14 +854,14 @@ export function SettingsPageLayout(props: SettingsPageLayoutProps) {
                   icon={Trophy}
                   title="Competition Guide"
                   compact
-                  onClick={() => setActiveDoc(COMPETITION_GUIDE)}
+                  onClick={() => setActiveDoc(APP_DOCUMENTS.guide)}
                 />
                 <SettingsRowDivider />
                 <SettingsRow
                   icon={AlignLeft}
                   title="Official Competition Rules"
                   compact
-                  onClick={() => setActiveDoc(COMPETITION_RULES)}
+                  onClick={() => setActiveDoc(APP_DOCUMENTS.rules)}
                 />
                 <SettingsRowDivider />
                 <SettingsRow
@@ -887,19 +885,19 @@ export function SettingsPageLayout(props: SettingsPageLayoutProps) {
               <SettingsGroup>
                 {(
                   [
-                    ['Privacy policy', '/privacy'],
-                    ['Terms & conditions', '/terms'],
-                    ['User waiver', '/waiver'],
-                    ['Cookies policy', '/cookies'],
+                    ['Privacy policy', APP_DOCUMENTS.privacy],
+                    ['Terms & conditions', APP_DOCUMENTS.terms],
+                    ['User waiver', APP_DOCUMENTS.waiver],
+                    ['Cookies policy', APP_DOCUMENTS.cookies],
                   ] as const
-                ).map(([label, path], index) => (
-                  <div key={path}>
+                ).map(([label, doc], index) => (
+                  <div key={doc.id}>
                     {index > 0 ? <SettingsRowDivider /> : null}
                     <SettingsRow
                       icon={FileText}
                       title={label}
                       compact
-                      onClick={() => onOpenLegal(path)}
+                      onClick={() => setActiveDoc(doc)}
                     />
                   </div>
                 ))}
