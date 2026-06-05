@@ -33,10 +33,11 @@ async function loadDmNotifications(athleteId: string): Promise<ChatNotificationI
         typeof row.last_message_sender_id === 'string' ? row.last_message_sender_id : null,
     });
 
+    const name = String(row.friend_username ?? 'Direct message');
     items.push({
       id: conversationId,
-      name: String(row.friend_username ?? 'Direct message'),
-      preview: String(row.last_message ?? 'New message'),
+      name,
+      preview: `New message from ${name}`,
       at: lastMessageAt,
       link: `/app/chat/${friendId}`,
       isRead: !unread,
@@ -86,10 +87,11 @@ async function loadGroupNotifications(athleteId: string): Promise<ChatNotificati
       lastMessageAthleteId: lastMsg?.athlete_id ?? null,
     });
 
+    const name = club?.name || convo.name?.trim() || 'Group chat';
     items.push({
       id: conversationId,
-      name: club?.name || convo.name?.trim() || 'Group chat',
-      preview: lastMsg?.content || 'New message',
+      name,
+      preview: `New message from ${name}`,
       at: lastMessageAt,
       link: `/app/chat/group/${conversationId}`,
       isRead: !unread,

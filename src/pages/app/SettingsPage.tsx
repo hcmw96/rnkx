@@ -354,7 +354,7 @@ export default function SettingsPage() {
     setSyncing(true);
     try {
       if (wearsApple && despiaIphone) {
-        const idle = await waitForHealthKitIdle(10_000);
+        const idle = await waitForHealthKitIdle(15_000);
         if (!idle) {
           toast.error('HealthKit is busy — wait a moment and try again');
           return;

@@ -32,6 +32,7 @@ export function useUnreadCount(): number {
 
     const onUnreadChanged = () => void fetchCount();
     window.addEventListener(UNREAD_CHANGED_EVENT, onUnreadChanged);
+    document.addEventListener('visibilitychange', onUnreadChanged);
 
     const channelName = `unread-count-${crypto.randomUUID()}`;
     const channel = supabase
@@ -43,6 +44,7 @@ export function useUnreadCount(): number {
 
     return () => {
       window.removeEventListener(UNREAD_CHANGED_EVENT, onUnreadChanged);
+      document.removeEventListener('visibilitychange', onUnreadChanged);
       void supabase.removeChannel(channel);
     };
   }, [fetchCount]);

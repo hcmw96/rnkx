@@ -211,12 +211,13 @@ export default function NotificationsPage() {
     }
   };
 
+  const unreadChatNotifications = chatNotifications.filter((c) => !c.isRead);
+  const unreadChatCount = unreadChatNotifications.length;
   const empty =
     !loading &&
     friendRequests.length === 0 &&
     clubInvites.length === 0 &&
-    chatNotifications.length === 0;
-  const unreadChatCount = chatNotifications.filter((c) => !c.isRead).length;
+    unreadChatCount === 0;
   const showPushBanner = isDespiaNative() && pushRegistered === false;
 
   async function enablePush(openSettingsIfNeeded = true) {
@@ -357,77 +358,30 @@ export default function NotificationsPage() {
               </div>
             ) : null}
 
-            {chatNotifications.length > 0 ? (
+            {unreadChatCount > 0 ? (
               <div className="space-y-2">
-                <h2 className="type-section-label">
-                  {unreadChatCount > 0 ? `Messages (${unreadChatCount} unread)` : 'Messages'}
-                </h2>
+                <h2 className="type-section-label">Messages ({unreadChatCount} unread)</h2>
                 <ul className="space-y-2">
-                  {chatNotifications.map((chat) => (
+                  {unreadChatNotifications.map((chat) => (
                     <li key={chat.id}>
                       <Link
                         to={chat.link}
-                        aria-label={chat.isRead ? `${chat.name}, read` : `${chat.name}, unread`}
-                        className={[
-                          'flex items-center gap-3 rounded-lg border p-3 transition-colors',
-                          chat.isRead
-                            ? 'border-border/60 bg-card/40 opacity-75 hover:border-muted-foreground/40 hover:opacity-90'
-                            : 'border-primary/40 bg-card hover:border-primary/60',
-                        ].join(' ')}
+                        aria-label={`${chat.preview}, unread`}
+                        className="flex items-center gap-3 rounded-lg border border-primary/40 bg-card p-3 transition-colors hover:border-primary/60"
                       >
-                        <div
-                          className={[
-                            'relative flex h-10 w-10 items-center justify-center rounded-full',
-                            chat.isRead ? 'bg-muted/60' : 'bg-muted',
-                          ].join(' ')}
-                        >
-                          <MessageCircle
-                            className={[
-                              'h-5 w-5',
-                              chat.isRead ? 'text-muted-foreground' : 'text-primary',
-                            ].join(' ')}
+                        <div className="relative flex h-10 w-10 items-center justify-center rounded-full bg-muted">
+                          <MessageCircle className="h-5 w-5 text-primary" aria-hidden />
+                          <span
+                            className="absolute -right-0.5 -top-0.5 h-2.5 w-2.5 rounded-full bg-primary ring-2 ring-card"
                             aria-hidden
                           />
-                          {!chat.isRead ? (
-                            <span
-                              className="absolute -right-0.5 -top-0.5 h-2.5 w-2.5 rounded-full bg-primary ring-2 ring-card"
-                              aria-hidden
-                            />
-                          ) : null}
                         </div>
                         <div className="min-w-0 flex-1">
-                          <p
-                            className={[
-                              'truncate',
-                              chat.isRead ? 'text-sm text-muted-foreground' : 'type-heading',
-                            ].join(' ')}
-                          >
-                            {chat.name}
-                          </p>
-                          <p
-                            className={[
-                              'truncate text-xs',
-                              chat.isRead ? 'text-muted-foreground/80' : 'type-meta',
-                            ].join(' ')}
-                          >
-                            {chat.preview}
-                          </p>
+                          <p className="type-heading truncate">{chat.preview}</p>
                         </div>
-                        <div className="flex shrink-0 flex-col items-end gap-0.5">
-                          <span
-                            className={[
-                              'text-xs',
-                              chat.isRead ? 'text-muted-foreground/70' : 'text-muted-foreground',
-                            ].join(' ')}
-                          >
-                            {formatDistanceToNow(new Date(chat.at), { addSuffix: true })}
-                          </span>
-                          {chat.isRead ? (
-                            <span className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground/60">
-                              Read
-                            </span>
-                          ) : null}
-                        </div>
+                        <span className="shrink-0 text-xs text-muted-foreground">
+                          {formatDistanceToNow(new Date(chat.at), { addSuffix: true })}
+                        </span>
                       </Link>
                     </li>
                   ))}
