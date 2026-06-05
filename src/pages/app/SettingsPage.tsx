@@ -375,18 +375,32 @@ export default function SettingsPage() {
         }
 
         const workouts = syncData.workouts;
+        toast.message('HealthKit OK', { description: `${workouts.length} workouts found` });
         toast.message('Sync: uploading ' + workouts.length + ' workouts...');
 
         let processed = 0;
         let syncResults: Awaited<ReturnType<typeof syncAppleWorkoutsToDatabase>>['results'] = [];
         try {
-          const upload = await syncAppleWorkoutsToDatabase(athlete.id, workouts);
-          if (upload.error) {
-            toast.error('Step 2 failed: ' + upload.error);
+          const rpcResult = await supabase.rpc('sync_apple_workouts', {
+            p_athlete_id: athlete.id,
+            p_workouts: workouts,
+          });
+          toast.message('RPC response', {
+            description: JSON.stringify(rpcResult?.data ?? rpcResult?.error ?? 'no data').slice(0, 150),
+          });
+          if (rpcResult.error) {
+            toast.error('Step 2 failed: ' + rpcResult.error.message);
             return;
           }
-          processed = upload.processed;
-          syncResults = upload.results;
+          const payload =
+            rpcResult.data && typeof rpcResult.data === 'object'
+              ? (rpcResult.data as Record<string, unknown>)
+              : null;
+          processed = payload && 'processed' in payload ? Number(payload.processed) || 0 : 0;
+          const rawResults = payload?.results;
+          syncResults = Array.isArray(rawResults)
+            ? (rawResults as Awaited<ReturnType<typeof syncAppleWorkoutsToDatabase>>['results'])
+            : [];
 
           if (shouldApplyAppleMaxHrToProfile(athlete.max_hr_source)) {
             const inferred = inferMaxHrFromAppleWorkouts(workouts);

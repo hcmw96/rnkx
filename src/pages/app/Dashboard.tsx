@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { X, Zap } from 'lucide-react';
 import { AppShell } from '@/components/app/AppShell';
 import { Button } from '@/components/ui/button';
-import { MomentumBlock } from '@/components/dashboard/MomentumBlock';
+import { MomentumSection } from '@/components/dashboard/MomentumBlock';
 import { SeasonCard } from '@/components/dashboard/SeasonCard';
 import { PremiumGate } from '@/components/PremiumGate';
 import { DashboardInsights } from '@/components/insights/DashboardInsights';
@@ -408,22 +408,20 @@ export default function Dashboard() {
           runDivision={(stats?.run_division as 'Open' | 'Challenger' | 'Pro' | 'Elite' | null) ?? 'Open'}
         />
 
-        <div className="grid gap-4 md:grid-cols-2">
-          <MomentumBlock
-            category="engine"
-            weeklyChange={stats?.engine_weekly_change ?? 0}
-            placesToPromotion={stats?.engine_places_to_promotion ?? null}
-            placesToRelegation={stats?.engine_places_to_relegation ?? null}
-            division={stats?.engine_division ?? 'Open'}
-          />
-          <MomentumBlock
-            category="run"
-            weeklyChange={stats?.run_weekly_change ?? 0}
-            placesToPromotion={stats?.run_places_to_promotion ?? null}
-            placesToRelegation={stats?.run_places_to_relegation ?? null}
-            division={stats?.run_division ?? 'Open'}
-          />
-        </div>
+        <MomentumSection
+          engine={{
+            weeklyChange: stats?.engine_weekly_change ?? 0,
+            placesToPromotion: stats?.engine_places_to_promotion ?? null,
+            placesToRelegation: stats?.engine_places_to_relegation ?? null,
+            division: stats?.engine_division ?? 'Open',
+          }}
+          run={{
+            weeklyChange: stats?.run_weekly_change ?? 0,
+            placesToPromotion: stats?.run_places_to_promotion ?? null,
+            placesToRelegation: stats?.run_places_to_relegation ?? null,
+            division: stats?.run_division ?? 'Open',
+          }}
+        />
 
         <div className="rounded-lg border border-border bg-card p-4">
           <p className="type-section-label">Combined score</p>
