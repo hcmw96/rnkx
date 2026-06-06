@@ -40,6 +40,7 @@ function isSyncStale(lastSynced: string | null | undefined): boolean {
 interface ActiveSeason {
   id: string;
   name: string;
+  starts_at: string | null;
   ends_at: string | null;
 }
 
@@ -160,7 +161,7 @@ export default function Dashboard() {
           supabase.auth.getUser(),
           supabase
             .from('seasons')
-            .select('id,name,ends_at')
+            .select('id,name,starts_at,ends_at')
             .eq('is_active', true)
             .maybeSingle(),
         ]);
@@ -452,9 +453,13 @@ export default function Dashboard() {
           enginePoints={stats?.engine_score ?? 0}
           runPoints={stats?.run_score ?? 0}
           daysRemaining={daysRemaining}
+          seasonStartsAt={season?.starts_at ?? null}
+          seasonEndsAt={season?.ends_at ?? null}
           selectedLeagues={stats?.selected_leagues ?? []}
           engineDivision={(stats?.engine_division as 'Open' | 'Challenger' | 'Pro' | 'Elite' | null) ?? 'Open'}
           runDivision={(stats?.run_division as 'Open' | 'Challenger' | 'Pro' | 'Elite' | null) ?? 'Open'}
+          engineWeeklyChange={stats?.engine_weekly_change ?? null}
+          runWeeklyChange={stats?.run_weekly_change ?? null}
         />
 
         {weeklyInsights ? <WeeklyInsightsSection data={weeklyInsights} /> : null}
