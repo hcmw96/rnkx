@@ -1,4 +1,5 @@
 import { motion } from 'framer-motion';
+import { formatScore } from '@/lib/formatScore';
 import { cn } from '@/lib/utils';
 
 interface PodiumMember {
@@ -66,7 +67,7 @@ export function LeaguePodium({ members, leagueType }: LeaguePodiumProps) {
                 leagueType === 'engine' ? 'text-primary' : 'text-secondary',
               )}
             >
-              {member.score.toLocaleString()}
+              {formatScore(member.score)}
             </span>
             <div
               className={cn(

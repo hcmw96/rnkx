@@ -7,8 +7,11 @@ import { InsightsLineChart } from '@/components/insights/InsightsLineChart';
 import { PremiumGate } from '@/components/PremiumGate';
 import {
   buildInsightsSummary,
+  mergeActivitiesAndWorkoutsForInsights,
   type InsightActivity,
+  type InsightWorkoutRow,
 } from '@/lib/insightsAggregates';
+import { formatScore, formatScorePts } from '@/lib/formatScore';
 import { cn } from '@/lib/utils';
 import { supabase } from '@/services/supabase';
 
@@ -82,16 +85,38 @@ export default function RecoveryPage({ embedded = false }: RecoveryPageProps) {
 
     const since = new Date();
     since.setDate(since.getDate() - 14);
-    const { data: rows } = await supabase
-      .from('activities')
-      .select('id,activity_type,league_type,activity_date,duration_minutes,avg_hr_percent,avg_pace_seconds')
-      .eq('athlete_id', uid)
-      .eq('status', 'scored')
-      .gte('activity_date', since.toISOString().slice(0, 10))
-      .order('activity_date', { ascending: true })
-      .limit(80);
+    const sinceIso = since.toISOString().slice(0, 10);
+    const sinceWorkout = since.toISOString();
 
-    setActivities((rows as InsightActivity[] | null) ?? []);
+    const [{ data: rows }, { data: workoutRows }, { data: athleteRow }] = await Promise.all([
+      supabase
+        .from('activities')
+        .select('id,activity_type,league_type,activity_date,duration_minutes,avg_hr_percent,avg_pace_seconds')
+        .eq('athlete_id', uid)
+        .eq('status', 'scored')
+        .gte('activity_date', sinceIso)
+        .order('activity_date', { ascending: true })
+        .limit(80),
+      supabase
+        .from('workouts')
+        .select('id, activity_type, avg_hr, avg_pace_per_km, engine_score, run_score, duration_min, started_at')
+        .eq('athlete_id', uid)
+        .eq('status', 'scored')
+        .gte('started_at', sinceWorkout)
+        .order('started_at', { ascending: true })
+        .limit(80),
+      supabase.from('athletes').select('max_hr, age').eq('id', uid).maybeSingle(),
+    ]);
+
+    const merged = mergeActivitiesAndWorkoutsForInsights(
+      (rows as InsightActivity[] | null) ?? [],
+      (workoutRows as InsightWorkoutRow[] | null) ?? [],
+      {
+        maxHr: (athleteRow?.max_hr as number | string | null | undefined) ?? null,
+        age: Number(athleteRow?.age) || 30,
+      },
+    );
+    setActivities(merged);
     setLoading(false);
   }, []);
 
@@ -247,7 +272,7 @@ export default function RecoveryPage({ embedded = false }: RecoveryPageProps) {
           <div>
             <dt className="type-meta">Scored Points</dt>
             <dd className="type-stat text-primary">
-              {displayPts > 0 ? displayPts.toLocaleString() : '--'}
+              {displayPts > 0 ? formatScore(displayPts) : '--'}
             </dd>
           </div>
           <div>
@@ -323,7 +348,7 @@ export default function RecoveryPage({ embedded = false }: RecoveryPageProps) {
           <p className="mt-3 text-xs text-muted-foreground">
             Latest peak: {summary.bestSession.label} (
             {format(parseISO(`${summary.bestSession.date}T12:00:00`), 'MMM d')}) —{' '}
-            {summary.bestSession.score.toLocaleString()} pts
+            {formatScorePts(summary.bestSession.score)}
           </p>
         ) : null}
       </div>

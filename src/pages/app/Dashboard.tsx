@@ -3,16 +3,29 @@ import { useNavigate } from 'react-router-dom';
 import { X, Zap } from 'lucide-react';
 import { AppShell } from '@/components/app/AppShell';
 import { Button } from '@/components/ui/button';
-import { MomentumSection } from '@/components/dashboard/MomentumBlock';
 import { SeasonCard } from '@/components/dashboard/SeasonCard';
-import { PremiumGate } from '@/components/PremiumGate';
-import { DashboardInsights } from '@/components/insights/DashboardInsights';
-import { InsightsPreview } from '@/components/premium/PreviewMocks';
-import type { InsightActivity } from '@/lib/insightsAggregates';
+import { WeeklyInsightsSection } from '@/components/dashboard/WeeklyInsightsSection';
+import { CoachNotesCard } from '@/components/dashboard/CoachNotesCard';
+import {
+  RecentWorkoutsSection,
+  type RecentWorkoutItem,
+} from '@/components/dashboard/RecentWorkoutsSection';
 import { usePullToRefresh } from '@/hooks/usePullToRefresh';
 import { activitySessionScore } from '@/lib/activitySessionScore';
+import {
+  buildInsightsSummary,
+  mergeActivitiesAndWorkoutsForInsights,
+  type InsightActivity,
+  type InsightsSummary,
+} from '@/lib/insightsAggregates';
+import {
+  buildWeeklyInsights,
+  insightsFetchSinceIso,
+  workoutsFetchSinceIso,
+  type InsightWorkoutRow,
+  type WeeklyInsightsData,
+} from '@/lib/dashboardWeeklyInsights';
 import { isDespiaIphoneUa, wearablesIncludeAppleWatch } from '@/lib/despiaPlatform';
-import { cn } from '@/lib/utils';
 import { supabase } from '@/services/supabase';
 
 const SYNC_STALE_MS = 24 * 60 * 60 * 1000;
@@ -130,8 +143,8 @@ export default function Dashboard() {
   const [season, setSeason] = useState<ActiveSeason | null>(null);
   const [stats, setStats] = useState<AthleteStats | null>(null);
   const [recentActivities, setRecentActivities] = useState<RecentActivity[]>([]);
-  const [insightActivities, setInsightActivities] = useState<InsightActivity[]>([]);
-  const [athleteId, setAthleteId] = useState<string | undefined>();
+  const [weeklyInsights, setWeeklyInsights] = useState<WeeklyInsightsData | null>(null);
+  const [insightsSummary, setInsightsSummary] = useState<InsightsSummary | null>(null);
   const [lastSynced, setLastSynced] = useState<string | null>(null);
   const [wearables, setWearables] = useState<string[] | null>(null);
   const [syncReminderDismissed, setSyncReminderDismissed] = useState(false);
@@ -249,17 +262,16 @@ export default function Dashboard() {
         });
       }
 
-      const insightSince = new Date();
-      insightSince.setDate(insightSince.getDate() - 35);
-      const insightSinceIso = insightSince.toISOString().slice(0, 10);
-
       const athleteAge = Number(athleteRow?.age) || 30;
       const athleteMaxHr = (athleteRow?.max_hr as number | string | null | undefined) ?? null;
+      const insightSince = insightsFetchSinceIso(14);
+      const workoutSince = workoutsFetchSinceIso(14);
 
       const [
         { data: activityRows, error: activitiesError },
         { data: workoutRows, error: workoutsError },
-        { data: insightRows, error: insightError },
+        { data: weekActivityRows, error: weekActivitiesError },
+        { data: weekWorkoutRows, error: weekWorkoutsError },
       ] = await Promise.all([
         supabase
           .from('activities')
@@ -283,9 +295,15 @@ export default function Dashboard() {
           .select('id,activity_type,league_type,activity_date,duration_minutes,avg_hr_percent,avg_pace_seconds')
           .eq('athlete_id', userId)
           .eq('status', 'scored')
-          .gte('activity_date', insightSinceIso)
-          .order('activity_date', { ascending: true })
-          .limit(120),
+          .gte('activity_date', insightSince)
+          .order('activity_date', { ascending: true }),
+        supabase
+          .from('workouts')
+          .select('id, activity_type, avg_hr, avg_pace_per_km, engine_score, run_score, duration_min, started_at')
+          .eq('athlete_id', userId)
+          .eq('status', 'scored')
+          .gte('started_at', workoutSince)
+          .order('started_at', { ascending: true }),
       ]);
 
       if (activitiesError) {
@@ -293,6 +311,26 @@ export default function Dashboard() {
       }
       if (workoutsError) {
         setError((prev) => prev ?? workoutsError.message);
+      }
+      if (weekActivitiesError) {
+        setError((prev) => prev ?? weekActivitiesError.message);
+      }
+      if (weekWorkoutsError) {
+        setError((prev) => prev ?? weekWorkoutsError.message);
+      }
+
+      if (weekActivitiesError && weekWorkoutsError) {
+        setWeeklyInsights(buildWeeklyInsights([], []));
+        setInsightsSummary(buildInsightsSummary([]));
+      } else {
+        const weekActivities = (weekActivityRows as InsightActivity[] | null) ?? [];
+        const weekWorkouts = (weekWorkoutRows as InsightWorkoutRow[] | null) ?? [];
+        setWeeklyInsights(buildWeeklyInsights(weekActivities, weekWorkouts));
+        const mergedInsights = mergeActivitiesAndWorkoutsForInsights(weekActivities, weekWorkouts, {
+          maxHr: athleteMaxHr,
+          age: athleteAge,
+        });
+        setInsightsSummary(buildInsightsSummary(mergedInsights, 14));
       }
 
       if (activitiesError && workoutsError) {
@@ -307,12 +345,6 @@ export default function Dashboard() {
         setRecentActivities(mergeRecentWorkouts(fromActivities, fromWorkouts));
       }
 
-      if (insightError) {
-        setInsightActivities([]);
-      } else {
-        setInsightActivities((insightRows as InsightActivity[] | null) ?? []);
-      }
-
     setLoading(false);
   }, []);
 
@@ -322,19 +354,12 @@ export default function Dashboard() {
 
   const refreshDashboard = useCallback(() => loadDashboard({ silent: true }), [loadDashboard]);
 
-  useEffect(() => {
-    void supabase.auth.getUser().then(({ data }) => {
-      const uid = data.user?.id;
-      setAthleteId(uid);
-    });
-  }, []);
-
-  const { isRefreshing, pullDistance, pullHandlers } = usePullToRefresh(refreshDashboard);
-
   const daysRemaining = useMemo(() => {
     if (!season?.ends_at) return undefined;
     return Math.max(0, Math.ceil((new Date(season.ends_at).getTime() - Date.now()) / (1000 * 60 * 60 * 24)));
   }, [season?.ends_at]);
+
+  const { isRefreshing, pullDistance, pullHandlers } = usePullToRefresh(refreshDashboard);
 
   const showSyncReminderBanner = useMemo(() => {
     if (syncReminderDismissed) return false;
@@ -342,6 +367,30 @@ export default function Dashboard() {
     if (!wearablesIncludeAppleWatch(wearables)) return false;
     return isSyncStale(lastSynced);
   }, [syncReminderDismissed, lastSynced, wearables]);
+
+  const recentWorkoutItems = useMemo<RecentWorkoutItem[]>(() => {
+    return recentActivities.map((activity) => {
+      const leagueType = activity.league_type === 'run' ? 'run' : 'engine';
+      const duration = Math.max(0, Number(activity.duration_minutes ?? 0));
+      const score =
+        activity.sessionScore != null
+          ? activity.sessionScore
+          : activitySessionScore(
+              leagueType,
+              duration,
+              activity.avg_hr_percent != null ? Number(activity.avg_hr_percent) : null,
+              activity.avg_pace_seconds != null ? Number(activity.avg_pace_seconds) : null,
+            );
+
+      return {
+        id: activity.id,
+        label: activityLabel(activity.activity_type, leagueType),
+        dateLabel: `${new Date(`${activity.activity_date}T12:00:00`).toLocaleDateString()} · ${Math.round(duration)} min`,
+        leagueType,
+        score,
+      };
+    });
+  }, [recentActivities]);
 
   if (loading) {
     return (
@@ -408,88 +457,11 @@ export default function Dashboard() {
           runDivision={(stats?.run_division as 'Open' | 'Challenger' | 'Pro' | 'Elite' | null) ?? 'Open'}
         />
 
-        <MomentumSection
-          engine={{
-            weeklyChange: stats?.engine_weekly_change ?? 0,
-            placesToPromotion: stats?.engine_places_to_promotion ?? null,
-            placesToRelegation: stats?.engine_places_to_relegation ?? null,
-            division: stats?.engine_division ?? 'Open',
-          }}
-          run={{
-            weeklyChange: stats?.run_weekly_change ?? 0,
-            placesToPromotion: stats?.run_places_to_promotion ?? null,
-            placesToRelegation: stats?.run_places_to_relegation ?? null,
-            division: stats?.run_division ?? 'Open',
-          }}
-        />
+        {weeklyInsights ? <WeeklyInsightsSection data={weeklyInsights} /> : null}
 
-        <div className="rounded-lg border border-border bg-card p-4">
-          <p className="type-section-label">Combined score</p>
-          <p className="type-stat mt-1 text-foreground">
-            {(stats?.total_score ?? 0).toLocaleString(undefined, { maximumFractionDigits: 1 })}
-          </p>
-        </div>
+        {insightsSummary ? <CoachNotesCard summary={insightsSummary} /> : null}
 
-        <PremiumGate
-          athleteId={athleteId}
-          userId={athleteId}
-          badge="PREMIUM"
-          title="Unlock Your Performance Story"
-          description="Line charts for scoring momentum, volume, intensity, and coach-style insights from your workouts"
-          previewContent={<InsightsPreview />}
-        >
-          <div className="rounded-xl border border-border/70 bg-[hsla(0,0%,10%,1)] p-4">
-            <DashboardInsights activities={insightActivities} stats={stats} />
-          </div>
-        </PremiumGate>
-
-        <div className="rounded-lg border border-border bg-card p-4">
-          <h3 className="type-section-label">Recent workouts</h3>
-          {!recentActivities.length ? (
-            <p className="mt-3 text-sm text-muted-foreground">No scored workouts yet.</p>
-          ) : (
-            <div className="mt-3 space-y-2">
-              {recentActivities.map((activity) => {
-                const leagueType = activity.league_type === 'run' ? 'run' : 'engine';
-                const duration = Math.max(0, Number(activity.duration_minutes ?? 0));
-                const score =
-                  activity.sessionScore != null
-                    ? activity.sessionScore
-                    : activitySessionScore(
-                        leagueType,
-                        duration,
-                        activity.avg_hr_percent != null ? Number(activity.avg_hr_percent) : null,
-                        activity.avg_pace_seconds != null ? Number(activity.avg_pace_seconds) : null,
-                      );
-                return (
-                  <div key={activity.id} className="flex items-center justify-between rounded-md border border-border/60 p-3">
-                    <div className="min-w-0">
-                      <p className="type-heading truncate">{activityLabel(activity.activity_type, leagueType)}</p>
-                      <p className="type-meta mt-0.5">
-                        {new Date(`${activity.activity_date}T12:00:00`).toLocaleDateString()} · {Math.round(duration)} min
-                      </p>
-                    </div>
-                    <div className="ml-3 shrink-0 text-right">
-                      <span
-                        className={`inline-flex rounded-full px-2 py-0.5 text-xs font-semibold uppercase tracking-wide ${
-                          leagueType === 'run'
-                            ? 'bg-cyan-500/15 text-cyan-300'
-                            : 'bg-orange-500/15 text-orange-300'
-                        }`}
-                      >
-                        {leagueType === 'run' ? 'Run' : 'Engine'}
-                      </span>
-                      <p className={cn('type-stat mt-1', leagueType === 'run' ? 'text-secondary' : 'text-primary')}>
-                        {score.toLocaleString()}
-                      </p>
-                      <p className="type-stat-unit">pts</p>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          )}
-        </div>
+        <RecentWorkoutsSection items={recentWorkoutItems} />
       </section>
     </AppShell>
   );

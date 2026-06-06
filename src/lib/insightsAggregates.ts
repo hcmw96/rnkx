@@ -6,6 +6,7 @@ import {
   subDays,
 } from 'date-fns';
 import { activitySessionScore } from '@/lib/activitySessionScore';
+import { formatScore, formatScorePts } from '@/lib/formatScore';
 
 export type InsightActivity = {
   id: string;
@@ -15,6 +16,19 @@ export type InsightActivity = {
   duration_minutes: number | null;
   avg_hr_percent: number | null;
   avg_pace_seconds: number | null;
+  /** Stored session score (workouts table) — skips recalculation when set. */
+  scoredPoints?: number;
+};
+
+export type InsightWorkoutRow = {
+  id?: string;
+  started_at: string;
+  duration_min: number | string;
+  engine_score: number | string;
+  run_score: number | string;
+  activity_type?: string | null;
+  avg_hr?: number | string | null;
+  avg_pace_per_km?: number | string | null;
 };
 
 export type DailyInsightPoint = {
@@ -63,6 +77,16 @@ function activityLabel(activityType: string | null, leagueType: string): string 
 }
 
 function scoreActivity(activity: InsightActivity): { enginePts: number; runPts: number; total: number } {
+  if (activity.scoredPoints != null && Number.isFinite(activity.scoredPoints)) {
+    const total = activity.scoredPoints;
+    const leagueType = leagueTypeOf(activity);
+    return {
+      enginePts: leagueType === 'engine' ? total : 0,
+      runPts: leagueType === 'run' ? total : 0,
+      total,
+    };
+  }
+
   const leagueType = leagueTypeOf(activity);
   const duration = Math.max(0, Number(activity.duration_minutes ?? 0));
   const score = activitySessionScore(
@@ -76,6 +100,75 @@ function scoreActivity(activity: InsightActivity): { enginePts: number; runPts: 
     runPts: leagueType === 'run' ? score : 0,
     total: score,
   };
+}
+
+function workoutDateKey(startedAt: string): string {
+  const started = new Date(startedAt);
+  if (Number.isFinite(started.getTime())) {
+    return started.toISOString().slice(0, 10);
+  }
+  return String(startedAt).slice(0, 10);
+}
+
+function effectiveMaxHr(maxHr: number | string | null | undefined, age: number): number {
+  const parsed =
+    maxHr != null && maxHr !== ''
+      ? typeof maxHr === 'number'
+        ? maxHr
+        : Number(maxHr)
+      : NaN;
+  if (Number.isFinite(parsed) && parsed > 0) return parsed;
+  return Math.max(1, 220 - age);
+}
+
+/** Merge Terra/WHOOP activities and Apple Watch workouts for insights & coach notes. */
+export function mergeActivitiesAndWorkoutsForInsights(
+  activities: InsightActivity[],
+  workouts: InsightWorkoutRow[],
+  opts?: { maxHr?: number | string | null; age?: number },
+): InsightActivity[] {
+  const merged: InsightActivity[] = [...activities];
+  const age = opts?.age ?? 30;
+  const maxHrValue = effectiveMaxHr(opts?.maxHr, age);
+
+  for (const row of workouts) {
+    const duration = Math.max(0, Number(row.duration_min) || 0);
+    const date = workoutDateKey(row.started_at);
+    const enginePts = Number(row.engine_score) || 0;
+    const runPts = Number(row.run_score) || 0;
+    const avgHr = row.avg_hr != null ? Number(row.avg_hr) : null;
+    const avgHrPercent =
+      avgHr != null && Number.isFinite(avgHr) && maxHrValue > 0 ? (avgHr / maxHrValue) * 100 : null;
+    const pace = row.avg_pace_per_km != null ? Number(row.avg_pace_per_km) : null;
+    const baseId = row.id ?? row.started_at;
+
+    if (enginePts > 0) {
+      merged.push({
+        id: `workout-${baseId}-engine`,
+        activity_type: row.activity_type ?? null,
+        league_type: 'engine',
+        activity_date: date,
+        duration_minutes: duration,
+        avg_hr_percent: avgHrPercent,
+        avg_pace_seconds: null,
+        scoredPoints: enginePts,
+      });
+    }
+    if (runPts > 0) {
+      merged.push({
+        id: `workout-${baseId}-run`,
+        activity_type: row.activity_type ?? null,
+        league_type: 'run',
+        activity_date: date,
+        duration_minutes: duration,
+        avg_hr_percent: null,
+        avg_pace_seconds: pace,
+        scoredPoints: runPts,
+      });
+    }
+  }
+
+  return merged;
 }
 
 /** Last N calendar days (oldest → newest), including today. */
@@ -171,18 +264,18 @@ export function buildInsightsSummary(
   } else {
     if (weekDelta > 0) {
       insightLines.push(
-        `You earned ${weekPts.toLocaleString()} pts this week — up ${weekDelta.toLocaleString()} vs the prior week.`,
+        `You earned ${formatScorePts(weekPts)} this week — up ${formatScore(weekDelta)} vs the prior week.`,
       );
     } else if (weekDelta < 0) {
       insightLines.push(
-        `This week: ${weekPts.toLocaleString()} pts (${Math.abs(weekDelta).toLocaleString()} fewer than last week). A solid session can flip momentum.`,
+        `This week: ${formatScorePts(weekPts)} (${formatScore(Math.abs(weekDelta))} fewer than last week). A solid session can flip momentum.`,
       );
     } else {
-      insightLines.push(`Steady week — ${weekPts.toLocaleString()} pts across ${weekSessions} session${weekSessions === 1 ? '' : 's'}.`);
+      insightLines.push(`Steady week — ${formatScorePts(weekPts)} across ${weekSessions} session${weekSessions === 1 ? '' : 's'}.`);
     }
     if (bestSession) {
       insightLines.push(
-        `Peak session: ${bestSession.label} on ${format(parseISO(`${bestSession.date}T12:00:00`), 'MMM d')} (${bestSession.score.toLocaleString()} pts).`,
+        `Peak session: ${bestSession.label} on ${format(parseISO(`${bestSession.date}T12:00:00`), 'MMM d')} (${formatScorePts(bestSession.score)}).`,
       );
     }
     if (avgIntensity != null && avgIntensity >= 80) {

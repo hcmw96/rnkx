@@ -1,4 +1,5 @@
 import { motion } from "framer-motion";
+import { formatScorePts } from '@/lib/formatScore';
 
 interface ContributionBreakdownProps {
   enginePoints: number;
@@ -66,14 +67,14 @@ export function ContributionBreakdown({
         <div className="flex items-center gap-1.5">
           <div className="w-2.5 h-2.5 rounded-sm bg-primary" />
           <span className="text-foreground">
-            {enginePoints.toLocaleString()} pts
+            {formatScorePts(enginePoints)}
           </span>
           <span className="text-muted-foreground">({enginePercent}%)</span>
         </div>
         <div className="flex items-center gap-1.5">
           <div className="w-2.5 h-2.5 rounded-sm bg-secondary" />
           <span className="text-foreground">
-            {runPoints.toLocaleString()} pts
+            {formatScorePts(runPoints)}
           </span>
           <span className="text-muted-foreground">({runPercent}%)</span>
         </div>

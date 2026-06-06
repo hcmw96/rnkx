@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useLeaderboard } from '../hooks/useLeaderboard';
 import { supabase } from '../services/supabase';
 import type { LeagueFilter } from '../lib/scoring';
+import { formatScore } from '../lib/formatScore';
 
 interface Season {
   id: string;
@@ -71,7 +72,7 @@ export default function Leaderboard() {
             <span className="text-sm font-semibold text-slate-300">#{entry.rank}</span>
             <span className="text-sm text-slate-100">{entry.display_name}</span>
             <span className="text-right text-sm font-semibold text-slate-200">
-              {Number(entry.total_score).toFixed(1)}
+              {formatScore(entry.total_score)}
             </span>
           </li>
         ))}

@@ -1,4 +1,5 @@
 import { ShareCardFrame } from '@/components/share/ShareCardFrame';
+import { formatScore } from '@/lib/formatScore';
 import type { WorkoutSharePayload } from '@/types/shareCards';
 
 type WorkoutShareCardProps = {
@@ -82,7 +83,7 @@ export function WorkoutShareCard({ payload, backgroundImageUrl }: WorkoutShareCa
             color: '#bef264',
           }}
         >
-          +{payload.pointsScored.toLocaleString()}
+          +{formatScore(payload.pointsScored)}
         </p>
         <p style={{ margin: '16px 0 0', fontSize: 28, color: 'rgba(244, 244, 245, 0.65)' }}>points</p>
         <div

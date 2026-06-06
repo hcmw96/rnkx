@@ -38,6 +38,7 @@ import {
 } from './pages/legal/StaticLegalPages';
 import { WelcomeModal } from '@/components/WelcomeModal';
 import { registerPushForAthlete } from './services/onesignal';
+import { resolveAthleteId } from './lib/resolveAthleteId';
 import { applyPremiumIfStoreHasEntitlement } from './services/revenuecat';
 import { supabase } from './services/supabase';
 
@@ -182,16 +183,11 @@ function SessionRoutes() {
   }, [session?.user?.id, profileComplete]);
 
   useEffect(() => {
-    if (!session?.user) return;
+    if (!session?.user?.id || !profileComplete) return;
 
     const uid = session.user.id;
     void (async () => {
-      const [byUserId, byId] = await Promise.all([
-        supabase.from('athletes').select('id').eq('user_id', uid).maybeSingle(),
-        supabase.from('athletes').select('id').eq('id', uid).maybeSingle(),
-      ]);
-      // athletes.id — same external_user_id server-side pushes must target
-      const athleteId = (byUserId.data?.id ?? byId.data?.id) as string | undefined;
+      const athleteId = await resolveAthleteId(uid);
       if (!athleteId) return;
 
       try {
@@ -200,7 +196,7 @@ function SessionRoutes() {
         console.warn('[OneSignal] register push failed', err);
       }
     })();
-  }, [session?.user?.id]);
+  }, [session?.user?.id, profileComplete]);
 
   useEffect(() => {
     if (!session?.user?.id || !profileComplete) {

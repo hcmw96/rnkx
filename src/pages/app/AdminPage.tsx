@@ -3,6 +3,7 @@ import { AppShell } from '@/components/app/AppShell';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { activitySessionScore } from '@/lib/activitySessionScore';
+import { formatScore } from '@/lib/formatScore';
 import {
   activityScoringOutcome,
   workoutScoringOutcome,
@@ -443,7 +444,7 @@ export default function AdminPage() {
                     <td className="truncate py-2">
                       {row.athletes?.username || row.athletes?.display_name || row.athlete_id.slice(0, 8)}
                     </td>
-                    <td className="py-2 text-right">{row.scoreNum.toLocaleString()}</td>
+                    <td className="py-2 text-right">{formatScore(row.scoreNum)}</td>
                   </tr>
                 ))}
               </tbody>
@@ -479,7 +480,7 @@ export default function AdminPage() {
                       {buildWearableDisplay(athlete, wearableSummaryByAthlete[athlete.id])}
                     </td>
                     <td className="whitespace-nowrap py-2 pl-2 text-right tabular-nums">
-                      {Number(athlete.total_score ?? 0).toLocaleString(undefined, { maximumFractionDigits: 1 })}
+                      {formatScore(Number(athlete.total_score ?? 0))}
                     </td>
                     <td className="whitespace-nowrap py-2 pl-2 text-right">{dateOnly(athlete.last_synced)}</td>
                   </tr>
@@ -580,7 +581,7 @@ export default function AdminPage() {
                               ? `${Math.round(row.hrPercent)}%`
                               : '—'}
                           </td>
-                          <td className="py-2 text-right">{Math.round(row.score).toLocaleString()}</td>
+                          <td className="py-2 text-right">{formatScore(row.score)}</td>
                         </>
                       ) : (
                         <>
@@ -588,7 +589,7 @@ export default function AdminPage() {
                             {row.pace != null && Number.isFinite(row.pace) ? Math.round(row.pace) : '—'}
                           </td>
                           <td className="py-2 text-right">{paceDisplayFromSeconds(row.pace)}</td>
-                          <td className="py-2 text-right">{Math.round(row.score).toLocaleString()}</td>
+                          <td className="py-2 text-right">{formatScore(row.score)}</td>
                         </>
                       )}
                     </tr>

@@ -6,6 +6,7 @@ import { PremiumGate } from '@/components/PremiumGate';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { invokePushNotify } from '@/lib/pushNotify';
+import { formatScore } from '@/lib/formatScore';
 import { supabase } from '@/services/supabase';
 import { toast } from 'sonner';
 
@@ -399,7 +400,7 @@ export default function FriendsPage({ embedded = false }: FriendsPageProps) {
                             <p className="type-meta">
                               Rank {f.rank != null ? `#${f.rank}` : '—'}
                             </p>
-                            <p className="type-stat text-primary">{f.total_score.toLocaleString()}</p>
+                            <p className="type-stat text-primary">{formatScore(f.total_score)}</p>
                             <p className="type-stat-unit">pts</p>
                           </div>
                           <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden />

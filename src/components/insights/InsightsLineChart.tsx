@@ -10,6 +10,7 @@ import {
   YAxis,
 } from 'recharts';
 import { cn } from '@/lib/utils';
+import { formatScore } from '@/lib/formatScore';
 
 type ChartPoint = Record<string, string | number | null>;
 
@@ -51,7 +52,7 @@ function ChartTooltip({
             <span className="h-2 w-2 rounded-full" style={{ backgroundColor: entry.color }} />
             <span className="text-muted-foreground">{entry.name}</span>
             <span className="font-semibold text-foreground tabular-nums">
-              {typeof entry.value === 'number' ? entry.value.toLocaleString() : entry.value}
+              {typeof entry.value === 'number' ? formatScore(entry.value) : entry.value}
               {valueSuffix}
             </span>
           </li>

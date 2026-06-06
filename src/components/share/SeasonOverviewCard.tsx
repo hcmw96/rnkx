@@ -1,4 +1,5 @@
 import { ShareCardFrame } from '@/components/share/ShareCardFrame';
+import { formatScore } from '@/lib/formatScore';
 import type { SeasonShareStats } from '@/lib/seasonShareStats';
 
 type SeasonOverviewCardProps = {
@@ -192,9 +193,9 @@ export function SeasonOverviewCard({ stats, backgroundImageUrl }: SeasonOverview
               alignItems: 'stretch',
             }}
           >
-            <StatBlock label="Total Points" value={stats.totalPoints.toLocaleString()} />
-            <StatBlock label="Best Workout" value={stats.bestWorkoutScore.toLocaleString()} />
-            <StatBlock label="Weekly Points" value={stats.weeklyPoints.toLocaleString()} />
+            <StatBlock label="Total Points" value={formatScore(stats.totalPoints)} />
+            <StatBlock label="Best Workout" value={formatScore(stats.bestWorkoutScore)} />
+            <StatBlock label="Weekly Points" value={formatScore(stats.weeklyPoints)} />
           </div>
         </div>
       </div>

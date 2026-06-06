@@ -1,6 +1,7 @@
 import { Link } from 'react-router-dom';
 import { getCountryByName } from '@/data/countries';
 import { cn } from '@/lib/utils';
+import { formatScore } from '@/lib/formatScore';
 import { toast } from 'sonner';
 
 export type LeaderboardRowData = {
@@ -56,7 +57,7 @@ export function LeaderboardRows({
         const countryLabel = item.country
           ? (getCountryByName(item.country)?.name ?? item.country)
           : null;
-        const pointsInt = Number.isFinite(item.score) ? Math.round(item.score) : 0;
+        const pointsDisplay = Number.isFinite(item.score) ? formatScore(item.score) : '0.0';
         const canViewProfile = friendIds.has(item.id) && !isSelf;
         const isFirst = item.rank === 1;
 
@@ -93,7 +94,7 @@ export function LeaderboardRows({
                   scoreClass,
                 )}
               >
-                <span className="text-lg font-bold">{pointsInt.toLocaleString()}</span>
+                <span className="text-lg font-bold">{pointsDisplay}</span>
                 <span className="ml-1 text-xs font-medium text-muted-foreground">pts</span>
               </p>
             </div>

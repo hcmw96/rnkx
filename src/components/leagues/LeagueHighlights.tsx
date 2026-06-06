@@ -3,6 +3,7 @@ import { supabase } from '@/services/supabase';
 import { Trophy, Flame, Zap } from 'lucide-react';
 import { startOfWeek } from 'date-fns';
 import { activitySessionScore } from '@/lib/activitySessionScore';
+import { formatScorePts } from '@/lib/formatScore';
 
 interface Highlight {
   label: string;
@@ -81,7 +82,7 @@ export function LeagueHighlights({ memberIds, leagueType, seasonId }: LeagueHigh
         result.push({
           label: 'Top Scorer',
           username: topScorer.username,
-          value: `${topScorer.totalScore.toLocaleString()} pts`,
+          value: formatScorePts(topScorer.totalScore),
           icon: <Trophy className="h-4 w-4 text-yellow-500" />,
         });
       }
@@ -97,7 +98,7 @@ export function LeagueHighlights({ memberIds, leagueType, seasonId }: LeagueHigh
         result.push({
           label: 'Best Session',
           username: bestSessionAthlete.username,
-          value: `${bestSessionAthlete.bestSession.toLocaleString()} pts`,
+          value: formatScorePts(bestSessionAthlete.bestSession),
           icon: <Zap className="h-4 w-4 text-blue-500" />,
         });
       }

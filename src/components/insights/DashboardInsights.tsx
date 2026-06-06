@@ -1,10 +1,14 @@
 import { TrendingDown, TrendingUp, Zap } from 'lucide-react';
+import { useMemo } from 'react';
 import { InsightsLineChart } from '@/components/insights/InsightsLineChart';
 import {
   buildInsightsSummary,
+  mergeActivitiesAndWorkoutsForInsights,
   type InsightActivity,
+  type InsightWorkoutRow,
   PREVIEW_TREND_POINTS,
 } from '@/lib/insightsAggregates';
+import { formatScore } from '@/lib/formatScore';
 import { cn } from '@/lib/utils';
 
 const LIME = 'hsl(72 100% 50%)';
@@ -21,6 +25,8 @@ type AthleteStatsSlice = {
 
 type DashboardInsightsProps = {
   activities: InsightActivity[];
+  workouts?: InsightWorkoutRow[];
+  athleteProfile?: { maxHr?: number | string | null; age?: number };
   stats: AthleteStatsSlice | null;
 };
 
@@ -61,8 +67,21 @@ function RankPill({
   );
 }
 
-export function DashboardInsights({ activities, stats }: DashboardInsightsProps) {
-  const summary = buildInsightsSummary(activities, 14);
+export function DashboardInsights({
+  activities,
+  workouts = [],
+  athleteProfile,
+  stats,
+}: DashboardInsightsProps) {
+  const mergedActivities = useMemo(
+    () =>
+      mergeActivitiesAndWorkoutsForInsights(activities, workouts, {
+        maxHr: athleteProfile?.maxHr,
+        age: athleteProfile?.age,
+      }),
+    [activities, workouts, athleteProfile?.maxHr, athleteProfile?.age],
+  );
+  const summary = buildInsightsSummary(mergedActivities, 14);
   const leagues = stats?.selected_leagues ?? ['engine', 'run'];
   const showEngine = leagues.includes('engine');
   const showRun = leagues.includes('run');
@@ -239,7 +258,7 @@ export function DashboardInsights({ activities, stats }: DashboardInsightsProps)
                   </div>
                 </div>
                 <span className="ml-2 shrink-0 type-stat text-neon-lime">
-                  {session.score.toLocaleString()}
+                  {formatScore(session.score)}
                 </span>
               </li>
             ))}

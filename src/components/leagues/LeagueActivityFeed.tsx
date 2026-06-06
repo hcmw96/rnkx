@@ -3,6 +3,7 @@ import { supabase } from '@/services/supabase';
 import { Skeleton } from '@/components/ui/skeleton';
 import { formatDistanceToNow } from 'date-fns';
 import { activitySessionScore } from '@/lib/activitySessionScore';
+import { formatScorePts } from '@/lib/formatScore';
 
 interface FeedActivity {
   id: string;
@@ -106,7 +107,7 @@ export function LeagueActivityFeed({ memberIds, leagueType, seasonId }: LeagueAc
           <div className="min-w-0 flex-1">
             <div className="truncate type-heading">{a.username}</div>
             <div className="type-meta">
-              {a.duration_minutes}min · {a.sessionScore.toLocaleString()} pts
+              {a.duration_minutes}min · {formatScorePts(a.sessionScore)}
             </div>
           </div>
           <div className="type-meta whitespace-nowrap">

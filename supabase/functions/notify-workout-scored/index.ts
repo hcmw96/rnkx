@@ -103,8 +103,22 @@ serve(async (req) => {
     });
 
     const osJson = await osRes.json().catch(() => ({}));
+    const errors = (osJson as { errors?: unknown }).errors ?? null;
+    console.log('[notify-workout-scored] onesignal result', {
+      athleteId,
+      externalUserId,
+      status: osRes.status,
+      ok: osRes.ok,
+      oneSignalId: (osJson as { id?: unknown }).id ?? null,
+      errors,
+    });
     if (!osRes.ok) {
       console.error('[notify-workout-scored] OneSignal', osRes.status, osJson);
+    } else if (errors) {
+      console.warn('[notify-workout-scored] OneSignal delivered with errors (device may be unsubscribed)', {
+        externalUserId,
+        errors,
+      });
     }
   } catch (e) {
     console.error('[notify-workout-scored]', e);

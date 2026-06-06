@@ -1,5 +1,6 @@
 import { Clock, Zap } from "lucide-react";
 import { Card } from "@/components/ui/card";
+import { formatScore } from '@/lib/formatScore';
 
 type Division = "Open" | "Challenger" | "Pro" | "Elite";
 
@@ -35,9 +36,7 @@ export function SeasonCard({
     return `#${rank.toLocaleString()}`;
   };
 
-  const formatPoints = (points: number) => {
-    return points.toLocaleString();
-  };
+  const formatPoints = (points: number) => formatScore(points);
 
 
 

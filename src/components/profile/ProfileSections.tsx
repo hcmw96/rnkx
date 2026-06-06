@@ -2,14 +2,12 @@ import { Award, BarChart3 } from 'lucide-react';
 import { AchievementBadge } from '@/components/profile/AchievementBadge';
 import type { AchievementState } from '@/lib/achievements';
 import type { ProfileCareerStats } from '@/lib/profileStats';
+import { formatScore, formatScorePts } from '@/lib/formatScore';
 import { cn } from '@/lib/utils';
 
-/** Profile score display — matches season card precision (e.g. 2,177.014). */
+/** Profile score display — one decimal place (e.g. 2,177.0). */
 export function formatProfileScore(value: number): string {
-  return value.toLocaleString(undefined, {
-    minimumFractionDigits: 3,
-    maximumFractionDigits: 3,
-  });
+  return formatScore(value);
 }
 
 /** "Season 1 · Spring 2026" → "SEASON 1 • SPRING 2026" */
@@ -236,11 +234,11 @@ export function ProfileProgressCard({ careerStats, achievements }: ProfileProgre
         <CareerStat label="Scored workouts" value={String(careerStats?.totalScoredWorkouts ?? 0)} />
         <CareerStat
           label="All-time points"
-          value={(careerStats?.allTimePoints ?? 0).toLocaleString()}
+          value={formatScore(careerStats?.allTimePoints ?? 0)}
         />
         <CareerStat
           label="Best session"
-          value={`${(careerStats?.bestSession ?? 0).toLocaleString()} pts`}
+          value={formatScorePts(careerStats?.bestSession ?? 0)}
         />
         <CareerStat label="Top activity" value={careerStats?.topActivityType ?? '—'} />
       </div>
