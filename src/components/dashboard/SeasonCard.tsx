@@ -79,13 +79,13 @@ function LeagueSeasonRow({ league, division, points, rank, weeklyChange }: Leagu
   return (
     <div
       className={cn(
-        'flex items-center gap-3 rounded-xl border bg-[hsla(0,0%,10%,1)] px-3 py-3',
+        'flex items-center gap-2.5 rounded-lg border bg-[hsla(0,0%,10%,1)] px-2.5 py-2',
         isEngine ? 'border-neon-lime/45' : 'border-secondary/45',
       )}
     >
       <div
         className={cn(
-          'flex h-11 w-11 shrink-0 items-center justify-center rounded-lg border bg-[hsla(0,0%,8%,1)] font-display text-lg font-bold',
+          'flex h-9 w-9 shrink-0 items-center justify-center rounded-md border bg-[hsla(0,0%,8%,1)] font-display text-base font-bold',
           isEngine ? 'border-neon-lime/50 text-neon-lime' : 'border-secondary/50 text-secondary',
         )}
         aria-hidden
@@ -94,19 +94,24 @@ function LeagueSeasonRow({ league, division, points, rank, weeklyChange }: Leagu
       </div>
 
       <div className="min-w-0 flex-1">
-        <p className="type-heading truncate">
+        <p className="text-sm font-semibold leading-snug text-foreground truncate">
           {leagueLabel} · {division}
         </p>
         <p className="type-meta mt-0.5 tabular-nums">{formatScore(points)} pts</p>
       </div>
 
       <div className="shrink-0 text-right">
-        <p className={cn('font-display text-2xl font-bold leading-none tabular-nums', isEngine ? 'text-neon-lime' : 'text-secondary')}>
+        <p
+          className={cn(
+            'font-display text-xl font-bold leading-none tabular-nums',
+            isEngine ? 'text-neon-lime' : 'text-secondary',
+          )}
+        >
           {formatRank(rank)}
         </p>
         <p
           className={cn(
-            'mt-1 flex items-center justify-end gap-0.5 text-[11px] font-medium',
+            'mt-0.5 flex items-center justify-end gap-0.5 text-[10px] font-medium',
             trend.falling ? 'text-rose-400' : 'text-emerald-400',
           )}
         >
@@ -133,8 +138,12 @@ export function SeasonCard({
   engineWeeklyChange = null,
   runWeeklyChange = null,
 }: SeasonCardProps) {
-  const showEngine = selectedLeagues.length === 0 || selectedLeagues.includes('engine');
-  const showRun = selectedLeagues.length === 0 || selectedLeagues.includes('run');
+  const leagues =
+    selectedLeagues.length > 0
+      ? selectedLeagues.filter((l): l is League => l === 'engine' || l === 'run')
+      : (['engine', 'run'] as League[]);
+  const showEngine = leagues.includes('engine');
+  const showRun = leagues.includes('run');
   const meta = parseSeasonMeta(seasonName);
   const progress = seasonProgress(seasonStartsAt, seasonEndsAt ?? null);
   const endDays = daysRemaining ?? progress?.daysRemaining;
@@ -160,24 +169,26 @@ export function SeasonCard({
   }
 
   return (
-    <Card className="card-elevated space-y-4 p-4">
+    <Card className="card-elevated space-y-3 p-4">
       <div className="flex items-start justify-between gap-3">
         <p className="type-section-label leading-snug">
           {meta.subtitle ? `${meta.label} · ${meta.subtitle}` : meta.label}
         </p>
-        <span className="inline-flex shrink-0 items-center gap-1.5 rounded-full border border-neon-lime/40 bg-neon-lime/10 px-2.5 py-1">
+        <span className="inline-flex shrink-0 items-center gap-1.5 rounded-full border border-neon-lime/40 bg-neon-lime/10 px-2 py-0.5">
           <span className="h-1.5 w-1.5 rounded-full bg-neon-lime" aria-hidden />
           <span className="text-[10px] font-bold uppercase tracking-wider text-neon-lime">Live</span>
         </span>
       </div>
 
-      <h2 className="font-display text-3xl font-normal leading-none tracking-wide text-foreground">Live now</h2>
+      <h2 className="font-display text-2xl font-normal leading-none tracking-wide text-foreground">Live now</h2>
 
-      <div className="flex flex-col space-y-2.5">
-        {leagueRows.map((row) => (
-          <LeagueSeasonRow key={row.league} {...row} />
-        ))}
-      </div>
+      {leagueRows.length > 0 ? (
+        <div className="flex flex-col space-y-2">
+          {leagueRows.map((row) => (
+            <LeagueSeasonRow key={row.league} {...row} />
+          ))}
+        </div>
+      ) : null}
 
       {progress ? (
         <div className="space-y-2 pt-1">
