@@ -1,4 +1,5 @@
 import { Minus, TrendingDown, TrendingUp } from 'lucide-react';
+import { momentumBoundaryTicks } from '@/lib/momentumMetrics';
 import { cn } from '@/lib/utils';
 
 interface MomentumBlockProps {
@@ -52,7 +53,6 @@ export function MomentumBlock({
 }: MomentumBlockProps) {
   const isEngine = category === 'engine';
   const accentClass = isEngine ? 'text-neon-lime' : 'text-secondary';
-  const borderClass = isEngine ? 'border-neon-lime/45' : 'border-secondary/45';
   const badgeBorderClass = isEngine ? 'border-neon-lime/50' : 'border-secondary/50';
   const thumbClass = isEngine
     ? 'bg-neon-lime shadow-[0_0_10px_hsl(var(--neon-lime)/0.85)]'
@@ -64,10 +64,14 @@ export function MomentumBlock({
   const status = momentumStatus(weeklyChange);
   const StatusIcon = status.Icon;
   const position = thumbPosition(placesToPromotion, placesToRelegation, weeklyChange);
+  const { relegationPct, promotionPct } = momentumBoundaryTicks(
+    placesToPromotion,
+    placesToRelegation,
+  );
   const divisionLabel = `${division} division`;
 
   return (
-    <article className={cn('space-y-4 rounded-xl border bg-card p-4 shadow-sm', borderClass)}>
+    <article className="space-y-4 rounded-xl border border-border/70 bg-card p-4 shadow-sm">
       <div className="flex items-center gap-2">
         <span
           className={cn(
@@ -87,20 +91,39 @@ export function MomentumBlock({
         </span>
       </div>
 
-      <div className="relative px-0.5">
-        <div className={cn('h-2.5 overflow-hidden rounded-full', gradientClass)} />
-        <div className="pointer-events-none absolute inset-x-0.5 top-0 h-2.5" aria-hidden>
-          <div className="absolute left-[33%] top-0 h-full w-px bg-background/40" />
-          <div className="absolute left-[66%] top-0 h-full w-px bg-background/40" />
+      <div className="space-y-1">
+        <div className="relative px-0.5">
+          <div className={cn('h-2.5 overflow-hidden rounded-full', gradientClass)} />
+          <div className="pointer-events-none absolute inset-x-0.5 top-0 h-2.5" aria-hidden>
+            <div
+              className="absolute top-0 h-full w-px bg-background/40"
+              style={{ left: `${relegationPct}%` }}
+            />
+            <div
+              className="absolute top-0 h-full w-px bg-background/40"
+              style={{ left: `${promotionPct}%` }}
+            />
+          </div>
+          <div
+            className={cn(
+              'absolute top-1/2 h-3.5 w-3.5 rounded-full border-2 border-background',
+              thumbClass,
+            )}
+            style={{ left: `${position}%`, transform: 'translate(-50%, -50%)' }}
+            aria-hidden
+          />
         </div>
-        <div
-          className={cn(
-            'absolute top-1/2 h-3.5 w-3.5 rounded-full border-2 border-background',
-            thumbClass,
-          )}
-          style={{ left: `${position}%`, transform: 'translate(-50%, -50%)' }}
-          aria-hidden
-        />
+
+        <div className="relative h-2 px-0.5" aria-hidden>
+          <div
+            className="absolute top-0 h-2 w-px bg-muted-foreground/50"
+            style={{ left: `${relegationPct}%`, transform: 'translateX(-50%)' }}
+          />
+          <div
+            className="absolute top-0 h-2 w-px bg-muted-foreground/50"
+            style={{ left: `${promotionPct}%`, transform: 'translateX(-50%)' }}
+          />
+        </div>
       </div>
 
       <div className="flex items-end justify-between gap-4">

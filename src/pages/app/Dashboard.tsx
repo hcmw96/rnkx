@@ -5,6 +5,7 @@ import { AppShell } from '@/components/app/AppShell';
 import { Button } from '@/components/ui/button';
 import { useAchievementUnlock } from '@/context/AchievementUnlockContext';
 import { useScoreSharePrompt } from '@/context/ScoreSharePromptContext';
+import { MomentumSection } from '@/components/dashboard/MomentumBlock';
 import { SeasonCard } from '@/components/dashboard/SeasonCard';
 import { WeeklyInsightsSection } from '@/components/dashboard/WeeklyInsightsSection';
 import { CoachNotesCard } from '@/components/dashboard/CoachNotesCard';
@@ -29,6 +30,7 @@ import {
   type WeeklyInsightsData,
 } from '@/lib/dashboardWeeklyInsights';
 import { computeCategoryRank } from '@/lib/categoryRank';
+import { momentumPlacesFromRank } from '@/lib/momentumMetrics';
 import { isDespiaIphoneUa, wearablesIncludeAppleWatch } from '@/lib/despiaPlatform';
 import { runAppleWorkoutSync } from '@/lib/runAppleWorkoutSync';
 import { supabase } from '@/services/supabase';
@@ -436,6 +438,33 @@ export default function Dashboard() {
     return isSyncStale(lastSynced);
   }, [syncReminderDismissed, lastSynced, wearables]);
 
+  const momentumData = useMemo(() => {
+    const enginePlaces = momentumPlacesFromRank(stats?.engine_rank ?? null);
+    const runPlaces = momentumPlacesFromRank(stats?.run_rank ?? null);
+    const engineWeeklyChange = weeklyInsights
+      ? weeklyInsights.totals.engine_points - weeklyInsights.prevTotals.engine_points
+      : 0;
+    const runWeeklyChange = weeklyInsights
+      ? weeklyInsights.totals.run_points - weeklyInsights.prevTotals.run_points
+      : 0;
+
+    return {
+      engine: {
+        weeklyChange: engineWeeklyChange,
+        placesToPromotion: enginePlaces.placesToPromotion,
+        placesToRelegation: enginePlaces.placesToRelegation,
+        division:
+          (stats?.engine_division as string | null | undefined) ?? enginePlaces.division,
+      },
+      run: {
+        weeklyChange: runWeeklyChange,
+        placesToPromotion: runPlaces.placesToPromotion,
+        placesToRelegation: runPlaces.placesToRelegation,
+        division: (stats?.run_division as string | null | undefined) ?? runPlaces.division,
+      },
+    };
+  }, [stats, weeklyInsights]);
+
   const recentWorkoutItems = useMemo<RecentWorkoutItem[]>(() => {
     return recentActivities.map((activity) => {
       const leagueType = activity.league_type === 'run' ? 'run' : 'engine';
@@ -534,6 +563,8 @@ export default function Dashboard() {
           engineDivision={(stats?.engine_division as 'Open' | 'Challenger' | 'Pro' | 'Elite' | null) ?? 'Open'}
           runDivision={(stats?.run_division as 'Open' | 'Challenger' | 'Pro' | 'Elite' | null) ?? 'Open'}
         />
+
+        <MomentumSection engine={momentumData.engine} run={momentumData.run} />
 
         {weeklyInsights ? <WeeklyInsightsSection data={weeklyInsights} /> : null}
 
