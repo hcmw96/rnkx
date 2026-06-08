@@ -1,4 +1,3 @@
-import { ChevronUp, TrendingDown } from 'lucide-react';
 import { Card } from '@/components/ui/card';
 import { formatScore } from '@/lib/formatScore';
 import { cn } from '@/lib/utils';
@@ -18,8 +17,6 @@ interface SeasonCardProps {
   selectedLeagues?: string[];
   engineDivision?: Division;
   runDivision?: Division;
-  engineWeeklyChange?: number | null;
-  runWeeklyChange?: number | null;
 }
 
 function parseSeasonMeta(seasonName: string): { label: string; subtitle: string | null } {
@@ -53,28 +50,17 @@ function formatRank(rank: number | null | undefined): string {
   return `#${Math.round(rank).toLocaleString()}`;
 }
 
-function trendLabel(weeklyChange: number | null | undefined): { label: string; rising: boolean; falling: boolean } {
-  if (weeklyChange == null || weeklyChange === 0) {
-    return { label: 'Holding', rising: false, falling: false };
-  }
-  if (weeklyChange > 0) return { label: 'Rising', rising: true, falling: false };
-  return { label: 'Falling', rising: false, falling: true };
-}
-
 type LeagueSeasonRowProps = {
   league: League;
   division: Division;
   points: number;
   rank: number | null | undefined;
-  weeklyChange: number | null | undefined;
 };
 
-function LeagueSeasonRow({ league, division, points, rank, weeklyChange }: LeagueSeasonRowProps) {
+function LeagueSeasonRow({ league, division, points, rank }: LeagueSeasonRowProps) {
   const isEngine = league === 'engine';
   const leagueLabel = isEngine ? 'Engine' : 'Run';
   const letter = isEngine ? 'E' : 'R';
-  const trend = trendLabel(weeklyChange);
-  const TrendIcon = trend.falling ? TrendingDown : ChevronUp;
 
   return (
     <div
@@ -103,20 +89,11 @@ function LeagueSeasonRow({ league, division, points, rank, weeklyChange }: Leagu
       <div className="shrink-0 text-right">
         <p
           className={cn(
-            'font-display text-xl font-bold leading-none tabular-nums',
+            'font-display text-3xl font-bold leading-none tabular-nums',
             isEngine ? 'text-neon-lime' : 'text-secondary',
           )}
         >
           {formatRank(rank)}
-        </p>
-        <p
-          className={cn(
-            'mt-0.5 flex items-center justify-end gap-0.5 text-[10px] font-medium',
-            trend.falling ? 'text-rose-400' : 'text-emerald-400',
-          )}
-        >
-          <TrendIcon className="h-3 w-3" aria-hidden />
-          {trend.label}
         </p>
       </div>
     </div>
@@ -135,8 +112,6 @@ export function SeasonCard({
   selectedLeagues = [],
   engineDivision = 'Open',
   runDivision = 'Open',
-  engineWeeklyChange = null,
-  runWeeklyChange = null,
 }: SeasonCardProps) {
   const leagues =
     selectedLeagues.length > 0
@@ -155,7 +130,6 @@ export function SeasonCard({
       division: engineDivision,
       points: enginePoints,
       rank: engineRank,
-      weeklyChange: engineWeeklyChange,
     });
   }
   if (showRun) {
@@ -164,7 +138,6 @@ export function SeasonCard({
       division: runDivision,
       points: runPoints,
       rank: runRank,
-      weeklyChange: runWeeklyChange,
     });
   }
 

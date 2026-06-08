@@ -410,25 +410,25 @@ export default function Dashboard() {
       <section className="space-y-4" {...pullHandlers}>
         {showSyncReminderBanner ? (
           <div
-            className="flex items-center gap-2 rounded-lg border border-amber-500/40 bg-amber-500/15 px-3 py-2.5 text-amber-950 shadow-sm dark:border-amber-400/35 dark:bg-amber-400/12 dark:text-amber-50"
+            className="flex items-center gap-2 rounded-lg border border-amber-400/40 bg-amber-500/15 px-3 py-2.5 shadow-sm"
             role="status"
           >
-            <Zap className="h-5 w-5 shrink-0 text-amber-600 dark:text-amber-300" aria-hidden />
-            <p className="min-w-0 flex-1 text-sm font-medium leading-snug">
+            <Zap className="h-5 w-5 shrink-0 text-amber-300" aria-hidden />
+            <p className="min-w-0 flex-1 text-sm font-medium leading-snug text-amber-50">
               Sync your workouts to stay on the leaderboard
             </p>
             <Button
               type="button"
               size="sm"
               variant="secondary"
-              className="shrink-0 border-amber-600/40 bg-amber-100/90 text-amber-950 hover:bg-amber-200/90 dark:border-amber-300/40 dark:bg-amber-500/25 dark:text-amber-50 dark:hover:bg-amber-500/35"
+              className="shrink-0 border-amber-300/50 bg-amber-100 text-amber-950 hover:bg-amber-200"
               onClick={() => navigate('/app/profile')}
             >
               Sync now
             </Button>
             <button
               type="button"
-              className="shrink-0 rounded-md p-1 text-amber-900/70 hover:bg-amber-500/25 hover:text-amber-950 dark:text-amber-100/80 dark:hover:bg-amber-400/20 dark:hover:text-amber-50"
+              className="shrink-0 rounded-md p-1 text-amber-200 hover:bg-amber-400/20 hover:text-white"
               aria-label="Dismiss sync reminder"
               onClick={() => setSyncReminderDismissed(true)}
             >
@@ -458,8 +458,6 @@ export default function Dashboard() {
           selectedLeagues={stats?.selected_leagues ?? []}
           engineDivision={(stats?.engine_division as 'Open' | 'Challenger' | 'Pro' | 'Elite' | null) ?? 'Open'}
           runDivision={(stats?.run_division as 'Open' | 'Challenger' | 'Pro' | 'Elite' | null) ?? 'Open'}
-          engineWeeklyChange={stats?.engine_weekly_change ?? null}
-          runWeeklyChange={stats?.run_weekly_change ?? null}
         />
 
         {weeklyInsights ? <WeeklyInsightsSection data={weeklyInsights} /> : null}

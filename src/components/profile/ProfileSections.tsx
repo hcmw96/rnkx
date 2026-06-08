@@ -5,7 +5,7 @@ import type { ProfileCareerStats } from '@/lib/profileStats';
 import { formatScore, formatScorePts } from '@/lib/formatScore';
 import { cn } from '@/lib/utils';
 
-/** Profile score display — one decimal place (e.g. 2,177.0). */
+/** Profile score display — whole number, rounded up (e.g. 2,177). */
 export function formatProfileScore(value: number): string {
   return formatScore(value);
 }

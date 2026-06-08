@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { ChevronRight, TrendingDown, TrendingUp } from 'lucide-react';
+import { TrendingDown, TrendingUp } from 'lucide-react';
 import {
   Dialog,
   DialogContent,
@@ -10,15 +10,17 @@ import {
   ENGINE_CHART_COLOR,
   RUN_CHART_COLOR,
   WeeklyDualTrendLineChart,
-  WeeklyStackedBarChart,
   WeeklyTrendLineChart,
 } from '@/components/dashboard/WeeklyInsightCharts';
+import { InsightsLineChart } from '@/components/insights/InsightsLineChart';
 import type { DailyWeekAggregate, WeeklyInsightsData } from '@/lib/dashboardWeeklyInsights';
 import { formatInsightDateLabel, weekDeltaPercent } from '@/lib/dashboardWeeklyInsights';
 import { formatScore, formatScorePts } from '@/lib/formatScore';
 import { cn } from '@/lib/utils';
 
 export type InsightCardKind = 'volume' | 'score' | 'efficiency';
+type InsightTab = 'momentum' | 'volume' | 'intensity';
+type LeagueTab = 'engine' | 'run';
 
 type WeeklyInsightsSectionProps = {
   data: WeeklyInsightsData;
@@ -26,18 +28,26 @@ type WeeklyInsightsSectionProps = {
 
 type CardConfig = {
   kind: InsightCardKind;
+  tab: InsightTab;
   title: string;
+  cardTitle: string;
   subtitle: string;
   summaryLabel: string;
   summaryValue: string;
   engineKey: keyof DailyWeekAggregate;
   runKey: keyof DailyWeekAggregate;
-  totalKey: keyof DailyWeekAggregate | 'total_minutes' | 'total_points' | 'avg_efficiency';
+  chartLabel: string;
   valueSuffix: string;
   trendKey: string;
-  trendEngineKey?: string;
-  trendRunKey?: string;
+  chartColor: string;
+  fillId: string;
 };
+
+const INSIGHT_TABS: { id: InsightTab; label: string }[] = [
+  { id: 'momentum', label: 'Momentum' },
+  { id: 'volume', label: 'Volume' },
+  { id: 'intensity', label: 'Intensity' },
+];
 
 function chartRows(days: DailyWeekAggregate[]) {
   return days.map((d) => ({
@@ -54,7 +64,7 @@ function chartRows(days: DailyWeekAggregate[]) {
 function DeltaBadge({ current, previous }: { current: number; previous: number }) {
   const delta = weekDeltaPercent(current, previous);
   if (delta == null) {
-    return <span className="text-xs text-muted-foreground">No prior week data</span>;
+    return <span className="text-xs text-muted-foreground">No prior period data</span>;
   }
   const up = delta > 0;
   const down = delta < 0;
@@ -71,7 +81,7 @@ function DeltaBadge({ current, previous }: { current: number; previous: number }
     >
       {Icon ? <Icon className="h-3.5 w-3.5" aria-hidden /> : null}
       {delta >= 0 ? '+' : ''}
-      {Math.round(delta)}% vs last week
+      {Math.round(delta)}% vs prior period
     </span>
   );
 }
@@ -123,9 +133,9 @@ function InsightDetailDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="fixed inset-0 left-0 top-0 z-50 flex h-[100dvh] max-h-[100dvh] w-full max-w-none translate-x-0 translate-y-0 flex-col gap-0 overflow-y-auto rounded-none border-0 p-0 sm:rounded-none">
-        <DialogHeader className="shrink-0 border-b border-border px-4 py-4 text-left">
-          <DialogTitle className="font-serif text-xl">{config.title}</DialogTitle>
+      <DialogContent className="fixed inset-0 left-0 top-0 z-50 flex h-[100dvh] max-h-[100dvh] w-full max-w-none translate-x-0 translate-y-0 flex-col gap-0 overflow-y-auto rounded-none border-0 p-0 sm:rounded-none pt-[var(--safe-area-top)] pb-[var(--safe-area-bottom)] pl-[var(--safe-area-left)] pr-[var(--safe-area-right)] [&>button]:right-[calc(1rem+var(--safe-area-right))] [&>button]:top-[calc(1rem+var(--safe-area-top))]">
+        <DialogHeader className="shrink-0 border-b border-border px-4 py-4 pr-12 text-left">
+          <DialogTitle className="text-xl">{config.cardTitle}</DialogTitle>
           <p className="text-sm text-muted-foreground">{config.subtitle}</p>
         </DialogHeader>
 
@@ -139,7 +149,7 @@ function InsightDetailDialog({
           </div>
 
           <div className="rounded-xl border border-border/70 bg-card p-4">
-            <p className="type-section-label mb-3">7-day trend</p>
+            <p className="type-section-label mb-3">{data.days.length}-day trend</p>
             {config.kind === 'efficiency' ? (
               <WeeklyDualTrendLineChart
                 data={rows}
@@ -159,8 +169,8 @@ function InsightDetailDialog({
             )}
           </div>
 
-          <div className="rounded-xl border border-border/70 bg-card p-4 space-y-3">
-            <p className="type-section-label">This week breakdown</p>
+          <div className="rounded-xl border border-border/70 bg-card space-y-3 p-4">
+            <p className="type-section-label">Period breakdown</p>
             {config.kind === 'volume' && (
               <>
                 <BreakdownRow
@@ -213,7 +223,7 @@ function InsightDetailDialog({
             )}
           </div>
 
-          <div className="rounded-xl border border-border/70 bg-card p-4 space-y-2">
+          <div className="rounded-xl border border-border/70 bg-card space-y-2 p-4">
             <p className="type-section-label">Daily log</p>
             {data.days.map((day) => {
               const mins = day.engine_minutes + day.run_minutes;
@@ -227,7 +237,7 @@ function InsightDetailDialog({
               return (
                 <div
                   key={day.date}
-                  className="flex items-center justify-between text-sm border-b border-border/40 last:border-0 py-2"
+                  className="flex items-center justify-between border-b border-border/40 py-2 text-sm last:border-0"
                 >
                   <span className="text-muted-foreground">{formatInsightDateLabel(day.date)}</span>
                   <span className="font-medium tabular-nums">{detail}</span>
@@ -241,67 +251,180 @@ function InsightDetailDialog({
   );
 }
 
-function WeeklyInsightCard({
-  config,
-  data,
-  chartData,
+function LeagueBadge({
+  league,
+  onToggle,
 }: {
-  config: CardConfig;
-  data: WeeklyInsightsData;
-  chartData: ReturnType<typeof chartRows>;
+  league: LeagueTab;
+  onToggle: () => void;
 }) {
-  const [detailOpen, setDetailOpen] = useState(false);
+  const isEngine = league === 'engine';
 
   return (
-    <>
+    <button
+      type="button"
+      onClick={(e) => {
+        e.stopPropagation();
+        onToggle();
+      }}
+      className={cn(
+        'inline-flex shrink-0 rounded-full border px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider transition-colors',
+        isEngine
+          ? 'border-neon-lime/40 text-neon-lime hover:bg-neon-lime/10'
+          : 'border-secondary/40 text-secondary hover:bg-secondary/10',
+      )}
+      aria-label={`Showing ${isEngine ? 'Engine' : 'Run'} data. Tap to switch league.`}
+    >
+      {isEngine ? 'Engine' : 'Run'}
+    </button>
+  );
+}
+
+function formatChartValue(kind: InsightCardKind, value: number): number {
+  if (kind === 'volume') return Math.round(value);
+  if (kind === 'score') return Math.ceil(value);
+  return value;
+}
+
+export function WeeklyInsightsSection({ data }: WeeklyInsightsSectionProps) {
+  const [activeTab, setActiveTab] = useState<InsightTab>('momentum');
+  const [league, setLeague] = useState<LeagueTab>('engine');
+  const [detailOpen, setDetailOpen] = useState(false);
+
+  const chartData = useMemo(() => chartRows(data.days), [data.days]);
+  const { totals } = data;
+  const dayCount = data.days.length;
+
+  const cards: CardConfig[] = useMemo(
+    () => [
+      {
+        kind: 'score',
+        tab: 'momentum',
+        title: 'Momentum',
+        cardTitle: 'Scoring momentum',
+        subtitle: `Daily points · ${dayCount} days`,
+        summaryLabel: 'This period',
+        summaryValue: formatScorePts(totals.total_points),
+        engineKey: 'engine_points',
+        runKey: 'run_points',
+        chartLabel: 'Points',
+        valueSuffix: ' pts',
+        trendKey: 'total_points',
+        chartColor: ENGINE_CHART_COLOR,
+        fillId: 'insightMomentumEngine',
+      },
+      {
+        kind: 'volume',
+        tab: 'volume',
+        title: 'Volume',
+        cardTitle: 'Training volume',
+        subtitle: `Minutes trained · ${dayCount} days`,
+        summaryLabel: 'This period',
+        summaryValue: `${Math.round(totals.total_minutes)} min`,
+        engineKey: 'engine_minutes',
+        runKey: 'run_minutes',
+        chartLabel: 'Minutes',
+        valueSuffix: ' min',
+        trendKey: 'total_minutes',
+        chartColor: RUN_CHART_COLOR,
+        fillId: 'insightVolumeRun',
+      },
+      {
+        kind: 'efficiency',
+        tab: 'intensity',
+        title: 'Intensity',
+        cardTitle: 'Scoring intensity',
+        subtitle: `Points per minute · ${dayCount} days`,
+        summaryLabel: 'Period avg',
+        summaryValue: `${formatScore(totals.avg_efficiency)} ppm`,
+        engineKey: 'engine_efficiency',
+        runKey: 'run_efficiency',
+        chartLabel: 'Intensity',
+        valueSuffix: ' ppm',
+        trendKey: 'total_efficiency',
+        chartColor: ENGINE_CHART_COLOR,
+        fillId: 'insightIntensityEngine',
+      },
+    ],
+    [dayCount, totals],
+  );
+
+  const config = cards.find((c) => c.tab === activeTab) ?? cards[0];
+  const isEngine = league === 'engine';
+  const dataKey = isEngine ? config.engineKey : config.runKey;
+  const chartColor = isEngine ? ENGINE_CHART_COLOR : RUN_CHART_COLOR;
+  const fillId = isEngine ? `${config.fillId}Active` : `${config.fillId}RunActive`;
+
+  const lineChartData = useMemo(
+    () =>
+      chartData.map((row) => ({
+        label: row.dayLabel,
+        value: formatChartValue(config.kind, Number(row[dataKey] ?? 0)),
+      })),
+    [chartData, config.kind, dataKey],
+  );
+
+  const hasChartData = lineChartData.some((row) => row.value > 0);
+
+  return (
+    <div className="space-y-3">
+      <div className="rounded-xl border border-border/60 bg-[hsla(0,0%,10%,1)] p-1">
+        <div className="grid grid-cols-3 gap-0.5">
+          {INSIGHT_TABS.map((tab) => (
+            <button
+              key={tab.id}
+              type="button"
+              onClick={() => setActiveTab(tab.id)}
+              className={cn(
+                'rounded-lg py-2.5 text-center text-xs font-semibold transition-colors',
+                activeTab === tab.id
+                  ? 'bg-muted text-foreground shadow-sm'
+                  : 'text-muted-foreground hover:text-foreground/90',
+              )}
+            >
+              {tab.label}
+            </button>
+          ))}
+        </div>
+      </div>
+
       <button
         type="button"
         onClick={() => setDetailOpen(true)}
-        className="group flex w-full flex-col rounded-lg border border-border bg-card p-4 text-left transition-colors hover:border-border/80 hover:bg-card/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-neon-lime/40"
+        className="w-full rounded-xl border border-border/70 bg-[hsla(0,0%,10%,1)] p-4 text-left transition-colors hover:border-border focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-neon-lime/40"
       >
-        <div className="flex items-start justify-between gap-2">
+        <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
-            <p className="type-section-label">{config.title}</p>
-            <p className="mt-0.5 text-xs text-muted-foreground leading-snug">{config.subtitle}</p>
+            <p className="type-heading">{config.cardTitle}</p>
+            <p className="mt-0.5 font-mono text-xs text-muted-foreground">{config.subtitle}</p>
           </div>
-          <div className="flex shrink-0 items-center gap-1 text-right">
-            <div>
-              <p className="text-[10px] uppercase tracking-wide text-muted-foreground">
-                {config.summaryLabel}
-              </p>
-              <p className="type-stat text-sm leading-tight text-foreground">{config.summaryValue}</p>
-            </div>
-            <ChevronRight
-              className="h-4 w-4 text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100"
-              aria-hidden
-            />
-          </div>
-        </div>
-
-        <div className="mt-3 -mx-1">
-          <WeeklyStackedBarChart
-            data={chartData}
-            stack={{ engineKey: config.engineKey as string, runKey: config.runKey as string }}
-            height={108}
-            valueSuffix={config.valueSuffix}
-            formatValue={
-              config.kind === 'volume'
-                ? (v) => String(Math.round(v))
-                : (v) => formatScore(v)
-            }
+          <LeagueBadge
+            league={league}
+            onToggle={() => setLeague((current) => (current === 'engine' ? 'run' : 'engine'))}
           />
         </div>
 
-        <div className="mt-2 flex items-center gap-3 text-[10px] text-muted-foreground">
-          <span className="inline-flex items-center gap-1">
-            <span className="h-2 w-2 rounded-sm" style={{ background: ENGINE_CHART_COLOR }} />
-            Engine
-          </span>
-          <span className="inline-flex items-center gap-1">
-            <span className="h-2 w-2 rounded-sm" style={{ background: RUN_CHART_COLOR }} />
-            Run
-          </span>
-        </div>
+        {hasChartData ? (
+          <InsightsLineChart
+            className="mt-4"
+            height={200}
+            data={lineChartData}
+            variant="area"
+            valueSuffix={config.valueSuffix}
+            series={[
+              {
+                dataKey: 'value',
+                label: config.chartLabel,
+                color: chartColor,
+                fillId,
+              },
+            ]}
+          />
+        ) : (
+          <p className="mt-8 py-10 text-center text-sm text-muted-foreground">
+            Sync workouts to light up your charts.
+          </p>
+        )}
       </button>
 
       <InsightDetailDialog
@@ -310,58 +433,6 @@ function WeeklyInsightCard({
         config={config}
         data={data}
       />
-    </>
-  );
-}
-
-export function WeeklyInsightsSection({ data }: WeeklyInsightsSectionProps) {
-  const chartData = useMemo(() => chartRows(data.days), [data.days]);
-  const { totals } = data;
-
-  const cards: CardConfig[] = [
-    {
-      kind: 'volume',
-      title: 'Volume',
-      subtitle: 'Minutes trained per day',
-      summaryLabel: 'This week',
-      summaryValue: `${Math.round(totals.total_minutes)} min`,
-      engineKey: 'engine_minutes',
-      runKey: 'run_minutes',
-      totalKey: 'total_minutes',
-      valueSuffix: ' min',
-      trendKey: 'total_minutes',
-    },
-    {
-      kind: 'score',
-      title: 'Score',
-      subtitle: 'Points earned per day',
-      summaryLabel: 'This week',
-      summaryValue: formatScorePts(totals.total_points),
-      engineKey: 'engine_points',
-      runKey: 'run_points',
-      totalKey: 'total_points',
-      valueSuffix: '',
-      trendKey: 'total_points',
-    },
-    {
-      kind: 'efficiency',
-      title: 'Efficiency',
-      subtitle: 'Points per minute',
-      summaryLabel: 'Weekly avg',
-      summaryValue: `${formatScore(totals.avg_efficiency)} ppm`,
-      engineKey: 'engine_efficiency',
-      runKey: 'run_efficiency',
-      totalKey: 'avg_efficiency',
-      valueSuffix: ' ppm',
-      trendKey: 'total_efficiency',
-    },
-  ];
-
-  return (
-    <div className="grid gap-3 md:grid-cols-3">
-      {cards.map((config) => (
-        <WeeklyInsightCard key={config.kind} config={config} data={data} chartData={chartData} />
-      ))}
     </div>
   );
 }

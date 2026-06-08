@@ -57,7 +57,7 @@ export function LeaderboardRows({
         const countryLabel = item.country
           ? (getCountryByName(item.country)?.name ?? item.country)
           : null;
-        const pointsDisplay = Number.isFinite(item.score) ? formatScore(item.score) : '0.0';
+        const pointsDisplay = Number.isFinite(item.score) ? formatScore(item.score) : '0';
         const canViewProfile = friendIds.has(item.id) && !isSelf;
         const isFirst = item.rank === 1;
 

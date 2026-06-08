@@ -164,13 +164,14 @@ export function buildWeeklyInsights(
   activities: InsightActivityRow[],
   workouts: InsightWorkoutRow[],
   referenceDate: Date = new Date(),
+  dayCount = 14,
 ): WeeklyInsightsData {
   const today = startOfDay(referenceDate);
-  const currentWeekStart = subDays(today, 6);
-  const prevWeekStart = subDays(currentWeekStart, 7);
+  const currentWeekStart = subDays(today, dayCount - 1);
+  const prevWeekStart = subDays(currentWeekStart, dayCount);
 
-  const currentMap = buildDayMap(activities, workouts, currentWeekStart, 7);
-  const prevMap = buildDayMap(activities, workouts, prevWeekStart, 7);
+  const currentMap = buildDayMap(activities, workouts, currentWeekStart, dayCount);
+  const prevMap = buildDayMap(activities, workouts, prevWeekStart, dayCount);
 
   const days = Array.from(currentMap.values()).map(finalizeDayEfficiency);
   const prevDays = Array.from(prevMap.values()).map(finalizeDayEfficiency);
