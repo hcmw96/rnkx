@@ -27,6 +27,10 @@ type WeeklyStackedBarChartProps = {
   valueSuffix?: string;
   formatValue?: (value: number) => string;
   className?: string;
+  /** Hover tooltip on chart bars (off for dashboard preview card). */
+  showTooltip?: boolean;
+  /** Show only one league's bars (Engine/Run toggle on dashboard preview). */
+  singleLeague?: 'engine' | 'run';
 };
 
 function defaultFormat(value: number, suffix: string): string {
@@ -76,19 +80,29 @@ export function WeeklyStackedBarChart({
   valueSuffix = '',
   formatValue,
   className,
+  showTooltip = true,
+  singleLeague,
 }: WeeklyStackedBarChartProps) {
+  const showAllTicks = data.length <= 7;
+  const showEngine = !singleLeague || singleLeague === 'engine';
+  const showRun = !singleLeague || singleLeague === 'run';
+
   return (
     <div className={cn('w-full', className)} style={{ height }}>
       <ResponsiveContainer width="100%" height="100%">
-        <BarChart data={data} margin={{ top: 4, right: 0, left: -28, bottom: 0 }} barCategoryGap="20%">
+        <BarChart
+          data={data}
+          margin={{ top: 4, right: 0, left: -28, bottom: showAllTicks ? 4 : 0 }}
+          barCategoryGap="20%"
+        >
           <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="hsla(0,0%,100%,0.06)" />
           <XAxis
             dataKey="dayLabel"
             tick={{ fill: 'hsl(0 0% 55%)', fontSize: 10 }}
             axisLine={false}
             tickLine={false}
-            interval="preserveStartEnd"
-            minTickGap={12}
+            interval={showAllTicks ? 0 : 'preserveStartEnd'}
+            minTickGap={showAllTicks ? 0 : 12}
           />
           <YAxis
             tick={{ fill: 'hsl(0 0% 45%)', fontSize: 10 }}
@@ -99,28 +113,32 @@ export function WeeklyStackedBarChart({
             tickCount={4}
             domain={[0, 'auto']}
           />
-          <Tooltip
-            content={
-              <ChartTooltip valueSuffix={valueSuffix} formatValue={formatValue} />
-            }
-            cursor={{ fill: 'hsla(0,0%,100%,0.04)' }}
-          />
-          <Bar
-            dataKey={stack.engineKey}
-            name="Engine"
-            stackId="week"
-            fill={ENGINE_CHART_COLOR}
-            radius={[0, 0, 0, 0]}
-            maxBarSize={28}
-          />
-          <Bar
-            dataKey={stack.runKey}
-            name="Run"
-            stackId="week"
-            fill={RUN_CHART_COLOR}
-            radius={[4, 4, 0, 0]}
-            maxBarSize={28}
-          />
+          {showTooltip ? (
+            <Tooltip
+              content={<ChartTooltip valueSuffix={valueSuffix} formatValue={formatValue} />}
+              cursor={{ fill: 'hsla(0,0%,100%,0.04)' }}
+            />
+          ) : null}
+          {showEngine ? (
+            <Bar
+              dataKey={stack.engineKey}
+              name="Engine"
+              stackId={singleLeague ? undefined : 'week'}
+              fill={ENGINE_CHART_COLOR}
+              radius={showRun && !singleLeague ? [0, 0, 0, 0] : [4, 4, 0, 0]}
+              maxBarSize={28}
+            />
+          ) : null}
+          {showRun ? (
+            <Bar
+              dataKey={stack.runKey}
+              name="Run"
+              stackId={singleLeague ? undefined : 'week'}
+              fill={RUN_CHART_COLOR}
+              radius={[4, 4, 0, 0]}
+              maxBarSize={28}
+            />
+          ) : null}
         </BarChart>
       </ResponsiveContainer>
     </div>

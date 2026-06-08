@@ -22,6 +22,7 @@ import {
 } from '@/lib/insightsAggregates';
 import {
   buildWeeklyInsights,
+  INSIGHTS_WINDOW_DAYS,
   insightsFetchSinceIso,
   workoutsFetchSinceIso,
   type InsightWorkoutRow,
@@ -288,8 +289,8 @@ export default function Dashboard() {
 
       const athleteAge = Number(athleteRow?.age) || 30;
       const athleteMaxHr = (athleteRow?.max_hr as number | string | null | undefined) ?? null;
-      const insightSince = insightsFetchSinceIso(14);
-      const workoutSince = workoutsFetchSinceIso(14);
+      const insightSince = insightsFetchSinceIso(INSIGHTS_WINDOW_DAYS);
+      const workoutSince = workoutsFetchSinceIso(INSIGHTS_WINDOW_DAYS);
 
       const [
         { data: activityRows, error: activitiesError },
@@ -354,7 +355,7 @@ export default function Dashboard() {
           maxHr: athleteMaxHr,
           age: athleteAge,
         });
-        setInsightsSummary(buildInsightsSummary(mergedInsights, 14));
+        setInsightsSummary(buildInsightsSummary(mergedInsights, INSIGHTS_WINDOW_DAYS));
       }
 
       if (activitiesError && workoutsError) {

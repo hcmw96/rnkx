@@ -20,6 +20,7 @@ import { cn } from '@/lib/utils';
 
 export type InsightCardKind = 'volume' | 'score' | 'efficiency';
 type InsightTab = 'momentum' | 'volume' | 'intensity';
+type LeagueTab = 'engine' | 'run';
 
 type WeeklyInsightsSectionProps = {
   data: WeeklyInsightsData;
@@ -96,6 +97,35 @@ function BreakdownRow({
       <span className={cn('text-sm font-medium', colorClass)}>{label}</span>
       <span className="text-sm font-semibold tabular-nums text-foreground">{value}</span>
     </div>
+  );
+}
+
+function LeagueBadge({
+  league,
+  onToggle,
+}: {
+  league: LeagueTab;
+  onToggle: () => void;
+}) {
+  const isEngine = league === 'engine';
+
+  return (
+    <button
+      type="button"
+      onClick={(e) => {
+        e.stopPropagation();
+        onToggle();
+      }}
+      className={cn(
+        'inline-flex shrink-0 rounded-full border px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider transition-colors',
+        isEngine
+          ? 'border-neon-lime/40 text-neon-lime hover:bg-neon-lime/10'
+          : 'border-secondary/40 text-secondary hover:bg-secondary/10',
+      )}
+      aria-label={`Showing ${isEngine ? 'Engine' : 'Run'} data. Tap to switch league.`}
+    >
+      {isEngine ? 'Engine' : 'Run'}
+    </button>
   );
 }
 
@@ -249,10 +279,11 @@ function InsightDetailDialog({
 
 export function WeeklyInsightsSection({ data }: WeeklyInsightsSectionProps) {
   const [activeTab, setActiveTab] = useState<InsightTab>('momentum');
+  const [league, setLeague] = useState<LeagueTab>('engine');
   const [detailOpen, setDetailOpen] = useState(false);
 
   const chartData = useMemo(() => chartRows(data.days), [data.days]);
-  const { totals, prevTotals } = data;
+  const { totals } = data;
   const dayCount = data.days.length;
 
   const cards: CardConfig[] = useMemo(
@@ -301,23 +332,10 @@ export function WeeklyInsightsSection({ data }: WeeklyInsightsSectionProps) {
   );
 
   const config = cards.find((c) => c.tab === activeTab) ?? cards[0];
+  const isEngine = league === 'engine';
 
-  const currentTotal =
-    config.kind === 'volume'
-      ? totals.total_minutes
-      : config.kind === 'score'
-        ? totals.total_points
-        : totals.avg_efficiency;
-
-  const prevTotal =
-    config.kind === 'volume'
-      ? prevTotals.total_minutes
-      : config.kind === 'score'
-        ? prevTotals.total_points
-        : prevTotals.avg_efficiency;
-
-  const hasChartData = chartData.some(
-    (row) => Number(row[config.engineKey]) > 0 || Number(row[config.runKey]) > 0,
+  const hasChartData = chartData.some((row) =>
+    isEngine ? Number(row[config.engineKey]) > 0 : Number(row[config.runKey]) > 0,
   );
 
   return (
@@ -352,26 +370,23 @@ export function WeeklyInsightsSection({ data }: WeeklyInsightsSectionProps) {
             <p className="type-heading">{config.cardTitle}</p>
             <p className="mt-0.5 font-mono text-xs text-muted-foreground">{config.subtitle}</p>
           </div>
-          <div className="shrink-0 text-right">
-            <p className="text-[10px] uppercase tracking-wide text-muted-foreground">
-              {config.summaryLabel}
-            </p>
-            <p className="type-stat text-sm leading-tight text-foreground">{config.summaryValue}</p>
-          </div>
-        </div>
-
-        <div className="mt-2">
-          <DeltaBadge current={currentTotal} previous={prevTotal} />
+          <LeagueBadge
+            league={league}
+            onToggle={() => setLeague((current) => (current === 'engine' ? 'run' : 'engine'))}
+          />
         </div>
 
         {hasChartData ? (
           <>
             <div className="mt-3 -mx-1">
               <WeeklyStackedBarChart
+                key={`${activeTab}-${league}`}
                 data={chartData}
                 stack={{ engineKey: config.engineKey as string, runKey: config.runKey as string }}
+                singleLeague={league}
                 height={140}
                 valueSuffix={config.valueSuffix}
+                showTooltip={false}
                 formatValue={
                   config.kind === 'volume'
                     ? (v) => String(Math.round(v))
@@ -381,12 +396,11 @@ export function WeeklyInsightsSection({ data }: WeeklyInsightsSectionProps) {
             </div>
             <div className="mt-2 flex items-center gap-3 text-[10px] text-muted-foreground">
               <span className="inline-flex items-center gap-1">
-                <span className="h-2 w-2 rounded-sm" style={{ background: ENGINE_CHART_COLOR }} />
-                Engine
-              </span>
-              <span className="inline-flex items-center gap-1">
-                <span className="h-2 w-2 rounded-sm" style={{ background: RUN_CHART_COLOR }} />
-                Run
+                <span
+                  className="h-2 w-2 rounded-sm"
+                  style={{ background: isEngine ? ENGINE_CHART_COLOR : RUN_CHART_COLOR }}
+                />
+                {isEngine ? 'Engine' : 'Run'}
               </span>
             </div>
           </>

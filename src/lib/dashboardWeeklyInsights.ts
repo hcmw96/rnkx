@@ -1,6 +1,9 @@
 import { addDays, format, parseISO, startOfDay, subDays } from 'date-fns';
 import { activitySessionScore } from '@/lib/activitySessionScore';
 
+/** Rolling window for dashboard insight charts (current period + prior period for deltas). */
+export const INSIGHTS_WINDOW_DAYS = 7;
+
 export type DailyWeekAggregate = {
   date: string;
   dayLabel: string;
@@ -164,7 +167,7 @@ export function buildWeeklyInsights(
   activities: InsightActivityRow[],
   workouts: InsightWorkoutRow[],
   referenceDate: Date = new Date(),
-  dayCount = 14,
+  dayCount = INSIGHTS_WINDOW_DAYS,
 ): WeeklyInsightsData {
   const today = startOfDay(referenceDate);
   const currentWeekStart = subDays(today, dayCount - 1);
@@ -198,7 +201,7 @@ export function weekDeltaPercent(current: number, previous: number): number | nu
   return ((current - previous) / previous) * 100;
 }
 
-/** ISO timestamp for workouts query (14 days back). */
+/** ISO timestamp for workouts query (rolling insight window). */
 export function workoutsFetchSinceIso(dayCount: number, referenceDate: Date = new Date()): string {
   const since = subDays(startOfDay(referenceDate), dayCount - 1);
   return since.toISOString();
