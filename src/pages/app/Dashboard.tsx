@@ -1,8 +1,10 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { X, Zap } from 'lucide-react';
+import { X, Zap, Loader2 } from 'lucide-react';
+import { toast } from 'sonner';
 import { AppShell } from '@/components/app/AppShell';
 import { Button } from '@/components/ui/button';
+import { useAchievementUnlock } from '@/context/AchievementUnlockContext';
+import { useScoreSharePrompt } from '@/context/ScoreSharePromptContext';
 import { SeasonCard } from '@/components/dashboard/SeasonCard';
 import { WeeklyInsightsSection } from '@/components/dashboard/WeeklyInsightsSection';
 import { CoachNotesCard } from '@/components/dashboard/CoachNotesCard';
@@ -25,7 +27,9 @@ import {
   type InsightWorkoutRow,
   type WeeklyInsightsData,
 } from '@/lib/dashboardWeeklyInsights';
+import { computeCategoryRank } from '@/lib/categoryRank';
 import { isDespiaIphoneUa, wearablesIncludeAppleWatch } from '@/lib/despiaPlatform';
+import { runAppleWorkoutSync } from '@/lib/runAppleWorkoutSync';
 import { supabase } from '@/services/supabase';
 
 const SYNC_STALE_MS = 24 * 60 * 60 * 1000;
@@ -138,7 +142,8 @@ function activityLabel(activityType: string | null, leagueType: string): string 
 }
 
 export default function Dashboard() {
-  const navigate = useNavigate();
+  const { refreshAchievements } = useAchievementUnlock();
+  const { promptFromAppleSync } = useScoreSharePrompt();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [season, setSeason] = useState<ActiveSeason | null>(null);
@@ -148,7 +153,10 @@ export default function Dashboard() {
   const [insightsSummary, setInsightsSummary] = useState<InsightsSummary | null>(null);
   const [lastSynced, setLastSynced] = useState<string | null>(null);
   const [wearables, setWearables] = useState<string[] | null>(null);
+  const [athleteMaxHr, setAthleteMaxHr] = useState<number | string | null>(null);
+  const [athleteMaxHrSource, setAthleteMaxHrSource] = useState<string | null>(null);
   const [syncReminderDismissed, setSyncReminderDismissed] = useState(false);
+  const [syncing, setSyncing] = useState(false);
 
   const loadDashboard = useCallback(async (options?: { silent?: boolean }) => {
     if (!options?.silent) {
@@ -206,7 +214,7 @@ export default function Dashboard() {
             : Promise.resolve({ data: [], error: null }),
           supabase
             .from('athletes')
-            .select('last_synced, wearables, max_hr, age, selected_leagues')
+            .select('last_synced, wearables, max_hr, max_hr_source, age, selected_leagues')
             .eq('id', userId)
             .maybeSingle(),
         ]);
@@ -217,6 +225,8 @@ export default function Dashboard() {
       } else {
         setLastSynced((athleteRow?.last_synced as string | null) ?? null);
         setWearables((athleteRow?.wearables as string[] | null) ?? null);
+        setAthleteMaxHr((athleteRow?.max_hr as number | string | null) ?? null);
+        setAthleteMaxHrSource((athleteRow?.max_hr_source as string | null) ?? null);
       }
 
       if (statsError) {
@@ -243,6 +253,19 @@ export default function Dashboard() {
             runScore = Number.isFinite(pts) ? pts : 0;
             runRank = r != null && Number.isFinite(r) && r > 0 ? Math.round(r) : null;
           }
+        }
+
+        if (activeSeasonId) {
+          const [computedEngineRank, computedRunRank] = await Promise.all([
+            engineRank == null && engineScore > 0
+              ? computeCategoryRank(activeSeasonId, 'engine', engineScore)
+              : Promise.resolve(engineRank),
+            runRank == null && runScore > 0
+              ? computeCategoryRank(activeSeasonId, 'run', runScore)
+              : Promise.resolve(runRank),
+          ]);
+          engineRank = computedEngineRank;
+          runRank = computedRunRank;
         }
 
         setStats({
@@ -362,6 +385,49 @@ export default function Dashboard() {
 
   const { isRefreshing, pullDistance, pullHandlers } = usePullToRefresh(refreshDashboard);
 
+  const handleSyncFromBanner = useCallback(async () => {
+    if (syncing) return;
+
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    const athleteId = user?.id;
+    if (!athleteId) {
+      toast.error('Not signed in.');
+      return;
+    }
+
+    setSyncing(true);
+    try {
+      toast.message('Syncing workouts…');
+      const result = await runAppleWorkoutSync(athleteId, {
+        max_hr: athleteMaxHr,
+        max_hr_source: athleteMaxHrSource,
+      });
+
+      if (!result.ok) {
+        toast.error(result.error ?? 'Sync failed');
+        return;
+      }
+
+      toast.success(`Synced ${result.processed} workout${result.processed === 1 ? '' : 's'}.`);
+      await loadDashboard({ silent: true });
+      await refreshAchievements();
+      await promptFromAppleSync(athleteId, result.workouts, result.results);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Sync failed');
+    } finally {
+      setSyncing(false);
+    }
+  }, [
+    syncing,
+    athleteMaxHr,
+    athleteMaxHrSource,
+    loadDashboard,
+    refreshAchievements,
+    promptFromAppleSync,
+  ]);
+
   const showSyncReminderBanner = useMemo(() => {
     if (syncReminderDismissed) return false;
     if (!isDespiaIphoneUa()) return false;
@@ -422,9 +488,17 @@ export default function Dashboard() {
               size="sm"
               variant="secondary"
               className="shrink-0 border-amber-300/50 bg-amber-100 text-amber-950 hover:bg-amber-200"
-              onClick={() => navigate('/app/profile')}
+              disabled={syncing}
+              onClick={() => void handleSyncFromBanner()}
             >
-              Sync now
+              {syncing ? (
+                <>
+                  <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" aria-hidden />
+                  Syncing…
+                </>
+              ) : (
+                'Sync now'
+              )}
             </Button>
             <button
               type="button"
