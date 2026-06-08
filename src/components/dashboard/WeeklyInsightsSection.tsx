@@ -10,9 +10,9 @@ import {
   ENGINE_CHART_COLOR,
   RUN_CHART_COLOR,
   WeeklyDualTrendLineChart,
+  WeeklyStackedBarChart,
   WeeklyTrendLineChart,
 } from '@/components/dashboard/WeeklyInsightCharts';
-import { InsightsLineChart } from '@/components/insights/InsightsLineChart';
 import type { DailyWeekAggregate, WeeklyInsightsData } from '@/lib/dashboardWeeklyInsights';
 import { formatInsightDateLabel, weekDeltaPercent } from '@/lib/dashboardWeeklyInsights';
 import { formatScore, formatScorePts } from '@/lib/formatScore';
@@ -20,7 +20,6 @@ import { cn } from '@/lib/utils';
 
 export type InsightCardKind = 'volume' | 'score' | 'efficiency';
 type InsightTab = 'momentum' | 'volume' | 'intensity';
-type LeagueTab = 'engine' | 'run';
 
 type WeeklyInsightsSectionProps = {
   data: WeeklyInsightsData;
@@ -36,11 +35,8 @@ type CardConfig = {
   summaryValue: string;
   engineKey: keyof DailyWeekAggregate;
   runKey: keyof DailyWeekAggregate;
-  chartLabel: string;
   valueSuffix: string;
   trendKey: string;
-  chartColor: string;
-  fillId: string;
 };
 
 const INSIGHT_TABS: { id: InsightTab; label: string }[] = [
@@ -251,48 +247,12 @@ function InsightDetailDialog({
   );
 }
 
-function LeagueBadge({
-  league,
-  onToggle,
-}: {
-  league: LeagueTab;
-  onToggle: () => void;
-}) {
-  const isEngine = league === 'engine';
-
-  return (
-    <button
-      type="button"
-      onClick={(e) => {
-        e.stopPropagation();
-        onToggle();
-      }}
-      className={cn(
-        'inline-flex shrink-0 rounded-full border px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider transition-colors',
-        isEngine
-          ? 'border-neon-lime/40 text-neon-lime hover:bg-neon-lime/10'
-          : 'border-secondary/40 text-secondary hover:bg-secondary/10',
-      )}
-      aria-label={`Showing ${isEngine ? 'Engine' : 'Run'} data. Tap to switch league.`}
-    >
-      {isEngine ? 'Engine' : 'Run'}
-    </button>
-  );
-}
-
-function formatChartValue(kind: InsightCardKind, value: number): number {
-  if (kind === 'volume') return Math.round(value);
-  if (kind === 'score') return Math.ceil(value);
-  return value;
-}
-
 export function WeeklyInsightsSection({ data }: WeeklyInsightsSectionProps) {
   const [activeTab, setActiveTab] = useState<InsightTab>('momentum');
-  const [league, setLeague] = useState<LeagueTab>('engine');
   const [detailOpen, setDetailOpen] = useState(false);
 
   const chartData = useMemo(() => chartRows(data.days), [data.days]);
-  const { totals } = data;
+  const { totals, prevTotals } = data;
   const dayCount = data.days.length;
 
   const cards: CardConfig[] = useMemo(
@@ -307,11 +267,8 @@ export function WeeklyInsightsSection({ data }: WeeklyInsightsSectionProps) {
         summaryValue: formatScorePts(totals.total_points),
         engineKey: 'engine_points',
         runKey: 'run_points',
-        chartLabel: 'Points',
         valueSuffix: ' pts',
         trendKey: 'total_points',
-        chartColor: ENGINE_CHART_COLOR,
-        fillId: 'insightMomentumEngine',
       },
       {
         kind: 'volume',
@@ -323,11 +280,8 @@ export function WeeklyInsightsSection({ data }: WeeklyInsightsSectionProps) {
         summaryValue: `${Math.round(totals.total_minutes)} min`,
         engineKey: 'engine_minutes',
         runKey: 'run_minutes',
-        chartLabel: 'Minutes',
         valueSuffix: ' min',
         trendKey: 'total_minutes',
-        chartColor: RUN_CHART_COLOR,
-        fillId: 'insightVolumeRun',
       },
       {
         kind: 'efficiency',
@@ -339,32 +293,32 @@ export function WeeklyInsightsSection({ data }: WeeklyInsightsSectionProps) {
         summaryValue: `${formatScore(totals.avg_efficiency)} ppm`,
         engineKey: 'engine_efficiency',
         runKey: 'run_efficiency',
-        chartLabel: 'Intensity',
         valueSuffix: ' ppm',
         trendKey: 'total_efficiency',
-        chartColor: ENGINE_CHART_COLOR,
-        fillId: 'insightIntensityEngine',
       },
     ],
     [dayCount, totals],
   );
 
   const config = cards.find((c) => c.tab === activeTab) ?? cards[0];
-  const isEngine = league === 'engine';
-  const dataKey = isEngine ? config.engineKey : config.runKey;
-  const chartColor = isEngine ? ENGINE_CHART_COLOR : RUN_CHART_COLOR;
-  const fillId = isEngine ? `${config.fillId}Active` : `${config.fillId}RunActive`;
 
-  const lineChartData = useMemo(
-    () =>
-      chartData.map((row) => ({
-        label: row.dayLabel,
-        value: formatChartValue(config.kind, Number(row[dataKey] ?? 0)),
-      })),
-    [chartData, config.kind, dataKey],
+  const currentTotal =
+    config.kind === 'volume'
+      ? totals.total_minutes
+      : config.kind === 'score'
+        ? totals.total_points
+        : totals.avg_efficiency;
+
+  const prevTotal =
+    config.kind === 'volume'
+      ? prevTotals.total_minutes
+      : config.kind === 'score'
+        ? prevTotals.total_points
+        : prevTotals.avg_efficiency;
+
+  const hasChartData = chartData.some(
+    (row) => Number(row[config.engineKey]) > 0 || Number(row[config.runKey]) > 0,
   );
-
-  const hasChartData = lineChartData.some((row) => row.value > 0);
 
   return (
     <div className="space-y-3">
@@ -398,28 +352,44 @@ export function WeeklyInsightsSection({ data }: WeeklyInsightsSectionProps) {
             <p className="type-heading">{config.cardTitle}</p>
             <p className="mt-0.5 font-mono text-xs text-muted-foreground">{config.subtitle}</p>
           </div>
-          <LeagueBadge
-            league={league}
-            onToggle={() => setLeague((current) => (current === 'engine' ? 'run' : 'engine'))}
-          />
+          <div className="shrink-0 text-right">
+            <p className="text-[10px] uppercase tracking-wide text-muted-foreground">
+              {config.summaryLabel}
+            </p>
+            <p className="type-stat text-sm leading-tight text-foreground">{config.summaryValue}</p>
+          </div>
+        </div>
+
+        <div className="mt-2">
+          <DeltaBadge current={currentTotal} previous={prevTotal} />
         </div>
 
         {hasChartData ? (
-          <InsightsLineChart
-            className="mt-4"
-            height={200}
-            data={lineChartData}
-            variant="area"
-            valueSuffix={config.valueSuffix}
-            series={[
-              {
-                dataKey: 'value',
-                label: config.chartLabel,
-                color: chartColor,
-                fillId,
-              },
-            ]}
-          />
+          <>
+            <div className="mt-3 -mx-1">
+              <WeeklyStackedBarChart
+                data={chartData}
+                stack={{ engineKey: config.engineKey as string, runKey: config.runKey as string }}
+                height={140}
+                valueSuffix={config.valueSuffix}
+                formatValue={
+                  config.kind === 'volume'
+                    ? (v) => String(Math.round(v))
+                    : (v) => formatScore(v)
+                }
+              />
+            </div>
+            <div className="mt-2 flex items-center gap-3 text-[10px] text-muted-foreground">
+              <span className="inline-flex items-center gap-1">
+                <span className="h-2 w-2 rounded-sm" style={{ background: ENGINE_CHART_COLOR }} />
+                Engine
+              </span>
+              <span className="inline-flex items-center gap-1">
+                <span className="h-2 w-2 rounded-sm" style={{ background: RUN_CHART_COLOR }} />
+                Run
+              </span>
+            </div>
+          </>
         ) : (
           <p className="mt-8 py-10 text-center text-sm text-muted-foreground">
             Sync workouts to light up your charts.

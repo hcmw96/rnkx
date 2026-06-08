@@ -94,6 +94,7 @@ export function InsightsLineChart({
             axisLine={false}
             tickLine={false}
             interval="preserveStartEnd"
+            minTickGap={12}
           />
           <YAxis
             domain={yDomain ?? [0, 'auto']}
@@ -101,6 +102,7 @@ export function InsightsLineChart({
             axisLine={false}
             tickLine={false}
             width={32}
+            tickCount={4}
           />
           <Tooltip content={<ChartTooltip valueSuffix={valueSuffix} />} cursor={{ stroke: 'hsla(0,0%,30%,0.8)' }} />
           {series.map((s) =>

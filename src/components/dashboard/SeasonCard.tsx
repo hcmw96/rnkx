@@ -153,8 +153,6 @@ export function SeasonCard({
         </span>
       </div>
 
-      <h2 className="font-display text-2xl font-normal leading-none tracking-wide text-foreground">Live now</h2>
-
       {leagueRows.length > 0 ? (
         <div className="flex flex-col space-y-2">
           {leagueRows.map((row) => (

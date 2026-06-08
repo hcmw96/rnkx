@@ -47,7 +47,7 @@ export type InsightWorkoutRow = {
 function emptyDay(date: Date): DailyWeekAggregate {
   return {
     date: format(date, 'yyyy-MM-dd'),
-    dayLabel: format(date, 'EEE'),
+    dayLabel: format(date, 'EEE d'),
     engine_minutes: 0,
     run_minutes: 0,
     engine_points: 0,
@@ -173,8 +173,12 @@ export function buildWeeklyInsights(
   const currentMap = buildDayMap(activities, workouts, currentWeekStart, dayCount);
   const prevMap = buildDayMap(activities, workouts, prevWeekStart, dayCount);
 
-  const days = Array.from(currentMap.values()).map(finalizeDayEfficiency);
-  const prevDays = Array.from(prevMap.values()).map(finalizeDayEfficiency);
+  const days = Array.from(currentMap.entries())
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([, day]) => finalizeDayEfficiency(day));
+  const prevDays = Array.from(prevMap.entries())
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([, day]) => finalizeDayEfficiency(day));
 
   return {
     days,

@@ -87,13 +87,17 @@ export function WeeklyStackedBarChart({
             tick={{ fill: 'hsl(0 0% 55%)', fontSize: 10 }}
             axisLine={false}
             tickLine={false}
+            interval="preserveStartEnd"
+            minTickGap={12}
           />
           <YAxis
             tick={{ fill: 'hsl(0 0% 45%)', fontSize: 10 }}
             axisLine={false}
             tickLine={false}
             width={32}
-            allowDecimals={valueSuffix !== ' min'}
+            allowDecimals={valueSuffix === ' ppm'}
+            tickCount={4}
+            domain={[0, 'auto']}
           />
           <Tooltip
             content={
@@ -148,12 +152,16 @@ export function WeeklyTrendLineChart({
             tick={{ fill: 'hsl(0 0% 55%)', fontSize: 11 }}
             axisLine={false}
             tickLine={false}
+            interval="preserveStartEnd"
+            minTickGap={12}
           />
           <YAxis
             tick={{ fill: 'hsl(0 0% 45%)', fontSize: 11 }}
             axisLine={false}
             tickLine={false}
             width={36}
+            tickCount={4}
+            domain={[0, 'auto']}
           />
           <Tooltip
             content={
@@ -200,12 +208,16 @@ export function WeeklyDualTrendLineChart({
             tick={{ fill: 'hsl(0 0% 55%)', fontSize: 11 }}
             axisLine={false}
             tickLine={false}
+            interval="preserveStartEnd"
+            minTickGap={12}
           />
           <YAxis
             tick={{ fill: 'hsl(0 0% 45%)', fontSize: 11 }}
             axisLine={false}
             tickLine={false}
             width={36}
+            tickCount={4}
+            domain={[0, 'auto']}
           />
           <Tooltip content={<ChartTooltip valueSuffix={valueSuffix} />} />
           <Line
