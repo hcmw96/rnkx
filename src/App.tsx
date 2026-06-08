@@ -37,7 +37,7 @@ import {
   WaiverPageRoute,
 } from './pages/legal/StaticLegalPages';
 import { WelcomeModal } from '@/components/WelcomeModal';
-import { registerPushForAthlete } from './services/onesignal';
+import { isDespiaNative, registerPushForAthlete } from './services/onesignal';
 import { resolveAthleteId } from './lib/resolveAthleteId';
 import { applyPremiumIfStoreHasEntitlement } from './services/revenuecat';
 import { supabase } from './services/supabase';
@@ -196,6 +196,27 @@ function SessionRoutes() {
         console.warn('[OneSignal] register push failed', err);
       }
     })();
+  }, [session?.user?.id, profileComplete]);
+
+  useEffect(() => {
+    if (!session?.user?.id || !profileComplete || !isDespiaNative()) return;
+
+    const uid = session.user.id;
+    const onVisible = () => {
+      if (document.visibilityState !== 'visible') return;
+      void (async () => {
+        const athleteId = await resolveAthleteId(uid);
+        if (!athleteId) return;
+        try {
+          await registerPushForAthlete(athleteId);
+        } catch (err) {
+          console.warn('[OneSignal] foreground re-link failed', err);
+        }
+      })();
+    };
+
+    document.addEventListener('visibilitychange', onVisible);
+    return () => document.removeEventListener('visibilitychange', onVisible);
   }, [session?.user?.id, profileComplete]);
 
   useEffect(() => {

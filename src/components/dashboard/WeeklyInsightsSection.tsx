@@ -19,7 +19,7 @@ import { formatScore, formatScorePts } from '@/lib/formatScore';
 import { cn } from '@/lib/utils';
 
 export type InsightCardKind = 'volume' | 'score' | 'efficiency';
-type InsightTab = 'momentum' | 'volume' | 'intensity';
+type InsightTab = 'score' | 'volume' | 'efficiency';
 type LeagueTab = 'engine' | 'run';
 
 type WeeklyInsightsSectionProps = {
@@ -41,9 +41,9 @@ type CardConfig = {
 };
 
 const INSIGHT_TABS: { id: InsightTab; label: string }[] = [
-  { id: 'momentum', label: 'Momentum' },
+  { id: 'score', label: 'Score' },
   { id: 'volume', label: 'Volume' },
-  { id: 'intensity', label: 'Intensity' },
+  { id: 'efficiency', label: 'Efficiency' },
 ];
 
 function chartRows(days: DailyWeekAggregate[]) {
@@ -278,7 +278,7 @@ function InsightDetailDialog({
 }
 
 export function WeeklyInsightsSection({ data }: WeeklyInsightsSectionProps) {
-  const [activeTab, setActiveTab] = useState<InsightTab>('momentum');
+  const [activeTab, setActiveTab] = useState<InsightTab>('score');
   const [league, setLeague] = useState<LeagueTab>('engine');
   const [detailOpen, setDetailOpen] = useState(false);
 
@@ -290,10 +290,10 @@ export function WeeklyInsightsSection({ data }: WeeklyInsightsSectionProps) {
     () => [
       {
         kind: 'score',
-        tab: 'momentum',
-        title: 'Momentum',
-        cardTitle: 'Scoring momentum',
-        subtitle: `Daily points · ${dayCount} days`,
+        tab: 'score',
+        title: 'Score',
+        cardTitle: 'Score',
+        subtitle: `Last ${dayCount} days · points per day`,
         summaryLabel: 'This period',
         summaryValue: formatScorePts(totals.total_points),
         engineKey: 'engine_points',
@@ -305,8 +305,8 @@ export function WeeklyInsightsSection({ data }: WeeklyInsightsSectionProps) {
         kind: 'volume',
         tab: 'volume',
         title: 'Volume',
-        cardTitle: 'Training volume',
-        subtitle: `Minutes trained · ${dayCount} days`,
+        cardTitle: 'Volume',
+        subtitle: `Last ${dayCount} days · mins per day`,
         summaryLabel: 'This period',
         summaryValue: `${Math.round(totals.total_minutes)} min`,
         engineKey: 'engine_minutes',
@@ -316,10 +316,10 @@ export function WeeklyInsightsSection({ data }: WeeklyInsightsSectionProps) {
       },
       {
         kind: 'efficiency',
-        tab: 'intensity',
-        title: 'Intensity',
-        cardTitle: 'Scoring intensity',
-        subtitle: `Points per minute · ${dayCount} days`,
+        tab: 'efficiency',
+        title: 'Efficiency',
+        cardTitle: 'Efficiency',
+        subtitle: `Last ${dayCount} days · points per minute`,
         summaryLabel: 'Period avg',
         summaryValue: `${formatScore(totals.avg_efficiency)} ppm`,
         engineKey: 'engine_efficiency',
@@ -387,6 +387,9 @@ export function WeeklyInsightsSection({ data }: WeeklyInsightsSectionProps) {
                 height={140}
                 valueSuffix={config.valueSuffix}
                 showTooltip={false}
+                yAxisUnit={
+                  config.kind === 'volume' ? 'min' : config.kind === 'score' ? 'pts' : 'ppm'
+                }
                 formatValue={
                   config.kind === 'volume'
                     ? (v) => String(Math.round(v))

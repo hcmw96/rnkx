@@ -6,6 +6,13 @@ import despia from 'despia-native';
  * Backend targets the same id via include_external_user_ids (athletes.id).
  */
 
+const LINK_SETTLE_MS = 1500;
+
+export type PushRegistrationResult = {
+  permission: boolean | null;
+  linkedAttempted: boolean;
+};
+
 export function isDespiaNative(): boolean {
   if (typeof navigator === 'undefined') return false;
   return navigator.userAgent.toLowerCase().includes('despia');
@@ -37,11 +44,15 @@ export function openNotificationSettings(): void {
  * Links this device to athletes.id in OneSignal (external_id).
  * Call on every authenticated session per Despia docs.
  */
-export async function registerPushForAthlete(athleteId: string): Promise<void> {
-  if (!isDespiaNative()) return;
+export async function registerPushForAthlete(athleteId: string): Promise<PushRegistrationResult> {
+  if (!isDespiaNative()) {
+    return { permission: null, linkedAttempted: false };
+  }
 
   const userId = athleteId.trim();
-  if (!userId) return;
+  if (!userId) {
+    return { permission: null, linkedAttempted: false };
+  }
 
   await despia(`setonesignalplayerid://?user_id=${encodeURIComponent(userId)}`);
 
@@ -56,7 +67,11 @@ export async function registerPushForAthlete(athleteId: string): Promise<void> {
     }
   }
 
+  // Give the native OneSignal SDK time to persist external_id after linking.
+  await new Promise((resolve) => window.setTimeout(resolve, LINK_SETTLE_MS));
+
   console.log('[OneSignal] linked', { athleteId: userId, nativePushEnabled });
+  return { permission: nativePushEnabled, linkedAttempted: true };
 }
 
 /** @deprecated Despia registers the native SDK at launch — no web init required. */

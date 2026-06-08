@@ -31,7 +31,15 @@ type WeeklyStackedBarChartProps = {
   showTooltip?: boolean;
   /** Show only one league's bars (Engine/Run toggle on dashboard preview). */
   singleLeague?: 'engine' | 'run';
+  /** Short unit label for Y-axis ticks (pts, min, ppm). */
+  yAxisUnit?: string;
 };
+
+function formatYAxisTick(value: number, unit: string, allowDecimals: boolean): string {
+  if (!Number.isFinite(value)) return '';
+  const n = allowDecimals ? formatScore(value) : String(Math.round(value));
+  return unit ? `${n} ${unit}` : n;
+}
 
 function defaultFormat(value: number, suffix: string): string {
   if (suffix === ' min') return `${Math.round(value)}`;
@@ -82,17 +90,20 @@ export function WeeklyStackedBarChart({
   className,
   showTooltip = true,
   singleLeague,
+  yAxisUnit = '',
 }: WeeklyStackedBarChartProps) {
   const showAllTicks = data.length <= 7;
   const showEngine = !singleLeague || singleLeague === 'engine';
   const showRun = !singleLeague || singleLeague === 'run';
+  const allowDecimals = valueSuffix === ' ppm';
+  const yAxisWidth = yAxisUnit === 'ppm' ? 52 : yAxisUnit === 'min' ? 44 : 48;
 
   return (
     <div className={cn('w-full', className)} style={{ height }}>
       <ResponsiveContainer width="100%" height="100%">
         <BarChart
           data={data}
-          margin={{ top: 4, right: 0, left: -28, bottom: showAllTicks ? 4 : 0 }}
+          margin={{ top: 4, right: 4, left: 0, bottom: showAllTicks ? 4 : 0 }}
           barCategoryGap="20%"
         >
           <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="hsla(0,0%,100%,0.06)" />
@@ -105,13 +116,14 @@ export function WeeklyStackedBarChart({
             minTickGap={showAllTicks ? 0 : 12}
           />
           <YAxis
-            tick={{ fill: 'hsl(0 0% 45%)', fontSize: 10 }}
+            tick={{ fill: 'hsl(0 0% 55%)', fontSize: 10 }}
             axisLine={false}
             tickLine={false}
-            width={32}
-            allowDecimals={valueSuffix === ' ppm'}
+            width={yAxisWidth}
+            allowDecimals={allowDecimals}
             tickCount={4}
             domain={[0, 'auto']}
+            tickFormatter={(value) => formatYAxisTick(Number(value), yAxisUnit, allowDecimals)}
           />
           {showTooltip ? (
             <Tooltip

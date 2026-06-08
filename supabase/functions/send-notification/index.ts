@@ -1,5 +1,6 @@
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import { getOneSignalApiKey, getOneSignalAppId } from '../_shared/onesignalEnv.ts';
 import { buildOneSignalPayload, pathFromUrl } from '../_shared/onesignalPush.ts';
 
 const ONESIGNAL_API = 'https://onesignal.com/api/v1/notifications';
@@ -11,15 +12,15 @@ serve(async (req) => {
 
   const supabaseUrl = Deno.env.get('SUPABASE_URL');
   const serviceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
-  const appId = Deno.env.get('ONESIGNAL_APP_ID')?.trim();
-  const restApiKey = Deno.env.get('ONESIGNAL_REST_API_KEY')?.trim();
+  const appId = getOneSignalAppId();
+  const restApiKey = getOneSignalApiKey();
 
   if (!supabaseUrl || !serviceKey) {
     console.error('[send-notification] missing Supabase env');
     return new Response(JSON.stringify({ error: 'Server misconfiguration' }), { status: 500 });
   }
   if (!appId || !restApiKey) {
-    console.error('[send-notification] missing ONESIGNAL_APP_ID or ONESIGNAL_REST_API_KEY');
+    console.error('[send-notification] missing ONESIGNAL_APP_ID or ONESIGNAL_API_KEY');
     return new Response(JSON.stringify({ error: 'Server misconfiguration' }), { status: 500 });
   }
 

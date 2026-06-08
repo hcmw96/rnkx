@@ -4,6 +4,7 @@ import { Bell, Check, MessageCircle, UserPlus, Users, X } from 'lucide-react';
 import { AppShell } from '@/components/app/AppShell';
 import { Button } from '@/components/ui/button';
 import { fetchChatNotifications } from '@/lib/chatInboxNotifications';
+import { fetchPushSubscriptionStatus } from '@/lib/checkPushSubscription';
 import { invokePushNotify } from '@/lib/pushNotify';
 import {
   checkNativePushEnabled,
@@ -48,6 +49,7 @@ export default function NotificationsPage() {
   const [clubInvites, setClubInvites] = useState<ClubInviteItem[]>([]);
   const [chatNotifications, setChatNotifications] = useState<ChatNotificationItem[]>([]);
   const [pushRegistered, setPushRegistered] = useState<boolean | null>(null);
+  const [pushLinked, setPushLinked] = useState<boolean | null>(null);
   const [pushRegistering, setPushRegistering] = useState(false);
 
   const load = useCallback(async () => {
@@ -72,7 +74,12 @@ export default function NotificationsPage() {
       return;
     }
     setAthleteId(aid);
-    void isPushRegistered().then(setPushRegistered);
+    const [permissionEnabled, linkStatus] = await Promise.all([
+      isPushRegistered(),
+      fetchPushSubscriptionStatus(aid),
+    ]);
+    setPushRegistered(permissionEnabled);
+    setPushLinked(linkStatus?.linked ?? null);
 
     const [{ data: incRows }, { data: pendingClubRows }, chatItems] = await Promise.all([
       supabase
@@ -218,13 +225,21 @@ export default function NotificationsPage() {
     friendRequests.length === 0 &&
     clubInvites.length === 0 &&
     unreadChatCount === 0;
-  const showPushBanner = isDespiaNative() && pushRegistered === false;
+  const showPushBanner =
+    isDespiaNative() && (pushRegistered === false || pushLinked === false);
+  const pushBannerNeedsLink = pushRegistered === true && pushLinked === false;
+
+  async function refreshPushLinkStatus(id: string) {
+    const linkStatus = await fetchPushSubscriptionStatus(id);
+    setPushLinked(linkStatus?.linked ?? null);
+    return linkStatus;
+  }
 
   async function enablePush(openSettingsIfNeeded = true) {
     if (!athleteId || pushRegistering) return;
     setPushRegistering(true);
     try {
-      if (athleteId) await registerPushForAthlete(athleteId);
+      await registerPushForAthlete(athleteId);
       let enabled = await checkNativePushEnabled();
       if (!enabled) {
         await requestNotificationPermission();
@@ -234,6 +249,9 @@ export default function NotificationsPage() {
         openNotificationSettings();
       }
       setPushRegistered(enabled === true);
+      if (enabled) {
+        await refreshPushLinkStatus(athleteId);
+      }
     } finally {
       setPushRegistering(false);
     }
@@ -251,13 +269,17 @@ export default function NotificationsPage() {
 
         {showPushBanner ? (
           <div className="rounded-lg border border-amber-500/40 bg-amber-500/10 p-4 space-y-2">
-            <p className="text-sm font-medium">Push notifications are off</p>
+            <p className="text-sm font-medium">
+              {pushBannerNeedsLink ? 'Push is on, but this device is not linked' : 'Push notifications are off'}
+            </p>
             <p className="text-xs text-muted-foreground">
-              Enable alerts for messages, friend requests, and club invites on this device.
+              {pushBannerNeedsLink
+                ? 'Tap below to re-link this phone to your RNKX account so workout, message, and rank alerts can reach you.'
+                : 'Enable alerts for messages, friend requests, workout scores, and club invites on this device.'}
             </p>
             <div className="flex flex-wrap gap-2">
               <Button type="button" size="sm" disabled={pushRegistering} onClick={() => void enablePush(true)}>
-                {pushRegistering ? 'Enabling…' : 'Enable notifications'}
+                {pushRegistering ? 'Enabling…' : pushBannerNeedsLink ? 'Link this device' : 'Enable notifications'}
               </Button>
               <Button
                 type="button"
