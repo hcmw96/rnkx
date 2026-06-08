@@ -20,7 +20,6 @@ import { cn } from '@/lib/utils';
 
 export type InsightCardKind = 'volume' | 'score' | 'efficiency';
 type InsightTab = 'score' | 'volume' | 'efficiency';
-type LeagueTab = 'engine' | 'run';
 
 type WeeklyInsightsSectionProps = {
   data: WeeklyInsightsData;
@@ -97,35 +96,6 @@ function BreakdownRow({
       <span className={cn('text-sm font-medium', colorClass)}>{label}</span>
       <span className="text-sm font-semibold tabular-nums text-foreground">{value}</span>
     </div>
-  );
-}
-
-function LeagueBadge({
-  league,
-  onToggle,
-}: {
-  league: LeagueTab;
-  onToggle: () => void;
-}) {
-  const isEngine = league === 'engine';
-
-  return (
-    <button
-      type="button"
-      onClick={(e) => {
-        e.stopPropagation();
-        onToggle();
-      }}
-      className={cn(
-        'inline-flex shrink-0 rounded-full border px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider transition-colors',
-        isEngine
-          ? 'border-neon-lime/40 text-neon-lime hover:bg-neon-lime/10'
-          : 'border-secondary/40 text-secondary hover:bg-secondary/10',
-      )}
-      aria-label={`Showing ${isEngine ? 'Engine' : 'Run'} data. Tap to switch league.`}
-    >
-      {isEngine ? 'Engine' : 'Run'}
-    </button>
   );
 }
 
@@ -279,7 +249,6 @@ function InsightDetailDialog({
 
 export function WeeklyInsightsSection({ data }: WeeklyInsightsSectionProps) {
   const [activeTab, setActiveTab] = useState<InsightTab>('score');
-  const [league, setLeague] = useState<LeagueTab>('engine');
   const [detailOpen, setDetailOpen] = useState(false);
 
   const chartData = useMemo(() => chartRows(data.days), [data.days]);
@@ -332,10 +301,9 @@ export function WeeklyInsightsSection({ data }: WeeklyInsightsSectionProps) {
   );
 
   const config = cards.find((c) => c.tab === activeTab) ?? cards[0];
-  const isEngine = league === 'engine';
 
-  const hasChartData = chartData.some((row) =>
-    isEngine ? Number(row[config.engineKey]) > 0 : Number(row[config.runKey]) > 0,
+  const hasChartData = chartData.some(
+    (row) => Number(row[config.engineKey]) > 0 || Number(row[config.runKey]) > 0,
   );
 
   return (
@@ -365,25 +333,18 @@ export function WeeklyInsightsSection({ data }: WeeklyInsightsSectionProps) {
         onClick={() => setDetailOpen(true)}
         className="w-full rounded-xl border border-border/70 bg-[hsla(0,0%,10%,1)] p-4 text-left transition-colors hover:border-border focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-neon-lime/40"
       >
-        <div className="flex items-start justify-between gap-3">
-          <div className="min-w-0">
-            <p className="type-heading">{config.cardTitle}</p>
-            <p className="mt-0.5 font-mono text-xs text-muted-foreground">{config.subtitle}</p>
-          </div>
-          <LeagueBadge
-            league={league}
-            onToggle={() => setLeague((current) => (current === 'engine' ? 'run' : 'engine'))}
-          />
+        <div className="min-w-0">
+          <p className="type-heading">{config.cardTitle}</p>
+          <p className="mt-0.5 font-mono text-xs text-muted-foreground">{config.subtitle}</p>
         </div>
 
         {hasChartData ? (
           <>
             <div className="mt-3 -mx-1">
               <WeeklyStackedBarChart
-                key={`${activeTab}-${league}`}
+                key={activeTab}
                 data={chartData}
                 stack={{ engineKey: config.engineKey as string, runKey: config.runKey as string }}
-                singleLeague={league}
                 height={140}
                 valueSuffix={config.valueSuffix}
                 showTooltip={false}
@@ -399,11 +360,12 @@ export function WeeklyInsightsSection({ data }: WeeklyInsightsSectionProps) {
             </div>
             <div className="mt-2 flex items-center gap-3 text-[10px] text-muted-foreground">
               <span className="inline-flex items-center gap-1">
-                <span
-                  className="h-2 w-2 rounded-sm"
-                  style={{ background: isEngine ? ENGINE_CHART_COLOR : RUN_CHART_COLOR }}
-                />
-                {isEngine ? 'Engine' : 'Run'}
+                <span className="h-2 w-2 rounded-sm" style={{ background: ENGINE_CHART_COLOR }} />
+                Engine
+              </span>
+              <span className="inline-flex items-center gap-1">
+                <span className="h-2 w-2 rounded-sm" style={{ background: RUN_CHART_COLOR }} />
+                Run
               </span>
             </div>
           </>

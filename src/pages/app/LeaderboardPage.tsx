@@ -510,7 +510,6 @@ export default function LeaderboardPage() {
           <Zap className="h-4 w-4 shrink-0 text-neon-lime" aria-hidden />
           <p className="text-sm font-medium leading-snug text-neon-lime">
             <span className="font-semibold">{seasonLabel} is LIVE</span>
-            <span className="text-neon-lime/85"> · Rankings update weekly</span>
           </p>
         </div>
 
