@@ -95,9 +95,19 @@ function MomentumRow({
         </div>
       </div>
 
-      <div className="flex justify-end">
-        <div className="text-right">
-          <p className="type-stat text-foreground">
+      <div
+        className={cn(
+          'flex items-end gap-3',
+          resolvedDivision === 'Open' ? 'justify-between' : 'justify-end',
+        )}
+      >
+        {resolvedDivision === 'Open' ? (
+          <p className="text-[10px] font-medium leading-snug text-foreground">
+            No relegation in open division
+          </p>
+        ) : null}
+        <div className="shrink-0 text-right">
+          <p className="font-display text-2xl font-bold leading-none tabular-nums text-foreground">
             {placesToPromotion != null ? placesToPromotion : '—'}
           </p>
           <p className="mt-0.5 text-[10px] font-medium uppercase tracking-wider text-foreground">

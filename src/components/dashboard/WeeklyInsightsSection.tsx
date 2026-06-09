@@ -335,7 +335,7 @@ export function WeeklyInsightsSection({ data }: WeeklyInsightsSectionProps) {
       >
         <div className="min-w-0">
           <p className="type-heading">{config.cardTitle}</p>
-          <p className="mt-0.5 font-mono text-xs text-muted-foreground">{config.subtitle}</p>
+          <p className="mt-0.5 type-caption">{config.subtitle}</p>
         </div>
 
         {hasChartData ? (

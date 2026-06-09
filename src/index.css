@@ -120,7 +120,8 @@
     overflow: hidden;
   }
 
-  /* Anton: logo, page titles, ranks, scores only */
+  /* Anton (.font-display): logo, page titles, ranks, hero score/place numbers only.
+     Everything else uses Inter via font-sans and type-* utilities. */
   .font-display {
     font-family: 'Anton', sans-serif;
     letter-spacing: 0.02em;
@@ -260,7 +261,7 @@
 
   /** Rank column (#1 uses .text-neon-lime modifier) */
   .type-rank {
-    @apply font-sans text-2xl font-bold tabular-nums leading-none text-muted-foreground;
+    @apply font-display text-2xl font-bold tabular-nums leading-none text-muted-foreground;
   }
 
   /** @deprecated use .type-stat */
@@ -270,7 +271,7 @@
 
   /** @deprecated use .type-rank */
   .type-display-rank {
-    @apply font-sans text-2xl font-bold tabular-nums leading-none text-muted-foreground;
+    @apply font-display text-2xl font-bold tabular-nums leading-none text-muted-foreground;
   }
   
   .rank-gold {

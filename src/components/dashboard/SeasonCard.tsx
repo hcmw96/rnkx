@@ -71,7 +71,7 @@ function LeagueSeasonRow({ league, division, points, rank }: LeagueSeasonRowProp
     >
       <div
         className={cn(
-          'flex h-9 w-9 shrink-0 items-center justify-center rounded-md border bg-[hsla(0,0%,8%,1)] font-display text-base font-bold',
+          'flex h-9 w-9 shrink-0 items-center justify-center rounded-md border bg-[hsla(0,0%,8%,1)] font-sans text-base font-bold',
           isEngine ? 'border-neon-lime/50 text-neon-lime' : 'border-secondary/50 text-secondary',
         )}
         aria-hidden
