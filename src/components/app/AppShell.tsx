@@ -1,4 +1,5 @@
 import { ReactNode } from 'react';
+import RNKXLogo from '@/components/RNKXLogo';
 import { AppHeaderActions } from './AppHeaderActions';
 import { BottomNav } from './BottomNav';
 
@@ -17,8 +18,8 @@ export function AppShell({ children, headerActions = <AppHeaderActions /> }: App
       <header className="app-header border-b border-border bg-background">
         <div className="relative grid h-14 grid-cols-[1fr_auto_1fr] items-center px-3 sm:px-4">
           <div className="min-w-0" aria-hidden />
-          <h1 className="justify-self-center font-display text-title tracking-wide text-neon-lime">
-            RNKX
+          <h1 className="m-0 justify-self-center">
+            <RNKXLogo size="header" />
           </h1>
           <div className="flex min-w-0 justify-end gap-1 sm:gap-2">{headerActions ?? null}</div>
         </div>

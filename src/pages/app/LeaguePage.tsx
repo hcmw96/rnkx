@@ -200,7 +200,13 @@ export default function LeaguePage() {
   );
   const friendIds = useMemo(() => new Set(rankedRows.map((r) => r.athleteId)), [rankedRows]);
   const leagueImageUrl = useMemo(
-    () => (league ? clubImageDisplayUrl(league.image_url, league.id) : null),
+    () =>
+      league
+        ? clubImageDisplayUrl(league.image_url, {
+            cacheKey: league.id,
+            leagueType: league.league_type,
+          })
+        : null,
     [league],
   );
 

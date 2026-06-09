@@ -4,6 +4,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { formatDistanceToNow } from 'date-fns';
 import { activitySessionScore } from '@/lib/activitySessionScore';
 import { formatScorePts } from '@/lib/formatScore';
+import { athleteAvatarDisplayUrl } from '@/lib/leagueAvatars';
 
 interface FeedActivity {
   id: string;
@@ -95,11 +96,13 @@ export function LeagueActivityFeed({ memberIds, leagueType, seasonId }: LeagueAc
   return (
     <div className="space-y-2">
       <h2 className="type-section-label px-1">Recent Activity</h2>
-      {activities.map((a) => (
+      {activities.map((a) => {
+        const avatarSrc = athleteAvatarDisplayUrl(a.avatar_url, leagueType);
+        return (
         <div key={a.id} className="flex items-center gap-3 rounded-lg border border-border bg-card p-3">
           <div className="flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-full bg-muted">
-            {a.avatar_url ? (
-              <img src={a.avatar_url} alt="" className="h-full w-full object-cover" />
+            {avatarSrc ? (
+              <img src={avatarSrc} alt="" className="h-full w-full object-cover" />
             ) : (
               <span className="text-xs font-medium text-muted-foreground">{a.username.charAt(0).toUpperCase()}</span>
             )}
@@ -114,7 +117,8 @@ export function LeagueActivityFeed({ memberIds, leagueType, seasonId }: LeagueAc
             {formatDistanceToNow(new Date(`${a.activityDate}T12:00:00`), { addSuffix: true })}
           </div>
         </div>
-      ))}
+      );
+      })}
     </div>
   );
 }

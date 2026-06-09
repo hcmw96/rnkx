@@ -1,13 +1,15 @@
 import { supabase } from '@/services/supabase';
 
-const UPLOAD_TIMEOUT_MS = 25_000;
+export {
+  clubImageDisplayUrl,
+  RUN_LEAGUE_AVATAR_FALLBACK,
+  ENGINE_LEAGUE_AVATAR_FALLBACK,
+  athleteAvatarDisplayUrl,
+  leagueFromSelectedLeagues,
+} from '@/lib/leagueAvatars';
+export type { LeagueKind } from '@/lib/leagueAvatars';
 
-export function clubImageDisplayUrl(imageUrl: string | null | undefined, cacheKey?: string): string | null {
-  if (!imageUrl) return null;
-  const key = cacheKey ?? imageUrl;
-  const sep = imageUrl.includes('?') ? '&' : '?';
-  return `${imageUrl}${sep}v=${encodeURIComponent(key)}`;
-}
+const UPLOAD_TIMEOUT_MS = 25_000;
 
 export async function uploadClubImageFile(
   athleteId: string,

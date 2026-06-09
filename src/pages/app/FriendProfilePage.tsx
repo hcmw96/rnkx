@@ -7,6 +7,7 @@ import { ProfileOverviewCard } from '@/components/profile/ProfileSections';
 import { Button } from '@/components/ui/button';
 import { getCountryByName } from '@/data/countries';
 import { fetchProfileSeasonStats, fetchSeasonStanding } from '@/lib/profileStats';
+import { leagueFromSelectedLeagues } from '@/lib/leagueAvatars';
 import { supabase } from '@/services/supabase';
 
 interface FriendAthlete {
@@ -18,6 +19,7 @@ interface FriendAthlete {
   total_score: number | null;
   created_at: string | null;
   is_premium: boolean | null;
+  selected_leagues: string[] | null;
 }
 
 function twoLetterAvatar(username: string | null, displayName: string | null): string {
@@ -110,7 +112,7 @@ export default function FriendProfilePage() {
     const [{ data: athlete, error: athleteErr }, season, standing] = await Promise.all([
       supabase
         .from('athletes')
-        .select('id, username, display_name, avatar_url, country, total_score, created_at, is_premium')
+        .select('id, username, display_name, avatar_url, country, total_score, created_at, is_premium, selected_leagues')
         .eq('id', friendId)
         .maybeSingle(),
       fetchProfileSeasonStats(friendId),
@@ -142,6 +144,7 @@ export default function FriendProfilePage() {
   const countryName = countryMeta?.name ?? friend?.country ?? null;
   const countryFlag = countryMeta?.flag ?? '';
   const initials = friend ? twoLetterAvatar(friend.username, friend.display_name) : '??';
+  const avatarLeague = leagueFromSelectedLeagues(friend?.selected_leagues);
   const combinedScore = engineScore + runScore;
 
   return (
@@ -184,6 +187,7 @@ export default function FriendProfilePage() {
             memberSince={memberSinceLabel(friend.created_at)}
             avatarUrl={friend.avatar_url}
             initials={initials}
+            avatarLeague={avatarLeague}
             seasonDisplay={seasonDisplay}
             combinedScore={combinedScore}
             engineScore={engineScore}

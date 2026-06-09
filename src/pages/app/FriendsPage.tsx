@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { invokePushNotify } from '@/lib/pushNotify';
 import { formatScore } from '@/lib/formatScore';
+import { athleteAvatarDisplayUrl, leagueFromSelectedLeagues } from '@/lib/leagueAvatars';
 import { supabase } from '@/services/supabase';
 import { toast } from 'sonner';
 
@@ -15,6 +16,7 @@ type AthleteLite = {
   username: string | null;
   display_name: string | null;
   avatar_url: string | null;
+  selected_leagues: string[] | null;
 };
 
 type FriendshipRow = {
@@ -83,7 +85,7 @@ export default function FriendsPage({ embedded = false }: FriendsPageProps) {
       if (ids.length) {
         const { data: ath } = await supabase
           .from('athletes')
-          .select('id, username, display_name, avatar_url')
+          .select('id, username, display_name, avatar_url, selected_leagues')
           .in('id', ids);
         requesterMap = new Map((ath ?? []).map((a) => [a.id as string, a as AthleteLite]));
       }
@@ -95,6 +97,7 @@ export default function FriendsPage({ embedded = false }: FriendsPageProps) {
             username: null,
             display_name: null,
             avatar_url: null,
+            selected_leagues: null,
           },
         })),
       );
@@ -114,7 +117,7 @@ export default function FriendsPage({ embedded = false }: FriendsPageProps) {
       if (ids.length) {
         const { data: ath } = await supabase
           .from('athletes')
-          .select('id, username, display_name, avatar_url')
+          .select('id, username, display_name, avatar_url, selected_leagues')
           .in('id', ids);
         recipientMap = new Map((ath ?? []).map((a) => [a.id as string, a as AthleteLite]));
       }
@@ -126,6 +129,7 @@ export default function FriendsPage({ embedded = false }: FriendsPageProps) {
             username: null,
             display_name: null,
             avatar_url: null,
+            selected_leagues: null,
           },
         })),
       );
@@ -147,7 +151,7 @@ export default function FriendsPage({ embedded = false }: FriendsPageProps) {
         setFriends([]);
       } else {
         const [{ data: aths }, { data: lb }] = await Promise.all([
-          supabase.from('athletes').select('id, username, display_name, avatar_url').in('id', unique),
+          supabase.from('athletes').select('id, username, display_name, avatar_url, selected_leagues').in('id', unique),
           supabase.from('leaderboard').select('id, rank, total_score').in('id', unique),
         ]);
         const lbMap = new Map((lb ?? []).map((l) => [l.id as string, l]));
@@ -182,7 +186,7 @@ export default function FriendsPage({ embedded = false }: FriendsPageProps) {
         const q = search.trim();
         const { data, error } = await supabase
           .from('athletes')
-          .select('id, username, display_name, avatar_url')
+          .select('id, username, display_name, avatar_url, selected_leagues')
           .or(`username.ilike.%${q}%,display_name.ilike.%${q}%`)
           .neq('id', athleteId)
           .limit(15);
@@ -376,6 +380,7 @@ export default function FriendsPage({ embedded = false }: FriendsPageProps) {
                 {friends.map((f) => {
                   const name = f.display_name?.trim() || f.username || 'Athlete';
                   const initial = name.charAt(0).toUpperCase() || '?';
+                  const avatarSrc = athleteAvatarDisplayUrl(f.avatar_url, leagueFromSelectedLeagues(f.selected_leagues));
                   return (
                     <li key={f.id}>
                       <div className="flex items-center gap-2 rounded-lg border border-border bg-card p-2.5">
@@ -384,8 +389,8 @@ export default function FriendsPage({ embedded = false }: FriendsPageProps) {
                           className="flex min-w-0 flex-1 items-center gap-3 rounded-md transition-colors hover:bg-muted/30"
                         >
                           <div className="relative h-10 w-10 shrink-0 overflow-hidden rounded-full border border-border/80 bg-muted">
-                            {f.avatar_url ? (
-                              <img src={f.avatar_url} alt="" className="h-full w-full object-cover" />
+                            {avatarSrc ? (
+                              <img src={avatarSrc} alt="" className="h-full w-full object-cover" />
                             ) : (
                               <span className="flex h-full w-full items-center justify-center font-sans text-sm font-semibold text-muted-foreground">
                                 {initial}

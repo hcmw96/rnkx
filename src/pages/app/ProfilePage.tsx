@@ -12,10 +12,11 @@ import {
   type ProfileCareerStats,
   type ProfileSeasonStats,
 } from '@/lib/profileStats';
+import { leagueFromSelectedLeagues } from '@/lib/leagueAvatars';
 import { supabase } from '@/services/supabase';
 
 const ATHLETE_COLUMNS =
-  'id, username, display_name, country, avatar_url, total_score, created_at, is_premium';
+  'id, username, display_name, country, avatar_url, total_score, created_at, is_premium, selected_leagues';
 
 interface AthleteRow {
   id: string;
@@ -26,6 +27,7 @@ interface AthleteRow {
   total_score: number | string | null;
   created_at: string | null;
   is_premium: boolean | null;
+  selected_leagues: string[] | null;
 }
 
 function twoLetterAvatar(username: string | null, displayName: string | null): string {
@@ -128,6 +130,9 @@ export default function ProfilePage() {
     }
 
     setUploading(true);
+
+    await supabase.rpc('ensure_athlete_user_id', { p_athlete_id: athlete.id });
+
     const path = `${athlete.id}/avatar.jpg`;
 
     const { error: uploadError } = await supabase.storage.from('avatars').upload(path, file, {
@@ -159,6 +164,7 @@ export default function ProfilePage() {
   };
 
   const initials = athlete ? twoLetterAvatar(athlete.username, athlete.display_name) : '??';
+  const avatarLeague = leagueFromSelectedLeagues(athlete?.selected_leagues);
   const countryMeta = athlete?.country ? getCountryByName(athlete.country) : null;
   const countryName = countryMeta?.name ?? athlete?.country ?? null;
   const countryFlag = countryMeta?.flag ?? '';
@@ -193,6 +199,7 @@ export default function ProfilePage() {
               memberSince={memberSinceLabel(athlete.created_at)}
               avatarUrl={athlete.avatar_url}
               initials={initials}
+              avatarLeague={avatarLeague}
               uploading={uploading}
               onAvatarClick={openAvatarPicker}
               seasonDisplay={seasonStats?.seasonDisplay ?? 'Season 1 · Spring 2026'}

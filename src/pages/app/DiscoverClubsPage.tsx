@@ -141,7 +141,12 @@ export default function DiscoverClubsPage() {
         </p>
       ) : (
         <ul className="space-y-2">
-          {clubs.map((club) => (
+          {clubs.map((club) => {
+            const clubImageSrc = clubImageDisplayUrl(club.image_url, {
+              cacheKey: club.id,
+              leagueType: club.league_type,
+            });
+            return (
             <li key={club.id}>
               <div
                 className={cn(
@@ -155,9 +160,9 @@ export default function DiscoverClubsPage() {
                   className="flex min-w-0 flex-1 items-center gap-2 text-left"
                 >
                   <div className="relative h-9 w-9 shrink-0 overflow-hidden rounded-full border border-border/80 bg-[hsla(0,0%,14%,1)]">
-                    {clubImageDisplayUrl(club.image_url, club.id) ? (
+                    {clubImageSrc ? (
                       <img
-                        src={clubImageDisplayUrl(club.image_url, club.id)!}
+                        src={clubImageSrc}
                         alt={club.name}
                         className="h-full w-full object-cover"
                       />
@@ -187,7 +192,8 @@ export default function DiscoverClubsPage() {
                 </button>
               </div>
             </li>
-          ))}
+          );
+          })}
         </ul>
       )}
     </div>

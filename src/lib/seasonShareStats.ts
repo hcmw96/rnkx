@@ -1,4 +1,5 @@
 import { activitySessionScore } from '@/lib/activitySessionScore';
+import { athleteAvatarDisplayUrl, leagueFromSelectedLeagues } from '@/lib/leagueAvatars';
 import { supabase } from '@/services/supabase';
 
 export type SeasonShareStats = {
@@ -177,7 +178,10 @@ export async function fetchSeasonShareStats(athleteId: string): Promise<SeasonSh
     seasonName: shortSeason,
     username: athlete.username ?? 'athlete',
     displayName: athlete.display_name ?? athlete.username ?? 'Athlete',
-    avatarUrl: athlete.avatar_url,
+    avatarUrl: athleteAvatarDisplayUrl(
+      athlete.avatar_url,
+      leagueFromSelectedLeagues(athlete.selected_leagues as string[] | null),
+    ),
     totalPoints: Math.round(totalPoints),
     bestWorkoutScore: Math.round(bestWorkoutScore),
     weeklyPoints: Math.round(weeklyPoints),

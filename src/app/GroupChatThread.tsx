@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { useParams, Link } from "react-router-dom";
 import { LeagueChevronLogo } from "@/components/leagues/LeagueChevronLogo";
 import { clubImageDisplayUrl } from "@/lib/clubImageUpload";
+import { athleteAvatarDisplayUrl } from "@/lib/leagueAvatars";
 import { fetchClubByConversationId, type ClubSummary } from "@/lib/clubContext";
 import { supabase } from "@/services/supabase";
 import { Button } from "@/components/ui/button";
@@ -168,7 +169,9 @@ export default function GroupChatThread() {
     }
   }
 
-  const clubImageUrl = club ? clubImageDisplayUrl(club.image_url, club.id) : null;
+  const clubImageUrl = club
+    ? clubImageDisplayUrl(club.image_url, { cacheKey: club.id, leagueType: club.league_type })
+    : null;
   const headerTitle = (
     <div>
       <h1 className="type-card-title leading-tight">{groupName}</h1>
@@ -205,13 +208,14 @@ export default function GroupChatThread() {
         {messages.map((msg) => {
           const isMine = msg.athlete_id === myAthleteId;
           const sender = members.get(msg.athlete_id);
+          const senderAvatarSrc = athleteAvatarDisplayUrl(sender?.avatar_url, club?.league_type);
           return (
             <div key={msg.id} className="group">
               {!isMine && (
                 <div className="flex items-center gap-1.5 ml-1 mb-0.5">
                   <div className="w-4 h-4 rounded-full bg-muted overflow-hidden">
-                    {sender?.avatar_url ? (
-                      <img src={sender.avatar_url} alt="" className="w-full h-full object-cover" />
+                    {senderAvatarSrc ? (
+                      <img src={senderAvatarSrc} alt="" className="w-full h-full object-cover" />
                     ) : (
                       <span className="text-caption flex items-center justify-center h-full text-muted-foreground">
                         {conversationMemberLabel(sender).charAt(0).toUpperCase()}

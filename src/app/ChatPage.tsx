@@ -150,8 +150,8 @@ export default function ChatPage() {
 
       const { club } = await fetchClubByConversationId(convo.id as string);
       const displayName = club?.name || convo.name?.trim() || "Group chat";
-      const avatar = club?.image_url
-        ? clubImageDisplayUrl(club.image_url, club.id)
+      const avatar = club
+        ? clubImageDisplayUrl(club.image_url, { cacheKey: club.id, leagueType: club.league_type })
         : null;
 
       const lastMessageAt = lastMsg?.created_at || new Date(0).toISOString();

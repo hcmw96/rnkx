@@ -48,7 +48,7 @@ export function PrivateLeagueCard({
 }: PrivateLeagueCardProps) {
   const chatHref = conversationId ? `/app/chat/group/${conversationId}` : `/app/leagues/${id}`;
   const isRun = leagueType === 'run';
-  const displayImageUrl = clubImageDisplayUrl(imageUrl, id);
+  const displayImageUrl = clubImageDisplayUrl(imageUrl, { cacheKey: id, leagueType });
 
   return (
     <div

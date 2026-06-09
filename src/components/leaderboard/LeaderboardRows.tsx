@@ -1,7 +1,8 @@
 import { Link } from 'react-router-dom';
 import { getCountryByName } from '@/data/countries';
-import { cn } from '@/lib/utils';
 import { formatScore } from '@/lib/formatScore';
+import { athleteAvatarDisplayUrl } from '@/lib/leagueAvatars';
+import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 
 export type LeaderboardRowData = {
@@ -61,6 +62,8 @@ export function LeaderboardRows({
         const canViewProfile = friendIds.has(item.id) && !isSelf;
         const isFirst = item.rank === 1;
 
+        const avatarSrc = athleteAvatarDisplayUrl(item.avatarUrl, league);
+
         const rowInner = (
           <>
             <span
@@ -73,8 +76,8 @@ export function LeaderboardRows({
               {item.rank}
             </span>
             <div className="relative h-9 w-9 shrink-0 overflow-hidden rounded-full border border-border/80 bg-[hsla(0,0%,14%,1)]">
-              {item.avatarUrl ? (
-                <img src={item.avatarUrl} alt="" className="h-full w-full object-cover" />
+              {avatarSrc ? (
+                <img src={avatarSrc} alt="" className="h-full w-full object-cover" />
               ) : (
                 <span className="flex h-full w-full items-center justify-center text-xs font-semibold text-muted-foreground">
                   {initial}

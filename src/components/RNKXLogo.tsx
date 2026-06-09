@@ -1,26 +1,24 @@
-import rnkxLogo from '@/assets/rnkx-logo.svg';
+import rnkxWordmark from '@/assets/rnkx-wordmark-yellow.png';
+import { cn } from '@/lib/utils';
 
 interface RNKXLogoProps {
   className?: string;
-  size?: 'sm' | 'md' | 'lg';
+  size?: 'header' | 'sm' | 'md' | 'lg';
 }
 
-const RNKXLogo = ({ className = '', size = 'lg' }: RNKXLogoProps) => {
-  const sizes = {
-    sm: 'h-10 sm:h-12',
-    md: 'h-14 sm:h-16',
-    lg: 'h-16 sm:h-20 md:h-24',
-  };
+const sizeClasses = {
+  header: 'h-5 w-auto sm:h-6',
+  sm: 'h-8 w-auto sm:h-9',
+  md: 'h-12 w-auto sm:h-14',
+  lg: 'h-16 w-auto sm:h-20',
+} as const;
 
+export default function RNKXLogo({ className = '', size = 'lg' }: RNKXLogoProps) {
   return (
-    <div className={`flex items-center justify-center ${className}`}>
-      <img 
-        src={rnkxLogo} 
-        alt="RNKX" 
-        className={`${sizes[size]} w-auto`}
-      />
-    </div>
+    <img
+      src={rnkxWordmark}
+      alt="RNKX"
+      className={cn(sizeClasses[size], className)}
+    />
   );
-};
-
-export default RNKXLogo;
+}
