@@ -131,7 +131,7 @@ function InsightDetailDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="fixed inset-0 left-0 top-0 z-50 flex h-[100dvh] max-h-[100dvh] w-full max-w-none translate-x-0 translate-y-0 flex-col gap-0 overflow-y-auto rounded-none border-0 p-0 sm:rounded-none pt-[var(--safe-area-top)] pb-[var(--safe-area-bottom)] pl-[var(--safe-area-left)] pr-[var(--safe-area-right)] [&>button]:right-[calc(1rem+var(--safe-area-right))] [&>button]:top-[calc(1rem+var(--safe-area-top))]">
         <DialogHeader className="shrink-0 border-b border-border px-4 py-4 pr-12 text-left">
-          <DialogTitle className="text-xl">{config.cardTitle}</DialogTitle>
+          <DialogTitle className="type-section-label text-foreground">{config.cardTitle}</DialogTitle>
           <p className="text-sm text-muted-foreground">{config.subtitle}</p>
         </DialogHeader>
 
@@ -334,7 +334,7 @@ export function WeeklyInsightsSection({ data }: WeeklyInsightsSectionProps) {
         className="w-full rounded-xl border border-border/70 bg-[hsla(0,0%,10%,1)] p-4 text-left transition-colors hover:border-border focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-neon-lime/40"
       >
         <div className="min-w-0">
-          <p className="type-heading">{config.cardTitle}</p>
+          <p className="type-section-label text-foreground">{config.cardTitle}</p>
           <p className="mt-0.5 type-caption">{config.subtitle}</p>
         </div>
 

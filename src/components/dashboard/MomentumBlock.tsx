@@ -69,8 +69,8 @@ function MomentumRow({
 
       <div className="space-y-0.5">
         <div className="relative">
-          <div className={cn('h-2 overflow-hidden rounded-full', gradientClass)} />
-          <div className="pointer-events-none absolute inset-x-0 top-0 h-2" aria-hidden>
+          <div className={cn('h-1.5 overflow-hidden rounded-full', gradientClass)} />
+          <div className="pointer-events-none absolute inset-x-0 top-0 h-1.5" aria-hidden>
             <div
               className={cn(
                 'absolute top-0 h-full w-px -translate-x-1/2',
@@ -126,17 +126,16 @@ type MomentumSectionProps = {
 
 export function MomentumSection({ engine, run }: MomentumSectionProps) {
   return (
-    <div className="space-y-2">
-      <div>
+    <div className="overflow-hidden rounded-xl border border-border/70 bg-card shadow-sm">
+      <div className="px-3 pb-2 pt-3">
         <h2 className="type-section-label text-foreground">Momentum</h2>
-        <p className="text-xs text-foreground">Where you sit between promotion and relegation</p>
+        <p className="mt-0.5 text-xs text-foreground">Where you sit between promotion and relegation</p>
       </div>
 
-      <div className="overflow-hidden rounded-xl border border-border/70 bg-card shadow-sm">
-        <MomentumRow category="engine" {...engine} />
-        <div className="border-t border-border/50" role="separator" />
-        <MomentumRow category="run" {...run} />
-      </div>
+      <div className="border-t border-border/50" role="separator" />
+      <MomentumRow category="engine" {...engine} />
+      <div className="border-t border-border/50" role="separator" />
+      <MomentumRow category="run" {...run} />
     </div>
   );
 }
