@@ -45,6 +45,14 @@ function seasonShortLabel(name: string | null | undefined): string {
   return sep > 0 ? trimmed.slice(0, sep).trim() : trimmed;
 }
 
+function seasonSubtitle(name: string | null | undefined): string | null {
+  if (!name?.trim()) return null;
+  const sep = name.trim().indexOf(' - ');
+  if (sep < 0) return null;
+  const subtitle = name.trim().slice(sep + 3).trim();
+  return subtitle || null;
+}
+
 interface LeaderboardViewRow {
   id: string;
   display_name: string;
@@ -377,6 +385,7 @@ export default function LeaderboardPage() {
   );
 
   const seasonLabel = seasonShortLabel(selectedSeason?.name);
+  const seasonLiveSubtitle = seasonSubtitle(selectedSeason?.name);
 
   const countryOptions = useMemo(() => {
     const names = new Set<string>();
@@ -509,7 +518,10 @@ export default function LeaderboardPage() {
         <div className="flex items-center justify-center gap-2 rounded-xl border border-neon-lime/35 bg-[hsla(72,35%,12%,0.45)] px-3.5 py-2.5 text-center">
           <Zap className="h-4 w-4 shrink-0 text-neon-lime" aria-hidden />
           <p className="text-sm font-medium leading-snug text-neon-lime">
-            <span className="font-semibold">{seasonLabel} is LIVE</span>
+            <span className="font-semibold">
+              {seasonLabel} is LIVE
+              {seasonLiveSubtitle ? ` - ${seasonLiveSubtitle}` : ''}
+            </span>
           </p>
         </div>
 

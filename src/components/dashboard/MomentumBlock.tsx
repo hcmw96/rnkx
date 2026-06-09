@@ -55,7 +55,7 @@ function MomentumRow({
   return (
     <div className="space-y-2 px-3 py-2.5">
       <div className="flex items-center justify-between gap-3">
-        <p className="min-w-0 truncate text-sm text-muted-foreground">{divisionLabel}</p>
+        <p className="min-w-0 truncate text-sm text-foreground">{divisionLabel}</p>
         <span
           className={cn(
             'shrink-0 rounded-full border px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide',
@@ -100,7 +100,7 @@ function MomentumRow({
           <p className="type-stat text-foreground">
             {placesToPromotion != null ? placesToPromotion : '—'}
           </p>
-          <p className="mt-0.5 text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
+          <p className="mt-0.5 text-[10px] font-medium uppercase tracking-wider text-foreground">
             From promotion
           </p>
         </div>
@@ -118,8 +118,8 @@ export function MomentumSection({ engine, run }: MomentumSectionProps) {
   return (
     <div className="space-y-2">
       <div>
-        <h2 className="type-section-label">Momentum</h2>
-        <p className="text-xs text-muted-foreground">Where you sit between promotion and relegation</p>
+        <h2 className="type-section-label text-foreground">Momentum</h2>
+        <p className="text-xs text-foreground">Where you sit between promotion and relegation</p>
       </div>
 
       <div className="overflow-hidden rounded-xl border border-border/70 bg-card shadow-sm">
