@@ -129,7 +129,7 @@ export function MomentumSection({ engine, run }: MomentumSectionProps) {
     <div className="overflow-hidden rounded-xl border border-border/70 bg-card shadow-sm">
       <div className="px-3 pb-2 pt-3">
         <h2 className="type-section-label text-foreground">Momentum</h2>
-        <p className="mt-0.5 text-xs text-foreground">Where you sit between promotion and relegation</p>
+        <p className="mt-0.5 text-xs text-muted-foreground">Where you sit between promotion and relegation</p>
       </div>
 
       <div className="border-t border-border/50" role="separator" />

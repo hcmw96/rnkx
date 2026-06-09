@@ -89,7 +89,7 @@ function LeagueSeasonRow({ league, division, points, rank }: LeagueSeasonRowProp
       <div className="shrink-0 text-right">
         <p
           className={cn(
-            'font-sans text-3xl font-bold leading-none tabular-nums',
+            'type-rank',
             isEngine ? 'text-neon-lime' : 'text-secondary',
           )}
         >
@@ -143,8 +143,8 @@ export function SeasonCard({
 
   return (
     <Card className="card-elevated space-y-3 p-4">
-      <div className="flex items-start justify-between gap-3">
-        <p className="type-section-label leading-snug">
+      <div className="flex items-center justify-between gap-3">
+        <p className="type-section-label">
           {meta.subtitle ? `${meta.label} · ${meta.subtitle}` : meta.label}
         </p>
         <span className="inline-flex shrink-0 items-center gap-1.5 rounded-full border border-neon-lime/40 bg-neon-lime/10 px-2 py-0.5">
