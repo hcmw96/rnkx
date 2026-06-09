@@ -7,7 +7,7 @@ interface RNKXLogoProps {
 }
 
 const sizeClasses = {
-  header: 'h-5 w-auto sm:h-6',
+  header: 'h-6 w-auto sm:h-7',
   sm: 'h-8 w-auto sm:h-9',
   md: 'h-12 w-auto sm:h-14',
   lg: 'h-16 w-auto sm:h-20',
