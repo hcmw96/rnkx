@@ -120,8 +120,7 @@
     overflow: hidden;
   }
 
-  /* Anton (.font-display): logo, page titles, ranks, hero score/place numbers only.
-     Everything else uses Inter via font-sans and type-* utilities. */
+  /* Anton (.font-display): RNKX logo and page titles only. All numbers use Inter. */
   .font-display {
     font-family: 'Anton', sans-serif;
     letter-spacing: 0.02em;
@@ -261,7 +260,7 @@
 
   /** Rank column (#1 uses .text-neon-lime modifier) */
   .type-rank {
-    @apply font-display text-2xl font-bold tabular-nums leading-none text-muted-foreground;
+    @apply font-sans text-2xl font-bold tabular-nums leading-none text-muted-foreground;
   }
 
   /** @deprecated use .type-stat */
@@ -271,7 +270,7 @@
 
   /** @deprecated use .type-rank */
   .type-display-rank {
-    @apply font-display text-2xl font-bold tabular-nums leading-none text-muted-foreground;
+    @apply font-sans text-2xl font-bold tabular-nums leading-none text-muted-foreground;
   }
   
   .rank-gold {

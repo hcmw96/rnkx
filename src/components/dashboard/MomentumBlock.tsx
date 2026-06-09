@@ -102,12 +102,12 @@ function MomentumRow({
         )}
       >
         {resolvedDivision === 'Open' ? (
-          <p className="text-[10px] font-medium leading-snug text-foreground">
-            No relegation in open division
+          <p className="text-[10px] font-medium uppercase tracking-wider text-foreground">
+            No relegation
           </p>
         ) : null}
         <div className="shrink-0 text-right">
-          <p className="font-display text-2xl font-bold leading-none tabular-nums text-foreground">
+          <p className="type-stat text-foreground">
             {placesToPromotion != null ? placesToPromotion : '—'}
           </p>
           <p className="mt-0.5 text-[10px] font-medium uppercase tracking-wider text-foreground">

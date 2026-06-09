@@ -35,8 +35,8 @@ const Countdown = ({ targetDate }: CountdownProps) => {
   const TimeUnit = ({ value, label }: { value: number; label: string }) => (
     <div className="flex flex-col items-center">
       <div className="relative">
-        <div className="text-3xl sm:text-4xl md:text-5xl font-black text-cyan-400 tabular-nums tracking-tight"
-             style={{ fontFamily: 'Anton, sans-serif', textShadow: '0 0 30px hsl(188 100% 50% / 0.5)' }}>
+        <div className="text-3xl sm:text-4xl md:text-5xl font-black text-cyan-400 tabular-nums tracking-tight font-sans"
+             style={{ textShadow: '0 0 30px hsl(188 100% 50% / 0.5)' }}>
           {String(value).padStart(2, '0')}
         </div>
       </div>

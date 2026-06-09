@@ -122,17 +122,17 @@ export default function AthleteAuth() {
                 <p className="font-sans text-xs font-semibold uppercase tracking-wider text-white/50 sm:text-xs">
                   Run league
                 </p>
-                <p className="font-display text-sm text-neon-lime sm:text-base">Season 1</p>
+                <p className="font-sans text-sm font-semibold text-neon-lime sm:text-base">Season 1</p>
                 <div className="mt-3 space-y-2 border-t border-white/10 pt-3">
                   {MOCK_LEADERBOARD.map((row) => (
                     <div
                       key={row.rank}
                       className="grid grid-cols-[1.25rem_1.25rem_1fr_auto] items-center gap-2 text-xs sm:text-sm"
                     >
-                      <span className="font-display tabular-nums text-white/60">{row.rank}</span>
+                      <span className="font-sans tabular-nums text-white/60">{row.rank}</span>
                       <span className="text-base leading-none">{row.flag}</span>
                       <span className="truncate font-sans text-white/90">{row.name}</span>
-                      <span className="shrink-0 font-display tabular-nums text-electric-cyan">{row.score}</span>
+                      <span className="shrink-0 font-sans tabular-nums text-electric-cyan">{row.score}</span>
                     </div>
                   ))}
                 </div>

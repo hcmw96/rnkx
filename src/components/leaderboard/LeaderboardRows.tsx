@@ -94,7 +94,7 @@ export function LeaderboardRows({
                   scoreClass,
                 )}
               >
-                <span className="font-display text-lg font-bold tabular-nums">{pointsDisplay}</span>
+                <span className="text-lg font-bold tabular-nums">{pointsDisplay}</span>
                 <span className="ml-1 text-xs font-medium text-muted-foreground">pts</span>
               </p>
             </div>

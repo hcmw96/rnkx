@@ -89,7 +89,7 @@ function LeagueSeasonRow({ league, division, points, rank }: LeagueSeasonRowProp
       <div className="shrink-0 text-right">
         <p
           className={cn(
-            'font-display text-3xl font-bold leading-none tabular-nums',
+            'font-sans text-3xl font-bold leading-none tabular-nums',
             isEngine ? 'text-neon-lime' : 'text-secondary',
           )}
         >

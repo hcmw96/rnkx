@@ -75,7 +75,7 @@ export function WorkoutShareCard({ payload, backgroundImageUrl }: WorkoutShareCa
           {payload.activityLabel}
         </p>
         <p
-          className="font-display"
+          className="font-sans font-bold tabular-nums"
           style={{
             margin: '24px 0 0',
             fontSize: 140,
@@ -99,7 +99,7 @@ export function WorkoutShareCard({ payload, backgroundImageUrl }: WorkoutShareCa
             <p style={{ margin: 0, fontSize: 26, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'rgba(244,244,245,0.6)' }}>
               {keyStatLabel}
             </p>
-            <p className="font-display" style={{ margin: '12px 0 0', fontSize: 52, color: '#f4f4f5' }}>
+            <p className="font-sans font-bold tabular-nums" style={{ margin: '12px 0 0', fontSize: 52, color: '#f4f4f5' }}>
               {keyStatValue}
             </p>
           </div>
@@ -107,14 +107,14 @@ export function WorkoutShareCard({ payload, backgroundImageUrl }: WorkoutShareCa
             <p style={{ margin: 0, fontSize: 26, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'rgba(244,244,245,0.6)' }}>
               Duration
             </p>
-            <p className="font-display" style={{ margin: '12px 0 0', fontSize: 52, color: '#f4f4f5' }}>
+            <p className="font-sans font-bold tabular-nums" style={{ margin: '12px 0 0', fontSize: 52, color: '#f4f4f5' }}>
               {formatDuration(payload.durationMin)}
             </p>
           </div>
         </div>
         <div style={{ marginTop: 'auto', textAlign: 'center', paddingTop: 80 }}>
           <p style={{ margin: 0, fontSize: 28, color: 'rgba(244, 244, 245, 0.65)' }}>Season rank</p>
-          <p className="font-display" style={{ margin: '12px 0 0', fontSize: 64, color: '#bef264' }}>
+          <p className="font-sans font-bold tabular-nums" style={{ margin: '12px 0 0', fontSize: 64, color: '#bef264' }}>
             {rankText}
           </p>
           <p style={{ margin: '8px 0 0', fontSize: 28, color: 'rgba(244, 244, 245, 0.55)' }}>{payload.leagueLabel}</p>

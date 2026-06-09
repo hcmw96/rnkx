@@ -33,7 +33,7 @@ function StatBlock({ label, value }: { label: string; value: string }) {
         {label}
       </p>
       <p
-        className="font-display"
+        className="font-sans font-bold tabular-nums"
         style={{
           margin: '16px 0 0',
           fontSize: 68,
@@ -138,7 +138,7 @@ export function SeasonOverviewCard({ stats, backgroundImageUrl }: SeasonOverview
           }}
         >
           <p
-            className="font-display"
+            className="font-sans font-semibold"
             style={{
               margin: 0,
               fontSize: 40,
@@ -151,7 +151,7 @@ export function SeasonOverviewCard({ stats, backgroundImageUrl }: SeasonOverview
             {stats.seasonName}
           </p>
           <p
-            className="font-display"
+            className="font-sans font-bold tabular-nums"
             style={{
               margin: '20px 0 0',
               fontSize: 88,
