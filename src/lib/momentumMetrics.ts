@@ -1,5 +1,8 @@
 import { divisionForRank, type Division } from '@/lib/division';
 
+/** Top fraction of a division treated as the promotion zone on the momentum bar. */
+export const PROMOTION_ZONE_PERCENT = 0.1;
+
 const DIVISION_MIN: Record<Division, number> = {
   Open: 1,
   Challenger: 251,
@@ -20,6 +23,12 @@ export type MomentumPlaces = {
   placesToRelegation: number | null;
 };
 
+function divisionSpan(division: Division): number | null {
+  const max = DIVISION_MAX[division];
+  if (!Number.isFinite(max)) return null;
+  return max - DIVISION_MIN[division];
+}
+
 /** Places and division derived from global rank bands (leaderboard position). */
 export function momentumPlacesFromRank(rank: number | null | undefined): MomentumPlaces {
   if (rank == null || !Number.isFinite(rank) || rank <= 0) {
@@ -37,21 +46,37 @@ export function momentumPlacesFromRank(rank: number | null | undefined): Momentu
   return { division, placesToPromotion, placesToRelegation };
 }
 
-/** Tick positions for relegation (left) and promotion (right) zone boundaries on the track. */
-export function momentumBoundaryTicks(
+/** Whether the athlete sits in the top PROMOTION_ZONE_PERCENT of their division. */
+export function isInPromotionZone(
+  division: Division,
   placesToPromotion: number | null | undefined,
-  placesToRelegation: number | null | undefined,
-): { relegationPct: number; promotionPct: number } {
-  const promotion = placesToPromotion ?? 0;
-  const relegation = placesToRelegation ?? 0;
-  const span = promotion + relegation;
+): boolean {
+  if (placesToPromotion == null) return false;
+  const span = divisionSpan(division);
+  if (span == null || span <= 0) return placesToPromotion === 0;
+  return placesToPromotion / span <= PROMOTION_ZONE_PERCENT;
+}
 
-  if (span > 0 && placesToPromotion != null && placesToRelegation != null) {
-    // Boundaries sit near the outer edges; only nudge inward when one zone is very tight.
-    const relegationPct = Math.max(8, Math.min(18, 8 + (relegation / span) * 10));
-    const promotionPct = Math.min(92, Math.max(82, 92 - (promotion / span) * 10));
-    return { relegationPct, promotionPct };
+/** Promotion boundary tick on the right edge of the momentum track. */
+export function momentumPromotionTickPct(): number {
+  return 92;
+}
+
+/** Marker position along a left→right progress-to-promotion strip. */
+export function momentumThumbPosition(
+  division: Division,
+  placesToPromotion: number | null | undefined,
+): number {
+  const promotionPct = momentumPromotionTickPct();
+  const trackStart = 4;
+
+  if (placesToPromotion == null) return (trackStart + promotionPct) / 2;
+
+  const span = divisionSpan(division);
+  if (span == null || span <= 0) {
+    return placesToPromotion === 0 ? promotionPct : trackStart;
   }
 
-  return { relegationPct: 10, promotionPct: 90 };
+  const progress = 1 - Math.min(placesToPromotion, span) / span;
+  return trackStart + progress * (promotionPct - trackStart);
 }

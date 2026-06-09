@@ -441,29 +441,19 @@ export default function Dashboard() {
   const momentumData = useMemo(() => {
     const enginePlaces = momentumPlacesFromRank(stats?.engine_rank ?? null);
     const runPlaces = momentumPlacesFromRank(stats?.run_rank ?? null);
-    const engineWeeklyChange = weeklyInsights
-      ? weeklyInsights.totals.engine_points - weeklyInsights.prevTotals.engine_points
-      : 0;
-    const runWeeklyChange = weeklyInsights
-      ? weeklyInsights.totals.run_points - weeklyInsights.prevTotals.run_points
-      : 0;
 
     return {
       engine: {
-        weeklyChange: engineWeeklyChange,
         placesToPromotion: enginePlaces.placesToPromotion,
-        placesToRelegation: enginePlaces.placesToRelegation,
         division:
           (stats?.engine_division as string | null | undefined) ?? enginePlaces.division,
       },
       run: {
-        weeklyChange: runWeeklyChange,
         placesToPromotion: runPlaces.placesToPromotion,
-        placesToRelegation: runPlaces.placesToRelegation,
         division: (stats?.run_division as string | null | undefined) ?? runPlaces.division,
       },
     };
-  }, [stats, weeklyInsights]);
+  }, [stats]);
 
   const recentWorkoutItems = useMemo<RecentWorkoutItem[]>(() => {
     return recentActivities.map((activity) => {

@@ -1,168 +1,131 @@
-import { Minus, TrendingDown, TrendingUp } from 'lucide-react';
-import { momentumBoundaryTicks } from '@/lib/momentumMetrics';
+import { isDivision, type Division } from '@/lib/division';
+import {
+  isInPromotionZone,
+  momentumPromotionTickPct,
+  momentumThumbPosition,
+} from '@/lib/momentumMetrics';
 import { cn } from '@/lib/utils';
 
-interface MomentumBlockProps {
-  weeklyChange: number;
+interface MomentumRowProps {
   placesToPromotion?: number | null;
-  placesToRelegation?: number | null;
   category: 'engine' | 'run';
   division?: string;
 }
 
-function thumbPosition(
-  placesToPromotion: number | null | undefined,
-  placesToRelegation: number | null | undefined,
-  weeklyChange: number,
-): number {
-  if (
-    placesToPromotion != null &&
-    placesToRelegation != null &&
-    placesToPromotion + placesToRelegation > 0
-  ) {
-    let pos = (placesToRelegation / (placesToPromotion + placesToRelegation)) * 100;
-    if (weeklyChange > 0) pos = Math.min(82, pos + 10);
-    if (weeklyChange < 0) pos = Math.max(18, pos - 10);
-    return pos;
-  }
-  if (weeklyChange > 0) return 68;
-  if (weeklyChange < 0) return 32;
-  return 50;
-}
-
-function momentumStatus(weeklyChange: number): {
-  label: string;
-  Icon: typeof TrendingUp;
-  className: string;
-} {
-  if (weeklyChange > 0) {
-    return { label: 'Rising', Icon: TrendingUp, className: 'text-emerald-400' };
-  }
-  if (weeklyChange < 0) {
-    return { label: 'Falling', Icon: TrendingDown, className: 'text-rose-400' };
-  }
-  return { label: 'Holding', Icon: Minus, className: 'text-muted-foreground' };
-}
-
-export function MomentumBlock({
-  weeklyChange,
+function MomentumRow({
   placesToPromotion,
-  placesToRelegation,
   category,
   division = 'Open',
-}: MomentumBlockProps) {
+}: MomentumRowProps) {
+  const resolvedDivision: Division = isDivision(division) ? division : 'Open';
   const isEngine = category === 'engine';
   const accentClass = isEngine ? 'text-neon-lime' : 'text-secondary';
   const badgeBorderClass = isEngine ? 'border-neon-lime/50' : 'border-secondary/50';
-  const thumbClass = isEngine
-    ? 'bg-neon-lime shadow-[0_0_10px_hsl(var(--neon-lime)/0.85)]'
-    : 'bg-secondary shadow-[0_0_10px_hsl(var(--secondary)/0.85)]';
   const gradientClass = isEngine
-    ? 'bg-gradient-to-r from-rose-500/80 via-zinc-700/90 to-neon-lime/90'
-    : 'bg-gradient-to-r from-rose-500/80 via-zinc-700/90 to-secondary/90';
+    ? 'bg-gradient-to-r from-[hsla(0,0%,4%,1)] via-zinc-800/90 to-neon-lime/85'
+    : 'bg-gradient-to-r from-[hsla(0,0%,4%,1)] via-zinc-800/90 to-secondary/85';
 
-  const status = momentumStatus(weeklyChange);
-  const StatusIcon = status.Icon;
-  const position = thumbPosition(placesToPromotion, placesToRelegation, weeklyChange);
-  const { relegationPct, promotionPct } = momentumBoundaryTicks(
-    placesToPromotion,
-    placesToRelegation,
+  const inPromotionZone = isInPromotionZone(resolvedDivision, placesToPromotion);
+  const promotionPct = momentumPromotionTickPct();
+  const position = momentumThumbPosition(resolvedDivision, placesToPromotion);
+  const divisionLabel = `${resolvedDivision} division`;
+  const leagueLabel = isEngine ? 'Engine' : 'Run';
+
+  const thumbClass = cn(
+    'absolute top-1/2 h-3 w-3 rounded-full border-2 border-background',
+    isEngine ? 'bg-neon-lime' : 'bg-secondary',
+    inPromotionZone
+      ? isEngine
+        ? 'shadow-[0_0_14px_hsl(var(--neon-lime)/1)]'
+        : 'shadow-[0_0_14px_hsl(var(--secondary)/1)]'
+      : isEngine
+        ? 'shadow-[0_0_8px_hsl(var(--neon-lime)/0.75)]'
+        : 'shadow-[0_0_8px_hsl(var(--secondary)/0.75)]',
   );
-  const divisionLabel = `${division} division`;
+
+  const promotionTickClass = cn(
+    'absolute top-0 h-1.5 w-px -translate-x-1/2',
+    inPromotionZone
+      ? isEngine
+        ? 'bg-neon-lime shadow-[0_0_8px_hsl(var(--neon-lime)/0.95)]'
+        : 'bg-secondary shadow-[0_0_8px_hsl(var(--secondary)/0.95)]'
+      : 'bg-muted-foreground/45',
+  );
 
   return (
-    <article className="space-y-4 rounded-xl border border-border/70 bg-card p-4 shadow-sm">
-      <div className="flex items-center gap-2">
+    <div className="space-y-2 px-3 py-2.5">
+      <div className="flex items-center justify-between gap-3">
+        <p className="min-w-0 truncate text-sm text-muted-foreground">{divisionLabel}</p>
         <span
           className={cn(
-            'shrink-0 rounded-full border px-2.5 py-0.5 text-[11px] font-bold uppercase tracking-wide',
+            'shrink-0 rounded-full border px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide',
             badgeBorderClass,
             accentClass,
           )}
         >
-          {category}
-        </span>
-        <span className="min-w-0 flex-1 truncate text-center text-sm text-muted-foreground">
-          {divisionLabel}
-        </span>
-        <span className={cn('flex shrink-0 items-center gap-1 text-xs font-medium', status.className)}>
-          <StatusIcon className="h-3.5 w-3.5" aria-hidden />
-          {status.label}
+          {leagueLabel}
         </span>
       </div>
 
-      <div className="space-y-1">
-        <div className="relative px-0.5">
-          <div className={cn('h-2.5 overflow-hidden rounded-full', gradientClass)} />
-          <div className="pointer-events-none absolute inset-x-0.5 top-0 h-2.5" aria-hidden>
+      <div className="space-y-0.5">
+        <div className="relative">
+          <div className={cn('h-2 overflow-hidden rounded-full', gradientClass)} />
+          <div className="pointer-events-none absolute inset-x-0 top-0 h-2" aria-hidden>
             <div
-              className="absolute top-0 h-full w-px bg-background/40"
-              style={{ left: `${relegationPct}%` }}
-            />
-            <div
-              className="absolute top-0 h-full w-px bg-background/40"
+              className={cn(
+                'absolute top-0 h-full w-px -translate-x-1/2',
+                inPromotionZone
+                  ? isEngine
+                    ? 'bg-neon-lime/70 shadow-[0_0_6px_hsl(var(--neon-lime)/0.8)]'
+                    : 'bg-secondary/70 shadow-[0_0_6px_hsl(var(--secondary)/0.8)]'
+                  : 'bg-background/35',
+              )}
               style={{ left: `${promotionPct}%` }}
             />
           </div>
           <div
-            className={cn(
-              'absolute top-1/2 h-3.5 w-3.5 rounded-full border-2 border-background',
-              thumbClass,
-            )}
+            className={thumbClass}
             style={{ left: `${position}%`, transform: 'translate(-50%, -50%)' }}
             aria-hidden
           />
         </div>
 
-        <div className="relative h-2 px-0.5" aria-hidden>
-          <div
-            className="absolute top-0 h-2 w-px bg-muted-foreground/50"
-            style={{ left: `${relegationPct}%`, transform: 'translateX(-50%)' }}
-          />
-          <div
-            className="absolute top-0 h-2 w-px bg-muted-foreground/50"
-            style={{ left: `${promotionPct}%`, transform: 'translateX(-50%)' }}
-          />
+        <div className="relative h-1.5" aria-hidden>
+          <div className={promotionTickClass} style={{ left: `${promotionPct}%` }} />
         </div>
       </div>
 
-      <div className="flex items-end justify-between gap-4">
-        <div className="text-left">
-          <p className="font-display text-3xl leading-none tracking-wide text-foreground">
-            {placesToRelegation != null ? placesToRelegation : '—'}
-          </p>
-          <p className="mt-1 text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
-            From relegation
-          </p>
-        </div>
+      <div className="flex justify-end">
         <div className="text-right">
-          <p className={cn('font-display text-3xl leading-none tracking-wide', accentClass)}>
+          <p className="type-stat text-foreground">
             {placesToPromotion != null ? placesToPromotion : '—'}
           </p>
-          <p className="mt-1 text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
+          <p className="mt-0.5 text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
             From promotion
           </p>
         </div>
       </div>
-    </article>
+    </div>
   );
 }
 
 type MomentumSectionProps = {
-  engine: Omit<MomentumBlockProps, 'category'>;
-  run: Omit<MomentumBlockProps, 'category'>;
+  engine: Omit<MomentumRowProps, 'category'>;
+  run: Omit<MomentumRowProps, 'category'>;
 };
 
 export function MomentumSection({ engine, run }: MomentumSectionProps) {
   return (
-    <div className="space-y-3">
+    <div className="space-y-2">
       <div>
         <h2 className="type-section-label">Momentum</h2>
         <p className="text-xs text-muted-foreground">Where you sit between promotion and relegation</p>
       </div>
-      <div className="grid gap-4 md:grid-cols-2">
-        <MomentumBlock category="engine" {...engine} />
-        <MomentumBlock category="run" {...run} />
+
+      <div className="overflow-hidden rounded-xl border border-border/70 bg-card shadow-sm">
+        <MomentumRow category="engine" {...engine} />
+        <div className="border-t border-border/50" role="separator" />
+        <MomentumRow category="run" {...run} />
       </div>
     </div>
   );
