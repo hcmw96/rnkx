@@ -8,6 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger } from '@/components/u
 import { Skeleton } from '@/components/ui/skeleton';
 import { divisionForRank, type Division } from '@/lib/division';
 import { fetchAcceptedFriendIds } from '@/lib/friendships';
+import { isHiddenFromLeaderboard } from '@/lib/leaderboardHidden';
 import { haptic } from '@/lib/haptics';
 import { resolveAthleteId } from '@/lib/resolveAthleteId';
 import { usePullToRefresh } from '@/hooks/usePullToRefresh';
@@ -439,11 +440,17 @@ export default function LeaderboardPage() {
       base = base.filter((r) => friendIds.has(r.id) || r.id === myAthleteId);
     }
 
+    const hiddenFromLeague = base.some((r) => isHiddenFromLeaderboard(r.id, activeLeague));
+    if (hiddenFromLeague) {
+      base = base.filter((r) => !isHiddenFromLeaderboard(r.id, activeLeague));
+    }
+
     const clientFiltered =
       effectiveDivision != null ||
       countryFilter !== 'all' ||
       genderFilter !== 'all' ||
-      scopeTab === 'friends';
+      scopeTab === 'friends' ||
+      hiddenFromLeague;
 
     if (clientFiltered) {
       base = reRankByScore(base);
