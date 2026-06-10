@@ -4,7 +4,9 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { ClubGenderSelect } from '@/components/leagues/ClubGenderSelect';
 import { uploadClubImageFile, saveClubImageUrl } from '@/lib/clubImageUpload';
+import type { ClubGender } from '@/lib/clubGender';
 import { supabase } from '@/services/supabase';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
@@ -29,6 +31,7 @@ export function CreateLeagueModal({
   const [name, setName] = useState('');
   const [visibility, setVisibility] = useState<ClubVisibility>('private');
   const [leagueType, setLeagueType] = useState<'engine' | 'run'>('engine');
+  const [gender, setGender] = useState<ClubGender>('mixed');
   const [loading, setLoading] = useState(false);
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
@@ -39,6 +42,7 @@ export function CreateLeagueModal({
     setName('');
     setVisibility('private');
     setLeagueType('engine');
+    setGender('mixed');
     setImageFile(null);
     setImagePreview(null);
   };
@@ -82,6 +86,7 @@ export function CreateLeagueModal({
         p_league_type: leagueType,
         p_is_public: visibility === 'public',
         p_image_url: null,
+        p_gender: gender,
       });
       if (createErr) throw new Error(createErr.message);
       if (!leagueId) throw new Error('Failed to create club');
@@ -203,6 +208,20 @@ export function CreateLeagueModal({
               {visibility === 'private'
                 ? 'Invite-only — members join with your club link.'
                 : 'Discoverable — anyone can find and join this club.'}
+            </p>
+          </div>
+
+          <div>
+            <Label className="text-foreground">Gender</Label>
+            <div className="mt-1">
+              <ClubGenderSelect value={gender} onChange={setGender} />
+            </div>
+            <p className="mt-1.5 text-xs text-muted-foreground">
+              {gender === 'mixed'
+                ? 'Open to all athletes.'
+                : gender === 'male'
+                  ? 'Only men can join this club.'
+                  : 'Only women can join this club.'}
             </p>
           </div>
 

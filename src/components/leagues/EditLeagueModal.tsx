@@ -4,7 +4,10 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Camera, Globe, Loader2, Lock } from 'lucide-react';
+import { ClubGenderSelect } from '@/components/leagues/ClubGenderSelect';
 import { uploadClubImageFile } from '@/lib/clubImageUpload';
+import type { ClubGender } from '@/lib/clubGender';
+import { normalizeClubGender } from '@/lib/clubGender';
 import { invokePushNotify } from '@/lib/pushNotify';
 import { resolveAthleteId } from '@/lib/resolveAthleteId';
 import { supabase } from '@/services/supabase';
@@ -22,6 +25,7 @@ interface EditLeagueModalProps {
     name: string;
     image_url: string | null;
     is_public?: boolean | null;
+    gender?: string | null;
   };
   onSaved: () => void;
 }
@@ -29,6 +33,7 @@ interface EditLeagueModalProps {
 export function EditLeagueModal({ open, onOpenChange, league, onSaved }: EditLeagueModalProps) {
   const [name, setName] = useState(league.name);
   const [visibility, setVisibility] = useState<ClubVisibility>(league.is_public ? 'public' : 'private');
+  const [gender, setGender] = useState<ClubGender>(normalizeClubGender(league.gender));
   const [imagePreview, setImagePreview] = useState<string | null>(league.image_url);
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [loading, setLoading] = useState(false);
@@ -38,6 +43,7 @@ export function EditLeagueModal({ open, onOpenChange, league, onSaved }: EditLea
     if (open) {
       setName(league.name);
       setVisibility(league.is_public ? 'public' : 'private');
+      setGender(normalizeClubGender(league.gender));
       setImagePreview(league.image_url);
       setImageFile(null);
     }
@@ -86,6 +92,7 @@ export function EditLeagueModal({ open, onOpenChange, league, onSaved }: EditLea
         p_name: name.trim(),
         p_image_url: imageUrl,
         p_is_public: visibility === 'public',
+        p_gender: gender,
       });
 
       if (error) throw error;
@@ -185,6 +192,11 @@ export function EditLeagueModal({ open, onOpenChange, league, onSaved }: EditLea
                 Public
               </button>
             </div>
+          </div>
+
+          <div className="space-y-2">
+            <Label>Gender</Label>
+            <ClubGenderSelect value={gender} onChange={setGender} />
           </div>
 
           <Button type="button" onClick={() => void handleSave()} disabled={loading || !name.trim()} className="w-full">

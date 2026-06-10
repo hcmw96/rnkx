@@ -16,6 +16,7 @@ type LeagueRow = {
   league_type: string;
   created_by: string;
   is_public: boolean | null;
+  gender: string | null;
 };
 
 export function LeaderboardLeaguesPanel() {
@@ -69,7 +70,7 @@ export function LeaderboardLeaguesPanel() {
 
     const { data: leagueRows, error: leagueErr } = await supabase
       .from('private_leagues')
-      .select('id, name, description, image_url, conversation_id, invite_code, league_type, created_by, is_public')
+      .select('id, name, description, image_url, conversation_id, invite_code, league_type, created_by, is_public, gender')
       .in('id', leagueIds);
 
     if (leagueErr) {
@@ -131,6 +132,7 @@ export function LeaderboardLeaguesPanel() {
                 id={league.id}
                 name={league.name}
                 leagueType={league.league_type === 'run' ? 'run' : 'engine'}
+                gender={league.gender}
                 memberCount={memberCount}
                 imageUrl={league.image_url}
                 description={league.description}

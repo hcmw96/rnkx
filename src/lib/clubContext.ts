@@ -5,6 +5,7 @@ export type ClubSummary = {
   name: string;
   image_url: string | null;
   league_type: 'engine' | 'run' | string;
+  gender?: string | null;
 };
 
 export async function fetchClubByConversationId(
@@ -39,6 +40,7 @@ export type PrivateLeagueDetail = ClubSummary & {
   conversation_id: string | null;
   invite_code: string | null;
   is_public: boolean | null;
+  gender: string | null;
 };
 
 export async function fetchPrivateLeague(
@@ -67,6 +69,7 @@ export async function fetchPrivateLeague(
       conversation_id: (row.conversation_id as string | null) ?? null,
       invite_code: (row.invite_code as string | null) ?? null,
       is_public: row.is_public ?? false,
+      gender: (row.gender as string | null) ?? 'mixed',
     },
     error: null,
   };

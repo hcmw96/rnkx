@@ -21,6 +21,7 @@ type LeagueRow = {
   invite_code: string | null;
   is_public: boolean | null;
   created_by: string;
+  gender: string | null;
 };
 
 type ClubTab = 'private' | 'public';
@@ -86,7 +87,7 @@ export default function PrivateLeaguesPage({ embedded = false }: PrivateLeaguesP
 
     const { data: leagueRows, error: leagueErr } = await supabase
       .from('private_leagues')
-      .select('id, name, description, image_url, conversation_id, league_type, invite_code, is_public, created_by')
+      .select('id, name, description, image_url, conversation_id, league_type, invite_code, is_public, created_by, gender')
       .in('id', leagueIds);
 
     if (leagueErr) {
@@ -205,6 +206,7 @@ export default function PrivateLeaguesPage({ embedded = false }: PrivateLeaguesP
             id={league.id}
             name={league.name}
             leagueType={league.league_type === 'run' ? 'run' : 'engine'}
+            gender={league.gender}
             memberCount={memberCount}
             inviteCode={league.invite_code}
             conversationId={league.conversation_id}

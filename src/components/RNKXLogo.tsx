@@ -7,7 +7,7 @@ interface RNKXLogoProps {
 }
 
 const sizeClasses = {
-  header: 'h-6 w-auto sm:h-7',
+  header: 'h-7 w-auto sm:h-8',
   sm: 'h-8 w-auto sm:h-9',
   md: 'h-12 w-auto sm:h-14',
   lg: 'h-16 w-auto sm:h-20',
@@ -18,7 +18,11 @@ export default function RNKXLogo({ className = '', size = 'lg' }: RNKXLogoProps)
     <img
       src={rnkxWordmark}
       alt="RNKX"
-      className={cn(sizeClasses[size], className)}
+      className={cn(
+        sizeClasses[size],
+        size === 'header' && 'translate-y-0.5',
+        className,
+      )}
     />
   );
 }

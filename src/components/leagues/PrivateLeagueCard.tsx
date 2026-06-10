@@ -3,6 +3,7 @@ import { cn } from '@/lib/utils';
 import { Link } from 'react-router-dom';
 import { LeagueChevronLogo } from '@/components/leagues/LeagueChevronLogo';
 import { clubImageDisplayUrl } from '@/lib/clubImageUpload';
+import { clubGenderLabel } from '@/lib/clubGender';
 
 export type ClubLeagueType = 'engine' | 'run';
 
@@ -21,6 +22,7 @@ interface PrivateLeagueCardProps {
   name: string;
   memberCount: number;
   leagueType?: ClubLeagueType;
+  gender?: string | null;
   inviteCode?: string | null;
   conversationId?: string | null;
   imageUrl?: string | null;
@@ -43,6 +45,7 @@ export function PrivateLeagueCard({
   onShareInvite,
   inviteCode,
   leagueType = 'engine',
+  gender = 'mixed',
   myRank = null,
   canAddFriend = false,
 }: PrivateLeagueCardProps) {
@@ -75,7 +78,8 @@ export function PrivateLeagueCard({
             ) : null}
           </p>
           <p className="type-meta mt-0.5 truncate">
-            {description ?? `${memberCount} member${memberCount !== 1 ? 's' : ''}`}
+            {description ??
+              `${memberCount} member${memberCount !== 1 ? 's' : ''} · ${clubGenderLabel(gender)}`}
           </p>
         </div>
       </Link>

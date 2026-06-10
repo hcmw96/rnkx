@@ -4,6 +4,12 @@ import { invokePushNotify } from '@/lib/pushNotify';
 import { supabase } from '@/services/supabase';
 import { toast } from 'sonner';
 import { clubImageDisplayUrl } from '@/lib/clubImageUpload';
+import {
+  athleteCanJoinClub,
+  clubGenderJoinMessage,
+  clubGenderLabel,
+  normalizeClubGender,
+} from '@/lib/clubGender';
 import { resolveAthleteId } from '@/lib/resolveAthleteId';
 import { LeagueChevronLogo } from '@/components/leagues/LeagueChevronLogo';
 import { leagueCardBorderClass } from '@/components/leagues/PrivateLeagueCard';
@@ -15,6 +21,7 @@ type PublicClub = {
   created_by: string;
   image_url: string | null;
   league_type: string;
+  gender: string;
   conversation_id: string | null;
   memberCount: number;
   joined: boolean;
@@ -26,6 +33,7 @@ export default function DiscoverClubsPage() {
   const [clubs, setClubs] = useState<PublicClub[]>([]);
   const [loading, setLoading] = useState(true);
   const [joining, setJoining] = useState<string | null>(null);
+  const [myGender, setMyGender] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -39,9 +47,14 @@ export default function DiscoverClubsPage() {
     const aid = await resolveAthleteId(uid);
     setAthleteId(aid);
 
+    if (aid) {
+      const { data: me } = await supabase.from('athletes').select('gender').eq('id', aid).maybeSingle();
+      setMyGender((me?.gender as string | null) ?? null);
+    }
+
     const { data: publicLeagues, error } = await supabase
       .from('private_leagues')
-      .select('id, name, created_by, image_url, league_type, conversation_id')
+      .select('id, name, created_by, image_url, league_type, gender, conversation_id')
       .eq('is_public', true)
       .order('name');
 
@@ -85,6 +98,7 @@ export default function DiscoverClubsPage() {
         created_by: l.created_by as string,
         image_url: l.image_url as string | null,
         league_type: l.league_type as string,
+        gender: (l.gender as string | null) ?? 'mixed',
         conversation_id: l.conversation_id as string | null,
         memberCount: countByLeague.get(l.id as string) ?? 0,
         joined: joinedSet.has(l.id as string),
@@ -103,6 +117,13 @@ export default function DiscoverClubsPage() {
       navigate(`/app/leagues/${club.id}`);
       return;
     }
+
+    const clubGender = normalizeClubGender(club.gender);
+    if (!athleteCanJoinClub(clubGender, myGender)) {
+      toast.error(clubGenderJoinMessage(clubGender));
+      return;
+    }
+
     setJoining(club.id);
     try {
       const { error: memErr } = await supabase.rpc('add_member_to_club', {
@@ -173,7 +194,7 @@ export default function DiscoverClubsPage() {
                   <div className="min-w-0 flex-1">
                     <p className="type-heading truncate">{club.name}</p>
                     <p className="type-meta mt-0.5">
-                      {club.memberCount} member{club.memberCount !== 1 ? 's' : ''}
+                      {club.memberCount} member{club.memberCount !== 1 ? 's' : ''} · {clubGenderLabel(club.gender)}
                     </p>
                   </div>
                 </button>

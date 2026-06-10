@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button';
 import { EditLeagueModal } from '@/components/leagues/EditLeagueModal';
 import { LeaderboardRows, type LeaderboardRowData } from '@/components/leaderboard/LeaderboardRows';
 import { clubImageDisplayUrl } from '@/lib/clubImageUpload';
+import { clubGenderLabel } from '@/lib/clubGender';
 import { fetchPrivateLeague } from '@/lib/clubContext';
 import { haptic } from '@/lib/haptics';
 import { cn } from '@/lib/utils';
@@ -24,6 +25,7 @@ type League = {
   conversation_id: string | null;
   invite_code: string | null;
   is_public: boolean | null;
+  gender: string | null;
 };
 
 type MemberRow = {
@@ -260,7 +262,7 @@ export default function LeaguePage() {
                         </span>
                       )}
                       <span className="text-xs text-muted-foreground">
-                        {league.is_public ? 'Public' : 'Private'} · {members.length} member{members.length !== 1 ? 's' : ''}
+                        {league.is_public ? 'Public' : 'Private'} · {clubGenderLabel(league.gender)} · {members.length} member{members.length !== 1 ? 's' : ''}
                       </span>
                     </div>
                   </div>
@@ -347,6 +349,7 @@ export default function LeaguePage() {
                     name: league.name,
                     image_url: league.image_url,
                     is_public: league.is_public,
+                    gender: league.gender,
                   }}
                   onSaved={() => void loadLeague()}
                 />
