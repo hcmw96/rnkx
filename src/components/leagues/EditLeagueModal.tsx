@@ -7,7 +7,12 @@ import { Camera, Globe, Loader2, Lock } from 'lucide-react';
 import { ClubGenderSelect } from '@/components/leagues/ClubGenderSelect';
 import { uploadClubImageFile } from '@/lib/clubImageUpload';
 import type { ClubGender } from '@/lib/clubGender';
-import { normalizeClubGender } from '@/lib/clubGender';
+import {
+  athleteCanCreateClubGender,
+  clubGenderCreateMessage,
+  clubGendersCreatableByAthlete,
+  normalizeClubGender,
+} from '@/lib/clubGender';
 import { invokePushNotify } from '@/lib/pushNotify';
 import { resolveAthleteId } from '@/lib/resolveAthleteId';
 import { supabase } from '@/services/supabase';
@@ -34,6 +39,7 @@ export function EditLeagueModal({ open, onOpenChange, league, onSaved }: EditLea
   const [name, setName] = useState(league.name);
   const [visibility, setVisibility] = useState<ClubVisibility>(league.is_public ? 'public' : 'private');
   const [gender, setGender] = useState<ClubGender>(normalizeClubGender(league.gender));
+  const [myGender, setMyGender] = useState<string | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(league.image_url);
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [loading, setLoading] = useState(false);
@@ -43,9 +49,22 @@ export function EditLeagueModal({ open, onOpenChange, league, onSaved }: EditLea
     if (open) {
       setName(league.name);
       setVisibility(league.is_public ? 'public' : 'private');
-      setGender(normalizeClubGender(league.gender));
       setImagePreview(league.image_url);
       setImageFile(null);
+      void (async () => {
+        const {
+          data: { user },
+        } = await supabase.auth.getUser();
+        if (!user?.id) return;
+        const athleteId = await resolveAthleteId(user.id);
+        if (!athleteId) return;
+        const { data } = await supabase.from('athletes').select('gender').eq('id', athleteId).maybeSingle();
+        const profileGender = (data?.gender as string | null) ?? null;
+        setMyGender(profileGender);
+        const initial = normalizeClubGender(league.gender);
+        const allowed = clubGendersCreatableByAthlete(profileGender);
+        setGender(allowed.includes(initial) ? initial : 'mixed');
+      })();
     }
   }, [open, league]);
 
@@ -63,6 +82,10 @@ export function EditLeagueModal({ open, onOpenChange, league, onSaved }: EditLea
 
   const handleSave = async () => {
     if (!name.trim()) return;
+    if (!athleteCanCreateClubGender(gender, myGender)) {
+      toast.error(clubGenderCreateMessage(gender));
+      return;
+    }
     setLoading(true);
     try {
       const {
@@ -196,7 +219,7 @@ export function EditLeagueModal({ open, onOpenChange, league, onSaved }: EditLea
 
           <div className="space-y-2">
             <Label>Gender</Label>
-            <ClubGenderSelect value={gender} onChange={setGender} />
+            <ClubGenderSelect value={gender} onChange={setGender} athleteGender={myGender} />
           </div>
 
           <Button type="button" onClick={() => void handleSave()} disabled={loading || !name.trim()} className="w-full">

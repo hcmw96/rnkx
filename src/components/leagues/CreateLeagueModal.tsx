@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { Activity, Camera, Heart, Lock, Plus, Globe } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
@@ -7,6 +7,11 @@ import { Label } from '@/components/ui/label';
 import { ClubGenderSelect } from '@/components/leagues/ClubGenderSelect';
 import { uploadClubImageFile, saveClubImageUrl } from '@/lib/clubImageUpload';
 import type { ClubGender } from '@/lib/clubGender';
+import {
+  athleteCanCreateClubGender,
+  clubGenderCreateMessage,
+  clubGendersCreatableByAthlete,
+} from '@/lib/clubGender';
 import { supabase } from '@/services/supabase';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
@@ -32,11 +37,25 @@ export function CreateLeagueModal({
   const [visibility, setVisibility] = useState<ClubVisibility>('private');
   const [leagueType, setLeagueType] = useState<'engine' | 'run'>('engine');
   const [gender, setGender] = useState<ClubGender>('mixed');
+  const [myGender, setMyGender] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    void (async () => {
+      const { data } = await supabase.from('athletes').select('gender').eq('id', athleteId).maybeSingle();
+      const profileGender = (data?.gender as string | null) ?? null;
+      setMyGender(profileGender);
+      setGender((prev) => {
+        const allowed = clubGendersCreatableByAthlete(profileGender);
+        return allowed.includes(prev) ? prev : 'mixed';
+      });
+    })();
+  }, [open, athleteId]);
 
   const resetForm = () => {
     setName('');
@@ -64,6 +83,10 @@ export function CreateLeagueModal({
 
   const handleCreate = async () => {
     if (!name.trim()) return;
+    if (!athleteCanCreateClubGender(gender, myGender)) {
+      toast.error(clubGenderCreateMessage(gender));
+      return;
+    }
     setLoading(true);
     setUploading(false);
     try {
@@ -214,7 +237,7 @@ export function CreateLeagueModal({
           <div>
             <Label className="text-foreground">Gender</Label>
             <div className="mt-1">
-              <ClubGenderSelect value={gender} onChange={setGender} />
+              <ClubGenderSelect value={gender} onChange={setGender} athleteGender={myGender} />
             </div>
             <p className="mt-1.5 text-xs text-muted-foreground">
               {gender === 'mixed'
@@ -222,6 +245,9 @@ export function CreateLeagueModal({
                 : gender === 'male'
                   ? 'Only men can join this club.'
                   : 'Only women can join this club.'}
+              {myGender !== 'male' && myGender !== 'female'
+                ? ' Set your gender in profile to create a men\'s or women\'s club.'
+                : null}
             </p>
           </div>
 

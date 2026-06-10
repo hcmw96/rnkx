@@ -1,9 +1,7 @@
 import { activitySessionScore } from '@/lib/activitySessionScore';
+import { engineLeagueSessionScore } from '@/lib/engineLeaguePpm';
 import { runLeagueSessionScore } from '@/lib/runLeaguePpm';
-import {
-  cappedScoringDurationMinutes,
-  sessionDurationQualifiesForScoring,
-} from '@/lib/scoringSessionRules';
+import { sessionDurationQualifiesForScoring } from '@/lib/scoringSessionRules';
 
 export type ScoringOutcome = {
   counted: boolean;
@@ -23,7 +21,7 @@ function humanizeRejectReason(code: string | null | undefined): string {
   return REJECT_LABELS[code] ?? code.replace(/_/g, ' ');
 }
 
-/** Mirrors Apple `process_activity` engine bands for admin diagnostics. */
+/** Mirrors Apple `process_activity` Engine League PPM lookup for admin diagnostics. */
 export function recomputeWorkoutEngineScore(
   durationMin: number,
   avgHr: number | null,
@@ -31,27 +29,9 @@ export function recomputeWorkoutEngineScore(
   avgPaceSecPerKm: number | null,
 ): number {
   if (!sessionDurationQualifiesForScoring(durationMin) || avgHr == null || effectiveMaxHr <= 0) return 0;
-  const duration = cappedScoringDurationMinutes(durationMin);
   const hrPct = (avgHr / effectiveMaxHr) * 100;
   if (avgPaceSecPerKm != null && avgPaceSecPerKm < 240 && hrPct < 60) return 0;
-
-  const raw =
-    hrPct >= 90
-      ? duration * 4.8
-      : hrPct >= 85
-        ? duration * 4.2
-        : hrPct >= 80
-          ? duration * 3.7
-          : hrPct >= 75
-            ? duration * 2.8
-            : hrPct >= 70
-              ? duration * 2.0
-              : hrPct >= 60
-                ? duration * 1.4
-                : hrPct >= 45
-                  ? duration * 0.8
-                  : 0;
-  return Math.round(raw * 10) / 10;
+  return engineLeagueSessionScore(hrPct, durationMin);
 }
 
 const RUN_TYPES = new Set(['running', 'run', 'outdoor_run', 'indoor_run', 'trail_run', 'treadmill']);

@@ -113,9 +113,9 @@ async function processTerraWorkouts(params: {
       leagueType = 'engine';
     } else if (isRun && leagues.includes('run') && avgPaceSeconds) {
       leagueType = 'run';
-    } else if (!isRun && leagues.includes('engine') && avgHrPercent && avgHrPercent >= 45) {
+    } else if (!isRun && leagues.includes('engine') && avgHrPercent && avgHrPercent >= 65) {
       leagueType = 'engine';
-    } else if (isRun && leagues.includes('engine') && avgHrPercent && avgHrPercent >= 45) {
+    } else if (isRun && leagues.includes('engine') && avgHrPercent && avgHrPercent >= 65) {
       leagueType = 'engine';
     }
 

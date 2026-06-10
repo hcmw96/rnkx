@@ -29,3 +29,25 @@ export function clubGenderJoinMessage(clubGender: ClubGender): string {
   if (clubGender === 'female') return 'This club is for women only.';
   return 'You cannot join this club.';
 }
+
+export function clubGendersCreatableByAthlete(
+  athleteGender: string | null | undefined,
+): ClubGender[] {
+  if (athleteGender === 'male' || athleteGender === 'female') {
+    return ['mixed', athleteGender];
+  }
+  return ['mixed'];
+}
+
+export function athleteCanCreateClubGender(
+  clubGender: ClubGender,
+  athleteGender: string | null | undefined,
+): boolean {
+  return clubGendersCreatableByAthlete(athleteGender).includes(clubGender);
+}
+
+export function clubGenderCreateMessage(clubGender: ClubGender): string {
+  if (clubGender === 'male') return 'Only athletes with male on their profile can create a men\'s club.';
+  if (clubGender === 'female') return 'Only athletes with female on their profile can create a women\'s club.';
+  return 'You cannot create this club.';
+}

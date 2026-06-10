@@ -7,7 +7,7 @@ const ENTRIES: AssistantEntry[] = [
   {
     keywords: ['engine', 'heart', 'hr', 'cardio', 'effort', 'zone'],
     answer:
-      'Engine League scores from average heart rate as a % of your max HR. Higher effort earns more points per minute (for example, ~85% max HR is about 4.2 pts/min). Sessions under 15 minutes do not score.',
+      'Engine League scores from average heart rate as a % of your max HR using a points-per-minute lookup table (50–100% in 0.1% steps). Scoring starts at 65% max HR. Sessions under 15 minutes do not score.',
   },
   {
     keywords: ['run', 'pace', 'running', 'km', 'speed', 'marathon'],
