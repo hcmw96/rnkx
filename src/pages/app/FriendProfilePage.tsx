@@ -22,16 +22,6 @@ interface FriendAthlete {
   selected_leagues: string[] | null;
 }
 
-function twoLetterAvatar(username: string | null, displayName: string | null): string {
-  const u = (username ?? '').trim();
-  if (u.length >= 2) return u.slice(0, 2).toUpperCase();
-  if (u.length === 1) return `${u}${(displayName ?? '?').charAt(0)}`.toUpperCase().slice(0, 2);
-  const d = (displayName ?? '').trim();
-  if (d.length >= 2) return d.slice(0, 2).toUpperCase();
-  if (d.length === 1) return `${d}?`.toUpperCase();
-  return '??';
-}
-
 function memberSinceLabel(createdAt: string | null | undefined): string {
   if (!createdAt) return 'Member since —';
   const d = new Date(createdAt);
@@ -143,7 +133,6 @@ export default function FriendProfilePage() {
   const countryMeta = friend?.country ? getCountryByName(friend.country) : null;
   const countryName = countryMeta?.name ?? friend?.country ?? null;
   const countryFlag = countryMeta?.flag ?? '';
-  const initials = friend ? twoLetterAvatar(friend.username, friend.display_name) : '??';
   const avatarLeague = leagueFromSelectedLeagues(friend?.selected_leagues);
   const combinedScore = engineScore + runScore;
 
@@ -186,7 +175,6 @@ export default function FriendProfilePage() {
             countryFlag={countryFlag}
             memberSince={memberSinceLabel(friend.created_at)}
             avatarUrl={friend.avatar_url}
-            initials={initials}
             avatarLeague={avatarLeague}
             seasonDisplay={seasonDisplay}
             combinedScore={combinedScore}

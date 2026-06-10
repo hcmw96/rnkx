@@ -7,7 +7,8 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { invokePushNotify } from '@/lib/pushNotify';
 import { formatScore } from '@/lib/formatScore';
-import { athleteAvatarDisplayUrl, leagueFromSelectedLeagues } from '@/lib/leagueAvatars';
+import { AthleteAvatarImg } from '@/components/AthleteAvatarImg';
+import { leagueFromSelectedLeagues } from '@/lib/leagueAvatars';
 import { supabase } from '@/services/supabase';
 import { toast } from 'sonner';
 
@@ -379,8 +380,6 @@ export default function FriendsPage({ embedded = false }: FriendsPageProps) {
               <ul className="space-y-2">
                 {friends.map((f) => {
                   const name = f.display_name?.trim() || f.username || 'Athlete';
-                  const initial = name.charAt(0).toUpperCase() || '?';
-                  const avatarSrc = athleteAvatarDisplayUrl(f.avatar_url, leagueFromSelectedLeagues(f.selected_leagues));
                   return (
                     <li key={f.id}>
                       <div className="flex items-center gap-2 rounded-lg border border-border bg-card p-2.5">
@@ -389,13 +388,10 @@ export default function FriendsPage({ embedded = false }: FriendsPageProps) {
                           className="flex min-w-0 flex-1 items-center gap-3 rounded-md transition-colors hover:bg-muted/30"
                         >
                           <div className="relative h-10 w-10 shrink-0 overflow-hidden rounded-full border border-border/80 bg-muted">
-                            {avatarSrc ? (
-                              <img src={avatarSrc} alt="" className="h-full w-full object-cover" />
-                            ) : (
-                              <span className="flex h-full w-full items-center justify-center font-sans text-sm font-semibold text-muted-foreground">
-                                {initial}
-                              </span>
-                            )}
+                            <AthleteAvatarImg
+                              avatarUrl={f.avatar_url}
+                              league={leagueFromSelectedLeagues(f.selected_leagues)}
+                            />
                           </div>
                           <div className="min-w-0 flex-1">
                             <p className="type-heading truncate">{name}</p>

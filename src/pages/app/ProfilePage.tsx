@@ -30,16 +30,6 @@ interface AthleteRow {
   selected_leagues: string[] | null;
 }
 
-function twoLetterAvatar(username: string | null, displayName: string | null): string {
-  const u = (username ?? '').trim();
-  if (u.length >= 2) return u.slice(0, 2).toUpperCase();
-  if (u.length === 1) return `${u}${(displayName ?? '?').charAt(0)}`.toUpperCase().slice(0, 2);
-  const d = (displayName ?? '').trim();
-  if (d.length >= 2) return d.slice(0, 2).toUpperCase();
-  if (d.length === 1) return `${d}?`.toUpperCase();
-  return '??';
-}
-
 function numScore(v: number | string | null | undefined): number {
   if (v === null || v === undefined) return 0;
   const n = typeof v === 'number' ? v : Number(v);
@@ -131,9 +121,19 @@ export default function ProfilePage() {
 
     setUploading(true);
 
-    await supabase.rpc('ensure_athlete_user_id', { p_athlete_id: athlete.id });
+    const { error: linkErr } = await supabase.rpc('ensure_athlete_user_id', {
+      p_athlete_id: athlete.id,
+    });
+    if (linkErr) {
+      toast.error(linkErr.message);
+      setUploading(false);
+      return;
+    }
 
     const path = `${athlete.id}/avatar.jpg`;
+
+    // Remove stale object so upload succeeds even if storage UPDATE policy is missing.
+    await supabase.storage.from('avatars').remove([path]);
 
     const { error: uploadError } = await supabase.storage.from('avatars').upload(path, file, {
       upsert: true,
@@ -147,9 +147,10 @@ export default function ProfilePage() {
     }
 
     const { data: pub } = supabase.storage.from('avatars').getPublicUrl(path);
+    const avatarUrl = `${pub.publicUrl}?v=${Date.now()}`;
     const { error: updateError } = await supabase
       .from('athletes')
-      .update({ avatar_url: pub.publicUrl })
+      .update({ avatar_url: avatarUrl })
       .eq('id', athlete.id);
 
     if (updateError) {
@@ -158,12 +159,11 @@ export default function ProfilePage() {
       return;
     }
 
-    setAthlete((prev) => (prev ? { ...prev, avatar_url: pub.publicUrl } : prev));
+    setAthlete((prev) => (prev ? { ...prev, avatar_url: avatarUrl } : prev));
     toast.success('Profile photo updated.');
     setUploading(false);
   };
 
-  const initials = athlete ? twoLetterAvatar(athlete.username, athlete.display_name) : '??';
   const avatarLeague = leagueFromSelectedLeagues(athlete?.selected_leagues);
   const countryMeta = athlete?.country ? getCountryByName(athlete.country) : null;
   const countryName = countryMeta?.name ?? athlete?.country ?? null;
@@ -198,7 +198,6 @@ export default function ProfilePage() {
               countryFlag={countryFlag}
               memberSince={memberSinceLabel(athlete.created_at)}
               avatarUrl={athlete.avatar_url}
-              initials={initials}
               avatarLeague={avatarLeague}
               uploading={uploading}
               onAvatarClick={openAvatarPicker}

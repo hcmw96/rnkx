@@ -1,7 +1,7 @@
 import { Link } from 'react-router-dom';
 import { getCountryByName } from '@/data/countries';
 import { formatScore } from '@/lib/formatScore';
-import { athleteAvatarDisplayUrl } from '@/lib/leagueAvatars';
+import { AthleteAvatarImg } from '@/components/AthleteAvatarImg';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 
@@ -54,15 +54,12 @@ export function LeaderboardRows({
     <ul className="flex flex-col gap-1.5 px-0.5 pb-6">
       {rows.map((item) => {
         const isSelf = currentUserId != null && item.id === currentUserId;
-        const initial = (item.username || item.displayName || '?').trim().charAt(0).toUpperCase() || '?';
         const countryLabel = item.country
           ? (getCountryByName(item.country)?.name ?? item.country)
           : null;
         const pointsDisplay = Number.isFinite(item.score) ? formatScore(item.score) : '0';
         const canViewProfile = friendIds.has(item.id) && !isSelf;
         const isFirst = item.rank === 1;
-
-        const avatarSrc = athleteAvatarDisplayUrl(item.avatarUrl, league);
 
         const rowInner = (
           <>
@@ -76,13 +73,7 @@ export function LeaderboardRows({
               {item.rank}
             </span>
             <div className="relative h-9 w-9 shrink-0 overflow-hidden rounded-full border border-border/80 bg-[hsla(0,0%,14%,1)]">
-              {avatarSrc ? (
-                <img src={avatarSrc} alt="" className="h-full w-full object-cover" />
-              ) : (
-                <span className="flex h-full w-full items-center justify-center text-xs font-semibold text-muted-foreground">
-                  {initial}
-                </span>
-              )}
+              <AthleteAvatarImg avatarUrl={item.avatarUrl} league={league} />
             </div>
             <div className="flex min-w-0 flex-1 items-center justify-between gap-3 pr-1">
               <div className="min-w-0">

@@ -4,7 +4,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { formatDistanceToNow } from 'date-fns';
 import { activitySessionScore } from '@/lib/activitySessionScore';
 import { formatScorePts } from '@/lib/formatScore';
-import { athleteAvatarDisplayUrl } from '@/lib/leagueAvatars';
+import { AthleteAvatarImg } from '@/components/AthleteAvatarImg';
 
 interface FeedActivity {
   id: string;
@@ -97,15 +97,10 @@ export function LeagueActivityFeed({ memberIds, leagueType, seasonId }: LeagueAc
     <div className="space-y-2">
       <h2 className="type-section-label px-1">Recent Activity</h2>
       {activities.map((a) => {
-        const avatarSrc = athleteAvatarDisplayUrl(a.avatar_url, leagueType);
         return (
         <div key={a.id} className="flex items-center gap-3 rounded-lg border border-border bg-card p-3">
           <div className="flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-full bg-muted">
-            {avatarSrc ? (
-              <img src={avatarSrc} alt="" className="h-full w-full object-cover" />
-            ) : (
-              <span className="text-xs font-medium text-muted-foreground">{a.username.charAt(0).toUpperCase()}</span>
-            )}
+            <AthleteAvatarImg avatarUrl={a.avatar_url} league={leagueType} />
           </div>
           <div className="min-w-0 flex-1">
             <div className="truncate type-heading">{a.username}</div>

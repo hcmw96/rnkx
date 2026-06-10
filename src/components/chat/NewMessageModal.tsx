@@ -10,6 +10,7 @@ import {
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { fetchAcceptedFriendIds } from '@/lib/friendships';
+import { AthleteAvatarImg } from '@/components/AthleteAvatarImg';
 import { supabase } from '@/services/supabase';
 
 type FriendOption = {
@@ -105,13 +106,7 @@ export function NewMessageModal({
                     onClick={() => onSelect(f.id)}
                   >
                     <div className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-full bg-muted">
-                      {f.avatar_url ? (
-                        <img src={f.avatar_url} alt="" className="h-full w-full object-cover" />
-                      ) : (
-                        <span className="text-sm font-semibold text-muted-foreground">
-                          {label.charAt(0).toUpperCase()}
-                        </span>
-                      )}
+                      <AthleteAvatarImg avatarUrl={f.avatar_url} />
                     </div>
                     <div className="min-w-0 flex-1">
                       <p className="truncate type-heading">{label}</p>

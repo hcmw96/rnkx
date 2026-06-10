@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { useParams, Link } from "react-router-dom";
 import { LeagueChevronLogo } from "@/components/leagues/LeagueChevronLogo";
 import { clubImageDisplayUrl } from "@/lib/clubImageUpload";
-import { athleteAvatarDisplayUrl } from "@/lib/leagueAvatars";
+import { AthleteAvatarImg } from "@/components/AthleteAvatarImg";
 import { fetchClubByConversationId, type ClubSummary } from "@/lib/clubContext";
 import { supabase } from "@/services/supabase";
 import { Button } from "@/components/ui/button";
@@ -208,19 +208,12 @@ export default function GroupChatThread() {
         {messages.map((msg) => {
           const isMine = msg.athlete_id === myAthleteId;
           const sender = members.get(msg.athlete_id);
-          const senderAvatarSrc = athleteAvatarDisplayUrl(sender?.avatar_url, club?.league_type);
           return (
             <div key={msg.id} className="group">
               {!isMine && (
                 <div className="flex items-center gap-1.5 ml-1 mb-0.5">
                   <div className="w-4 h-4 rounded-full bg-muted overflow-hidden">
-                    {senderAvatarSrc ? (
-                      <img src={senderAvatarSrc} alt="" className="w-full h-full object-cover" />
-                    ) : (
-                      <span className="text-caption flex items-center justify-center h-full text-muted-foreground">
-                        {conversationMemberLabel(sender).charAt(0).toUpperCase()}
-                      </span>
-                    )}
+                    <AthleteAvatarImg avatarUrl={sender?.avatar_url} league={club?.league_type} />
                   </div>
                   <span className="text-xs text-muted-foreground font-medium">
                     {conversationMemberLabel(sender)}

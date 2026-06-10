@@ -24,6 +24,9 @@ function MomentumRow({
   const gradientClass = isEngine
     ? 'bg-gradient-to-r from-[hsla(0,0%,4%,1)] via-zinc-800/90 to-neon-lime/85'
     : 'bg-gradient-to-r from-[hsla(0,0%,4%,1)] via-zinc-800/90 to-secondary/85';
+  const trackOutlineClass = isEngine
+    ? 'border border-neon-lime/35 shadow-[0_0_6px_hsl(var(--neon-lime)/0.12)]'
+    : 'border border-secondary/35 shadow-[0_0_6px_hsl(var(--secondary)/0.12)]';
 
   const inPromotionZone = isInPromotionZone(resolvedDivision, placesToPromotion);
   const promotionPct = momentumPromotionTickPct();
@@ -69,7 +72,7 @@ function MomentumRow({
 
       <div className="space-y-0.5">
         <div className="relative">
-          <div className={cn('h-1.5 overflow-hidden rounded-full', gradientClass)} />
+          <div className={cn('h-1.5 overflow-hidden rounded-full', gradientClass, trackOutlineClass)} />
           <div className="pointer-events-none absolute inset-x-0 top-0 h-1.5" aria-hidden>
             <div
               className={cn(

@@ -12,6 +12,7 @@ import { formatDistanceToNow } from "date-fns";
 import { Button } from "@/components/ui/button";
 import { usePullToRefresh } from "@/hooks/usePullToRefresh";
 import { toast } from "sonner";
+import { AthleteAvatarImg } from "@/components/AthleteAvatarImg";
 import { clubImageDisplayUrl } from "@/lib/clubImageUpload";
 import { fetchClubByConversationId } from "@/lib/clubContext";
 import { conversationUnreadKey, isUnread, UNREAD_CHANGED_EVENT } from "@/lib/unreadMessages";
@@ -22,6 +23,7 @@ interface ChatItem {
   type: "dm" | "group";
   name: string;
   avatar: string | null;
+  profileAvatarUrl?: string | null;
   lastMessage: string;
   lastMessageAt: string;
   unread: boolean;
@@ -103,7 +105,8 @@ export default function ChatPage() {
         id: `dm-${r.conversation_id}`,
         type: "dm" as const,
         name: r.friend_username || "Unknown",
-        avatar: r.friend_avatar_url || null,
+        avatar: null,
+        profileAvatarUrl: r.friend_avatar_url,
         lastMessage: r.last_message || "No messages yet",
         lastMessageAt,
         unread: isUnread(conversationUnreadKey(r.conversation_id), lastMessageAt, {
@@ -263,14 +266,12 @@ export default function ChatPage() {
                 className="flex items-center gap-3 p-3 rounded-lg bg-card border border-border hover:border-muted-foreground/50 transition-colors"
               >
                 <div className="w-10 h-10 rounded-full bg-muted flex items-center justify-center overflow-hidden">
-                  {item.avatar ? (
+                  {item.type === "dm" ? (
+                    <AthleteAvatarImg avatarUrl={item.profileAvatarUrl} />
+                  ) : item.avatar ? (
                     <img src={item.avatar} alt="" className="w-full h-full object-cover" />
-                  ) : item.type === "group" ? (
-                    <Users className="h-5 w-5 text-muted-foreground" />
                   ) : (
-                    <span className="text-lg font-medium text-muted-foreground">
-                      {item.name.charAt(0).toUpperCase()}
-                    </span>
+                    <Users className="h-5 w-5 text-muted-foreground" />
                   )}
                 </div>
                 <div className="flex-1 min-w-0">

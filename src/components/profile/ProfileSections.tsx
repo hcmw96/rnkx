@@ -3,7 +3,8 @@ import { AchievementBadge } from '@/components/profile/AchievementBadge';
 import type { AchievementState } from '@/lib/achievements';
 import type { ProfileCareerStats } from '@/lib/profileStats';
 import { formatScore, formatScorePts } from '@/lib/formatScore';
-import { athleteAvatarDisplayUrl, type LeagueKind } from '@/lib/leagueAvatars';
+import { AthleteAvatarImg } from '@/components/AthleteAvatarImg';
+import type { LeagueKind } from '@/lib/leagueAvatars';
 import { cn } from '@/lib/utils';
 
 /** Profile score display — whole number, rounded up (e.g. 2,177). */
@@ -24,8 +25,6 @@ type ProfileIdentityProps = {
   countryFlag: string;
   memberSince: string;
   avatarUrl: string | null;
-  initials: string;
-  /** When set, league users without a photo show the default league badge. */
   avatarLeague?: LeagueKind | null;
   uploading?: boolean;
   /** Omit for read-only profiles (e.g. viewing a friend). */
@@ -49,23 +48,14 @@ function ProfileIdentity({
   countryFlag,
   memberSince,
   avatarUrl,
-  initials,
   avatarLeague = null,
   uploading = false,
   onAvatarClick,
 }: ProfileIdentityProps) {
   const { fullLabel: memberSinceLabel } = parseMemberSince(memberSince);
-  const avatarSrc = athleteAvatarDisplayUrl(avatarUrl, avatarLeague);
-
   const avatarInner = (
     <>
-      {avatarSrc ? (
-        <img src={avatarSrc} alt="" className="h-full w-full object-cover" />
-      ) : (
-        <span className="flex h-full w-full items-center justify-center text-lg font-semibold tracking-wide text-foreground">
-          {initials}
-        </span>
-      )}
+      <AthleteAvatarImg avatarUrl={avatarUrl} league={avatarLeague} />
       {uploading ? (
         <span className="absolute inset-0 flex items-center justify-center bg-background/70 text-xs font-medium">
           …

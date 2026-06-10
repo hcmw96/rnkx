@@ -1,6 +1,6 @@
 import { motion } from 'framer-motion';
 import { formatScore } from '@/lib/formatScore';
-import { athleteAvatarDisplayUrl } from '@/lib/leagueAvatars';
+import { AthleteAvatarImg } from '@/components/AthleteAvatarImg';
 import { cn } from '@/lib/utils';
 
 interface PodiumMember {
@@ -36,7 +36,6 @@ export function LeaguePodium({ members, leagueType }: LeaguePodiumProps) {
     <div className="flex items-end justify-center gap-2 py-4">
       {display.map((member, displayIdx) => {
         const actualRank = podiumOrder[displayIdx]; // 0=gold, 1=silver, 2=bronze
-        const avatarSrc = athleteAvatarDisplayUrl(member.avatar_url, leagueType);
         return (
           <motion.div
             key={member.id}
@@ -52,13 +51,7 @@ export function LeaguePodium({ members, leagueType }: LeaguePodiumProps) {
                   actualRank === 0 ? 'ring-yellow-500' : actualRank === 1 ? 'ring-slate-400' : 'ring-amber-700',
                 )}
               >
-                {avatarSrc ? (
-                  <img src={avatarSrc} alt="" className="h-full w-full object-cover" />
-                ) : (
-                  <span className="text-sm font-bold text-muted-foreground">
-                    {member.username.charAt(0).toUpperCase()}
-                  </span>
-                )}
+                <AthleteAvatarImg avatarUrl={member.avatar_url} league={leagueType} />
               </div>
               <span className="absolute -right-1 -top-1 text-sm">{rankEmoji[actualRank]}</span>
             </div>

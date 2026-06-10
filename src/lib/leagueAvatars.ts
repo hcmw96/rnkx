@@ -1,8 +1,10 @@
 import engineLeagueAvatarFallback from '@/assets/engine-league-avatar-fallback.png';
+import profileAvatarFallback from '@/assets/profile-avatar-fallback.png';
 import runLeagueAvatarFallback from '@/assets/run-league-avatar-fallback.png';
 
 export type LeagueKind = 'engine' | 'run';
 
+export const PROFILE_AVATAR_FALLBACK = profileAvatarFallback;
 export const RUN_LEAGUE_AVATAR_FALLBACK = runLeagueAvatarFallback;
 export const ENGINE_LEAGUE_AVATAR_FALLBACK = engineLeagueAvatarFallback;
 
@@ -48,13 +50,15 @@ export function clubImageDisplayUrl(
   return leagueAvatarFallback(normalizeLeagueType(options.leagueType ?? null));
 }
 
-/** Athlete avatar URL; league contexts use the default badge when unset. */
+/** Athlete profile photo URL; uses the RNKX mark when no custom photo is set. */
 export function athleteAvatarDisplayUrl(
   avatarUrl: string | null | undefined,
-  league: LeagueKind | string | null | undefined,
-): string | null {
+  _league?: LeagueKind | string | null,
+): string {
   const trimmed = avatarUrl?.trim();
-  if (trimmed) return trimmed;
+  return trimmed || PROFILE_AVATAR_FALLBACK;
+}
 
-  return leagueAvatarFallback(normalizeLeagueType(league ?? null));
+export function athleteAvatarUsesFallback(avatarUrl: string | null | undefined): boolean {
+  return !avatarUrl?.trim();
 }

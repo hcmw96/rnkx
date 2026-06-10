@@ -2,9 +2,11 @@ import { supabase } from '@/services/supabase';
 
 export {
   clubImageDisplayUrl,
+  PROFILE_AVATAR_FALLBACK,
   RUN_LEAGUE_AVATAR_FALLBACK,
   ENGINE_LEAGUE_AVATAR_FALLBACK,
   athleteAvatarDisplayUrl,
+  athleteAvatarUsesFallback,
   leagueFromSelectedLeagues,
 } from '@/lib/leagueAvatars';
 export type { LeagueKind } from '@/lib/leagueAvatars';

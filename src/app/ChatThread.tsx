@@ -4,6 +4,7 @@ import { supabase } from "@/services/supabase";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ArrowLeft, Send } from "lucide-react";
+import { AthleteAvatarImg } from "@/components/AthleteAvatarImg";
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
 import { ChatPremiumGate } from "@/components/chat/ChatPremiumGate";
@@ -169,13 +170,7 @@ export default function ChatThread() {
             <ArrowLeft className="h-5 w-5" />
           </Link>
           <div className="w-8 h-8 rounded-full bg-muted flex items-center justify-center overflow-hidden">
-            {friendAvatar ? (
-              <img src={friendAvatar} alt="" className="w-full h-full object-cover" />
-            ) : (
-              <span className="type-meta">
-                {friendName.charAt(0).toUpperCase()}
-              </span>
-            )}
+            <AthleteAvatarImg avatarUrl={friendAvatar} />
           </div>
           {friendId ? (
             <Link

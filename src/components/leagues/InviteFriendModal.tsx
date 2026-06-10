@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
-import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
+import { AthleteAvatarImg } from '@/components/AthleteAvatarImg';
 import { invokePushNotify } from '@/lib/pushNotify';
 import { supabase } from '@/services/supabase';
 import { toast } from 'sonner';
@@ -146,12 +146,9 @@ export function InviteFriendModal({ open, onOpenChange, leagueId, leagueName, on
                   disabled={adding === athlete.id}
                   className="flex w-full items-center gap-3 rounded-lg p-3 text-left transition-colors hover:bg-muted/50 disabled:opacity-50"
                 >
-                  <Avatar className="h-9 w-9">
-                    {athlete.avatar_url ? <AvatarImage src={athlete.avatar_url} /> : null}
-                    <AvatarFallback className="bg-muted text-xs">
-                      {(athlete.display_name || athlete.username).charAt(0).toUpperCase()}
-                    </AvatarFallback>
-                  </Avatar>
+                  <div className="h-9 w-9 shrink-0 overflow-hidden rounded-full bg-muted">
+                    <AthleteAvatarImg avatarUrl={athlete.avatar_url} />
+                  </div>
                   <div className="min-w-0 flex-1">
                     <p className="truncate type-heading">
                       {athlete.display_name || athlete.username}
