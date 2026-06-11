@@ -1,4 +1,6 @@
+import { useState } from 'react';
 import {
+  PROFILE_AVATAR_FALLBACK,
   athleteAvatarDisplayUrl,
   athleteAvatarUsesFallback,
   type LeagueKind,
@@ -13,12 +15,15 @@ type AthleteAvatarImgProps = {
 
 /** Circular athlete profile photo with RNKX default when unset. */
 export function AthleteAvatarImg({ avatarUrl, league, className }: AthleteAvatarImgProps) {
-  const isFallback = athleteAvatarUsesFallback(avatarUrl);
+  const [loadFailed, setLoadFailed] = useState(false);
+  const isFallback = loadFailed || athleteAvatarUsesFallback(avatarUrl);
+  const src = loadFailed ? PROFILE_AVATAR_FALLBACK : athleteAvatarDisplayUrl(avatarUrl, league);
 
   return (
     <img
-      src={athleteAvatarDisplayUrl(avatarUrl, league)}
+      src={src}
       alt=""
+      onError={() => setLoadFailed(true)}
       className={cn(
         'h-full w-full',
         isFallback ? 'object-contain bg-black' : 'object-cover',

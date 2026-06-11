@@ -50,15 +50,32 @@ export function clubImageDisplayUrl(
   return leagueAvatarFallback(normalizeLeagueType(options.leagueType ?? null));
 }
 
+const BLOCKED_AVATAR_HOSTS = ['ui-avatars.com'];
+
+function isBlockedAvatarHost(url: string): boolean {
+  try {
+    const host = new URL(url).hostname.toLowerCase();
+    return BLOCKED_AVATAR_HOSTS.some((blocked) => host === blocked || host.endsWith(`.${blocked}`));
+  } catch {
+    return true;
+  }
+}
+
+/** Normalised custom avatar URL, or null when unset / blocked third-party host. */
+export function resolveAthleteAvatarUrl(avatarUrl: string | null | undefined): string | null {
+  const trimmed = avatarUrl?.trim();
+  if (!trimmed || isBlockedAvatarHost(trimmed)) return null;
+  return trimmed;
+}
+
 /** Athlete profile photo URL; uses the RNKX mark when no custom photo is set. */
 export function athleteAvatarDisplayUrl(
   avatarUrl: string | null | undefined,
   _league?: LeagueKind | string | null,
 ): string {
-  const trimmed = avatarUrl?.trim();
-  return trimmed || PROFILE_AVATAR_FALLBACK;
+  return resolveAthleteAvatarUrl(avatarUrl) || PROFILE_AVATAR_FALLBACK;
 }
 
 export function athleteAvatarUsesFallback(avatarUrl: string | null | undefined): boolean {
-  return !avatarUrl?.trim();
+  return resolveAthleteAvatarUrl(avatarUrl) == null;
 }
