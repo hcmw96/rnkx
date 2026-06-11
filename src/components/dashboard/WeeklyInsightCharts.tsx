@@ -1,3 +1,4 @@
+import { useMemo } from 'react';
 import {
   Bar,
   BarChart,
@@ -31,14 +32,70 @@ type WeeklyStackedBarChartProps = {
   showTooltip?: boolean;
   /** Show only one league's bars (Engine/Run toggle on dashboard preview). */
   singleLeague?: 'engine' | 'run';
-  /** Short unit label for Y-axis ticks (pts, min, ppm). */
-  yAxisUnit?: string;
 };
 
-function formatYAxisTick(value: number, unit: string, allowDecimals: boolean): string {
+const Y_AXIS_TICK_COUNT = 4;
+
+function niceStep(rawStep: number): number {
+  if (!Number.isFinite(rawStep) || rawStep <= 0) return 1;
+  const exponent = Math.floor(Math.log10(rawStep));
+  const magnitude = 10 ** exponent;
+  const fraction = rawStep / magnitude;
+  const niceFraction =
+    fraction <= 1 ? 1 : fraction <= 2 ? 2 : fraction <= 2.5 ? 2.5 : fraction <= 5 ? 5 : 10;
+  return niceFraction * magnitude;
+}
+
+/** Evenly spaced ticks from 0 with a padded ceiling aligned to the step. */
+function buildYAxisScale(
+  maxValue: number,
+  allowDecimals: boolean,
+): { domain: [number, number]; ticks: number[] } {
+  if (!Number.isFinite(maxValue) || maxValue <= 0) {
+    const fallback = allowDecimals ? 1 : 4;
+    const step = fallback / (Y_AXIS_TICK_COUNT - 1);
+    const ticks = Array.from({ length: Y_AXIS_TICK_COUNT }, (_, i) =>
+      allowDecimals ? Math.round(i * step * 10) / 10 : i * step,
+    );
+    return { domain: [0, fallback], ticks };
+  }
+
+  const intervals = Y_AXIS_TICK_COUNT - 1;
+  const step = niceStep((maxValue * 1.08) / intervals);
+  const niceMax = step * intervals;
+  const ticks = Array.from({ length: Y_AXIS_TICK_COUNT }, (_, i) => {
+    const value = i * step;
+    if (!allowDecimals) return Math.round(value);
+    return Math.round(value * 10) / 10;
+  });
+  return { domain: [0, niceMax], ticks };
+}
+
+function chartMaxValue(
+  data: Record<string, string | number>[],
+  engineKey: string,
+  runKey: string,
+  singleLeague?: 'engine' | 'run',
+): number {
+  let max = 0;
+  for (const row of data) {
+    const engine = Number(row[engineKey]) || 0;
+    const run = Number(row[runKey]) || 0;
+    const total =
+      singleLeague === 'engine' ? engine : singleLeague === 'run' ? run : engine + run;
+    max = Math.max(max, total);
+  }
+  return max;
+}
+
+/** Compact axis ticks — numbers only; units live in the card subtitle. */
+function formatYAxisTick(value: number, allowDecimals: boolean): string {
   if (!Number.isFinite(value)) return '';
-  const n = allowDecimals ? formatScore(value) : String(Math.round(value));
-  return unit ? `${n} ${unit}` : n;
+  if (allowDecimals) {
+    const rounded = Math.round(value * 10) / 10;
+    return Number.isInteger(rounded) ? String(rounded) : rounded.toFixed(1);
+  }
+  return String(Math.round(value));
 }
 
 function defaultFormat(value: number, suffix: string): string {
@@ -90,20 +147,31 @@ export function WeeklyStackedBarChart({
   className,
   showTooltip = true,
   singleLeague,
-  yAxisUnit = '',
 }: WeeklyStackedBarChartProps) {
   const showAllTicks = data.length <= 7;
   const showEngine = !singleLeague || singleLeague === 'engine';
   const showRun = !singleLeague || singleLeague === 'run';
   const allowDecimals = valueSuffix === ' ppm';
-  const yAxisWidth = yAxisUnit === 'ppm' ? 52 : yAxisUnit === 'min' ? 44 : 48;
+
+  const yAxis = useMemo(() => {
+    const maxValue = chartMaxValue(data, stack.engineKey, stack.runKey, singleLeague);
+    return buildYAxisScale(maxValue, allowDecimals);
+  }, [allowDecimals, data, singleLeague, stack.engineKey, stack.runKey]);
+
+  const yAxisWidth = useMemo(() => {
+    const widest = yAxis.ticks.reduce((max, tick) => {
+      const label = formatYAxisTick(tick, allowDecimals);
+      return Math.max(max, label.length);
+    }, 1);
+    return Math.max(24, widest * 7 + 6);
+  }, [allowDecimals, yAxis.ticks]);
 
   return (
     <div className={cn('w-full', className)} style={{ height }}>
       <ResponsiveContainer width="100%" height="100%">
         <BarChart
           data={data}
-          margin={{ top: 4, right: 4, left: 0, bottom: showAllTicks ? 4 : 0 }}
+          margin={{ top: 6, right: 4, left: 0, bottom: showAllTicks ? 4 : 0 }}
           barCategoryGap="20%"
         >
           <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="hsla(0,0%,100%,0.06)" />
@@ -121,9 +189,10 @@ export function WeeklyStackedBarChart({
             tickLine={false}
             width={yAxisWidth}
             allowDecimals={allowDecimals}
-            tickCount={4}
-            domain={[0, 'auto']}
-            tickFormatter={(value) => formatYAxisTick(Number(value), yAxisUnit, allowDecimals)}
+            domain={yAxis.domain}
+            ticks={yAxis.ticks}
+            tickMargin={2}
+            tickFormatter={(value) => formatYAxisTick(Number(value), allowDecimals)}
           />
           {showTooltip ? (
             <Tooltip

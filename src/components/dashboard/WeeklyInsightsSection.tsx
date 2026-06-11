@@ -348,9 +348,6 @@ export function WeeklyInsightsSection({ data }: WeeklyInsightsSectionProps) {
                 height={140}
                 valueSuffix={config.valueSuffix}
                 showTooltip={false}
-                yAxisUnit={
-                  config.kind === 'volume' ? 'min' : config.kind === 'score' ? 'pts' : 'ppm'
-                }
                 formatValue={
                   config.kind === 'volume'
                     ? (v) => String(Math.round(v))

@@ -42,6 +42,10 @@ import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '
 import { Input } from '@/components/ui/input';
 import { Switch } from '@/components/ui/switch';
 import { Textarea } from '@/components/ui/textarea';
+import {
+  ENGINE_LEAGUE_AVATAR_FALLBACK,
+  RUN_LEAGUE_AVATAR_FALLBACK,
+} from '@/lib/leagueAvatars';
 import { SCORING_ASSISTANT_SUGGESTIONS } from '@/lib/scoringAssistant';
 import { APP_DOCUMENTS, type AppDocument } from '@/lib/appDocuments';
 import { DocViewerSheet } from '@/components/settings/DocViewerSheet';
@@ -423,15 +427,27 @@ export function SettingsPageLayout(props: SettingsPageLayoutProps) {
                           >
                             <div
                               className={cn(
-                                'flex h-8 w-8 items-center justify-center rounded-full border-2',
+                                'relative h-10 w-10 shrink-0 overflow-hidden rounded-full border-2 bg-muted',
                                 active
                                   ? isRun
-                                    ? 'border-cyan-400 bg-cyan-500/15 text-cyan-300'
-                                    : 'border-neon-lime bg-neon-lime/10 text-neon-lime'
-                                  : 'border-muted-foreground/35 text-muted-foreground',
+                                    ? 'border-cyan-400 ring-1 ring-cyan-500/35'
+                                    : 'border-neon-lime ring-1 ring-neon-lime/25'
+                                  : 'border-border opacity-80',
                               )}
                             >
-                              {active ? <Check className="h-4 w-4" strokeWidth={3} /> : null}
+                              <img
+                                src={isRun ? RUN_LEAGUE_AVATAR_FALLBACK : ENGINE_LEAGUE_AVATAR_FALLBACK}
+                                alt=""
+                                className="h-full w-full object-cover"
+                              />
+                              {active ? (
+                                <span className="absolute bottom-0 right-0 flex h-4 w-4 items-center justify-center rounded-full bg-background shadow-sm ring-1 ring-border">
+                                  <Check
+                                    className={cn('h-2.5 w-2.5', isRun ? 'text-cyan-400' : 'text-neon-lime')}
+                                    strokeWidth={3}
+                                  />
+                                </span>
+                              ) : null}
                             </div>
                             <div>
                               <p className="font-semibold text-foreground">
