@@ -12,6 +12,7 @@ import { SHOW_RECOVERY } from '@/lib/featureFlags';
 import LeaderboardPage from './pages/app/LeaderboardPage';
 import ProfilePage from './pages/app/ProfilePage';
 import SettingsPage from './pages/app/SettingsPage';
+import FaqPage from './pages/app/FaqPage';
 import PremiumPage from './pages/app/PremiumPage';
 import AdminPage from './pages/app/AdminPage';
 import PrivateLeaguesPage from './pages/app/PrivateLeaguesPage';
@@ -357,6 +358,18 @@ function SessionRoutes() {
               <Navigate to="/onboarding" replace />
             ) : (
               <SettingsPage />
+            )
+          }
+        />
+        <Route
+          path="/app/faq"
+          element={
+            !session ? (
+              <Navigate to="/auth" replace />
+            ) : !profileComplete ? (
+              <Navigate to="/onboarding" replace />
+            ) : (
+              <FaqPage />
             )
           }
         />

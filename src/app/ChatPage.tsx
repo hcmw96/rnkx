@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { AppShell } from "@/components/app/AppShell";
 import { ChatPremiumGate } from "@/components/chat/ChatPremiumGate";
+import { ChatPreview } from "@/components/premium/PreviewMocks";
 import { NewMessageModal } from "@/components/chat/NewMessageModal";
 import { supabase } from "@/services/supabase";
 import { resolveAthleteId } from "@/lib/resolveAthleteId";
@@ -229,7 +230,7 @@ export default function ChatPage() {
 
   return (
     <AppShell>
-      <ChatPremiumGate>
+      <ChatPremiumGate previewContent={!loading && items.length === 0 ? <ChatPreview /> : undefined}>
       <div className="space-y-2" {...pullHandlers}>
         {(isRefreshing || pullDistance > 0) && (
           <p className="text-center text-xs text-muted-foreground">

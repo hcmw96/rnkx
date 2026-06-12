@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Globe, Lock } from 'lucide-react';
 import { AppShell } from '@/components/app/AppShell';
 import { PremiumGate } from '@/components/PremiumGate';
+import { ClubsPreview } from '@/components/premium/PreviewMocks';
 import { CreateLeagueModal } from '@/components/leagues/CreateLeagueModal';
 import { InviteFriendModal } from '@/components/leagues/InviteFriendModal';
 import { PrivateLeagueCard } from '@/components/leagues/PrivateLeagueCard';
@@ -326,7 +327,12 @@ export default function PrivateLeaguesPage({ embedded = false }: PrivateLeaguesP
 
   return (
     <AppShell>
-      <PremiumGate athleteId={athleteId} userId={authUserId}>
+      <PremiumGate
+        athleteId={athleteId}
+        userId={authUserId}
+        description="Create and join clubs to compete with friends on private leaderboards."
+        previewContent={!loading && leagues.length === 0 ? <ClubsPreview /> : undefined}
+      >
         {content}
       </PremiumGate>
     </AppShell>

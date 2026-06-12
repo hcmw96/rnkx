@@ -4,7 +4,6 @@ import { Compass, Shield, UserRound } from 'lucide-react';
 import { Link, NavLink, Outlet } from 'react-router-dom';
 import { AppShell } from '@/components/app/AppShell';
 import { PremiumGate } from '@/components/PremiumGate';
-import { SocialPreview } from '@/components/premium/PreviewMocks';
 import { supabase } from '@/services/supabase';
 import { cn } from '@/lib/utils';
 
@@ -44,7 +43,6 @@ export default function SocialPage() {
         athleteId={athleteId}
         userId={authUserId}
         description="Unlock friends, clubs, discover, and messages with RNKX Premium."
-        previewContent={<SocialPreview />}
       >
         <div className="mx-auto max-w-lg space-y-4">
           <p className="text-center text-xs text-muted-foreground">

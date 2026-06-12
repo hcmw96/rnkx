@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { X, Zap, Loader2 } from 'lucide-react';
+import { Info, X, Zap, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { AppShell } from '@/components/app/AppShell';
 import { Button } from '@/components/ui/button';
@@ -438,6 +438,8 @@ export default function Dashboard() {
     return isSyncStale(lastSynced);
   }, [syncReminderDismissed, lastSynced, wearables]);
 
+  const showAppleWatchSyncNote = wearablesIncludeAppleWatch(wearables);
+
   const momentumData = useMemo(() => {
     const enginePlaces = momentumPlacesFromRank(stats?.engine_rank ?? null);
     const runPlaces = momentumPlacesFromRank(stats?.run_rank ?? null);
@@ -553,6 +555,18 @@ export default function Dashboard() {
           engineDivision={(stats?.engine_division as 'Open' | 'Challenger' | 'Pro' | 'Elite' | null) ?? 'Open'}
           runDivision={(stats?.run_division as 'Open' | 'Challenger' | 'Pro' | 'Elite' | null) ?? 'Open'}
         />
+
+        {showAppleWatchSyncNote ? (
+          <div
+            className="flex items-start gap-2.5 rounded-lg border border-border/70 bg-muted/15 px-3 py-2.5"
+            role="note"
+          >
+            <Info className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" aria-hidden />
+            <p className="text-xs leading-relaxed text-muted-foreground">
+              Apple Watch users: open the app and tap Sync after each workout to score.
+            </p>
+          </div>
+        ) : null}
 
         <MomentumSection engine={momentumData.engine} run={momentumData.run} />
 

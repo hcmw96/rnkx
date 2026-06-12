@@ -1,9 +1,9 @@
 export type ClubGender = 'male' | 'female' | 'mixed';
 
 export const CLUB_GENDER_OPTIONS: { value: ClubGender; label: string }[] = [
-  { value: 'male', label: 'Men' },
-  { value: 'female', label: 'Women' },
   { value: 'mixed', label: 'Mixed' },
+  { value: 'male', label: 'Men only' },
+  { value: 'female', label: 'Women only' },
 ];
 
 export function normalizeClubGender(value: string | null | undefined): ClubGender {
@@ -13,6 +13,28 @@ export function normalizeClubGender(value: string | null | undefined): ClubGende
 
 export function clubGenderLabel(value: string | null | undefined): string {
   return CLUB_GENDER_OPTIONS.find((o) => o.value === value)?.label ?? 'Mixed';
+}
+
+/** Chip label for gender-restricted clubs; null for mixed / unknown. */
+export function clubGenderChipLabel(value: string | null | undefined): string | null {
+  const normalized = normalizeClubGender(value);
+  if (normalized === 'male') return 'Men only';
+  if (normalized === 'female') return 'Women only';
+  return null;
+}
+
+export type AthleteProfileGender = 'male' | 'female' | null;
+
+export const ATHLETE_GENDER_OPTIONS: { value: AthleteProfileGender; label: string }[] = [
+  { value: 'male', label: 'Male' },
+  { value: 'female', label: 'Female' },
+  { value: null, label: 'Prefer not to say' },
+];
+
+export function athleteProfileGenderLabel(value: string | null | undefined): string {
+  if (value === 'male') return 'Male';
+  if (value === 'female') return 'Female';
+  return 'Prefer not to say';
 }
 
 export function athleteCanJoinClub(

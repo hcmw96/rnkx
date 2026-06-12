@@ -3,6 +3,7 @@ import { Link, useNavigate, useParams } from 'react-router-dom';
 import { Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { PremiumGate } from '@/components/PremiumGate';
+import { JoinClubPreview } from '@/components/premium/PreviewMocks';
 import { invokePushNotify } from '@/lib/pushNotify';
 import { supabase } from '@/services/supabase';
 import { toast } from 'sonner';
@@ -249,7 +250,13 @@ export default function JoinLeaguePage() {
             {preview.member_count} member{preview.member_count !== 1 ? 's' : ''}
           </p>
         </div>
-        <PremiumGate athleteId={athleteId} userId={authUserId}>
+        <PremiumGate
+          athleteId={athleteId}
+          userId={authUserId}
+          compact
+          description="Join private clubs and compete with friends on club leaderboards."
+          previewContent={<JoinClubPreview />}
+        >
           <Button type="button" className="w-full font-semibold" disabled={joining} onClick={() => void handleJoin()}>
             {joining ? 'Joining…' : 'Join Club'}
           </Button>

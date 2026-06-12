@@ -3,6 +3,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Check, Loader2, Lock, Link2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { WearableCompatibility } from '@/components/WearableCompatibility';
 import { useWearableConnect } from '@/hooks/useWearableConnect';
 import { 
   StravaLogo, WhoopLogo, AppleLogo,
@@ -190,7 +191,9 @@ const OnboardingWearables = ({ onConnectionsChange }: OnboardingWearablesProps) 
           </Card>
         </div>
       </div>
-      
+
+      <WearableCompatibility />
+
       {connected.length > 0 && (
         <p className="text-sm text-center text-muted-foreground">
           {connected.length} device{connected.length > 1 ? 's' : ''} connected

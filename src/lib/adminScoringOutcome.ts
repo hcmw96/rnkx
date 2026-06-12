@@ -21,14 +21,14 @@ function humanizeRejectReason(code: string | null | undefined): string {
   return REJECT_LABELS[code] ?? code.replace(/_/g, ' ');
 }
 
-/** Mirrors Apple `process_activity` Engine League PPM lookup for admin diagnostics. */
+/** Mirrors server Engine League PPM curve for admin diagnostics. */
 export function recomputeWorkoutEngineScore(
   durationMin: number,
   avgHr: number | null,
   effectiveMaxHr: number,
   avgPaceSecPerKm: number | null,
 ): number {
-  if (!sessionDurationQualifiesForScoring(durationMin) || avgHr == null || effectiveMaxHr <= 0) return 0;
+  if (avgHr == null || effectiveMaxHr <= 0) return 0;
   const hrPct = (avgHr / effectiveMaxHr) * 100;
   if (avgPaceSecPerKm != null && avgPaceSecPerKm < 240 && hrPct < 60) return 0;
   return engineLeagueSessionScore(hrPct, durationMin);

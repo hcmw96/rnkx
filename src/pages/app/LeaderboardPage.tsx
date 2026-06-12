@@ -647,8 +647,8 @@ export default function LeaderboardPage() {
             athleteId={myAthleteId ?? undefined}
             userId={currentUserId ?? undefined}
             title="Friends leaderboard"
-            description="Compare scores with athletes you've added as friends"
-            previewContent={<FriendsPreview />}
+            description="Compare scores with athletes you've added as friends."
+            previewContent={friendIds.size === 0 ? <FriendsPreview /> : undefined}
           >
             {friendIds.size === 0 ? (
               <div className="rounded-xl border border-border bg-[hsla(0,0%,10%,1)] px-4 py-8 text-center">

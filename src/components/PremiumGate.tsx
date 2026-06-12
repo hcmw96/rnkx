@@ -5,17 +5,21 @@ import { cn } from '@/lib/utils';
 import { usePremium } from '@/services/revenuecat';
 
 const DEFAULT_TITLE = 'Premium feature';
-const DEFAULT_DESCRIPTION = 'Upgrade to RNKX Premium to unlock';
+const DEFAULT_DESCRIPTION = 'Upgrade to RNKX Premium to unlock this feature.';
 
 type PremiumGateProps = {
   athleteId: string | undefined;
   /** Supabase auth user id — used as RevenueCat `external_id` when opening the paywall. */
   userId: string | undefined;
   children: ReactNode;
+  /** Optional mock UI when the real children would be empty or minimal. */
   previewContent?: ReactNode;
   title?: string;
   description?: string;
   badge?: string;
+  className?: string;
+  /** Tighter overlay for inline gates (e.g. a single button). */
+  compact?: boolean;
 };
 
 export function PremiumGate({
@@ -26,58 +30,78 @@ export function PremiumGate({
   title,
   description,
   badge,
+  className,
+  compact,
 }: PremiumGateProps) {
   const { isPremium, loading, presentPaywall } = usePremium(athleteId, userId);
 
   if (loading) {
-    return <div />;
-  }
-
-  if (!loading && !isPremium) {
-    const heading = title ?? DEFAULT_TITLE;
-    const body = description ?? DEFAULT_DESCRIPTION;
-
     return (
       <div
         className={cn(
-          'relative min-h-[min(22rem,52vh)] overflow-hidden rounded-xl border border-border bg-zinc-950',
+          'animate-pulse rounded-xl bg-muted/10',
+          compact ? 'min-h-[5rem]' : 'min-h-[12rem]',
+          className,
         )}
-      >
-        <div className="pointer-events-none select-none opacity-55 blur-[5px]" aria-hidden>
-          {previewContent ?? children ?? <div className="min-h-[22rem] bg-muted/15" />}
-        </div>
-
-        <div className="absolute inset-0 z-10 flex items-center justify-center bg-zinc-950/80 p-6 sm:p-8">
-          {badge ? (
-            <span
-              className="absolute right-3 top-3 z-20 rounded-md bg-neon-lime px-2.5 py-1 font-sans text-xs font-bold uppercase tracking-wide text-black shadow-sm ring-1 ring-neon-lime/50"
-              aria-hidden
-            >
-              {badge}
-            </span>
-          ) : null}
-
-          <div className="flex w-full max-w-sm flex-col items-center gap-5 text-center">
-            <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-full border border-neon-lime/35 bg-neon-lime/10">
-              <Lock className="h-7 w-7 text-neon-lime" strokeWidth={2} aria-hidden />
-            </div>
-            <div className="space-y-2">
-              <h3 className="type-heading">{heading}</h3>
-              <p className="text-sm leading-relaxed text-muted-foreground">{body}</p>
-            </div>
-            <Button
-              type="button"
-              size="lg"
-              className="w-full font-semibold bg-neon-lime text-black hover:bg-neon-lime/90"
-              onClick={presentPaywall}
-            >
-              Upgrade to Premium
-            </Button>
-          </div>
-        </div>
-      </div>
+        aria-hidden
+      />
     );
   }
 
-  return <>{children}</>;
+  if (isPremium) {
+    return <>{children}</>;
+  }
+
+  const heading = title ?? DEFAULT_TITLE;
+  const body = description ?? DEFAULT_DESCRIPTION;
+  const preview = previewContent ?? children;
+
+  return (
+    <div className={cn('relative overflow-hidden rounded-xl', className)}>
+      <div className="pointer-events-none select-none opacity-50" aria-hidden>
+        {preview ?? <div className={cn('bg-muted/15', compact ? 'min-h-[5rem]' : 'min-h-[12rem]')} />}
+      </div>
+
+      {badge ? (
+        <span
+          className="absolute right-3 top-3 z-20 rounded-md bg-neon-lime px-2.5 py-1 font-sans text-xs font-bold uppercase tracking-wide text-black shadow-sm ring-1 ring-neon-lime/50"
+          aria-hidden
+        >
+          {badge}
+        </span>
+      ) : null}
+
+      <div
+        className={cn(
+          'absolute inset-0 z-10 flex items-center justify-center bg-background/25',
+          compact ? 'p-4' : 'p-6 sm:p-8',
+        )}
+      >
+        <div
+          className={cn(
+            'pointer-events-auto flex w-full max-w-sm flex-col items-center gap-4 rounded-xl border border-border/80 bg-card/95 p-5 text-center shadow-lg backdrop-blur-[2px] sm:gap-5 sm:p-6',
+            compact && 'max-w-xs gap-3 p-4 sm:p-5',
+          )}
+        >
+          <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full border border-neon-lime/35 bg-neon-lime/10 sm:h-14 sm:w-14">
+            <Lock className="h-6 w-6 text-neon-lime sm:h-7 sm:w-7" strokeWidth={2} aria-hidden />
+          </div>
+          <div className="space-y-1.5">
+            <h3 className={cn('type-heading', compact && 'text-sm')}>{heading}</h3>
+            <p className={cn('text-sm leading-relaxed text-muted-foreground', compact && 'text-xs')}>
+              {body}
+            </p>
+          </div>
+          <Button
+            type="button"
+            size={compact ? 'default' : 'lg'}
+            className="w-full font-semibold bg-neon-lime text-black hover:bg-neon-lime/90"
+            onClick={presentPaywall}
+          >
+            Unlock Premium
+          </Button>
+        </div>
+      </div>
+    </div>
+  );
 }

@@ -18,6 +18,7 @@ import { supabase } from '@/services/supabase';
 import { resolveAthleteId } from '@/lib/resolveAthleteId';
 import { UNREAD_CHANGED_EVENT } from '@/lib/unreadMessages';
 import { formatDistanceToNow } from 'date-fns';
+import { toast } from 'sonner';
 
 type ChatNotificationItem = {
   id: string;
@@ -177,7 +178,8 @@ export default function NotificationsPage() {
       }
       setClubInvites((prev) => prev.filter((c) => c.leagueId !== leagueId));
     } catch (err) {
-      console.warn('[notifications] accept club invite failed', err);
+      const msg = err instanceof Error ? err.message : 'Could not join club';
+      toast.error(msg);
     } finally {
       setAcceptingLeagueId(null);
       void load();

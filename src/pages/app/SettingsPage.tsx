@@ -20,6 +20,7 @@ import {
 } from '@/components/ui/alert-dialog';
 import { Button } from '@/components/ui/button';
 import { SettingsPageLayout } from '@/components/settings/SettingsPageLayout';
+import type { AthleteProfileGender } from '@/lib/clubGender';
 import {
   CorosLogo,
   FitbitLogo,
@@ -52,12 +53,11 @@ import { useAchievementUnlock } from '@/context/AchievementUnlockContext';
 import { useScoreSharePrompt } from '@/context/ScoreSharePromptContext';
 import { syncAppleWorkoutsToDatabase } from '@/lib/syncActivitiesApple';
 import { fetchRecentWorkouts } from '@/services/despia';
-import { getScoringAssistantReply } from '@/lib/scoringAssistant';
 import { presentPaywall, restoreInAppPurchasesAndApplyPremium } from '@/services/revenuecat';
 import { supabase } from '@/services/supabase';
 
 const ATHLETE_COLUMNS =
-  'id,username,display_name,country,avatar_url,total_score,selected_leagues,wearables,user_id,max_hr,max_hr_source,is_premium,health_data_enabled,profile_public,last_synced';
+  'id,username,display_name,country,avatar_url,total_score,selected_leagues,wearables,user_id,max_hr,max_hr_source,is_premium,health_data_enabled,profile_public,last_synced,gender';
 
 interface AthleteRow {
   id: string;
@@ -75,12 +75,14 @@ interface AthleteRow {
   health_data_enabled: boolean | null;
   profile_public: boolean | null;
   last_synced: string | null;
+  gender: string | null;
 }
 
 type SettingsDialog =
   | 'email'
   | 'displayName'
   | 'username'
+  | 'gender'
   | 'password'
   | 'leagues'
   | 'subscription'
@@ -162,11 +164,10 @@ export default function SettingsPage() {
   const [userEmail, setUserEmail] = useState<string | null>(null);
   const [nameDraft, setNameDraft] = useState('');
   const [usernameDraft, setUsernameDraft] = useState('');
+  const [genderDraft, setGenderDraft] = useState<AthleteProfileGender>(null);
   const [nameSaving, setNameSaving] = useState(false);
   const [usernameSaving, setUsernameSaving] = useState(false);
-  const [assistantOpen, setAssistantOpen] = useState(false);
-  const [assistantInput, setAssistantInput] = useState('');
-  const [assistantReply, setAssistantReply] = useState<string | null>(null);
+  const [genderSaving, setGenderSaving] = useState(false);
   const [supportBody, setSupportBody] = useState('');
   const [supportSending, setSupportSending] = useState(false);
   const [restorePurchasing, setRestorePurchasing] = useState(false);
@@ -721,6 +722,26 @@ export default function SettingsPage() {
     }
   }
 
+  async function saveGenderInline(): Promise<boolean> {
+    if (!athlete?.id) return false;
+    setGenderSaving(true);
+    try {
+      const { error } = await supabase
+        .from('athletes')
+        .update({ gender: genderDraft })
+        .eq('id', athlete.id);
+      if (error) {
+        toast.error(error.message);
+        return false;
+      }
+      setAthlete((prev) => (prev ? { ...prev, gender: genderDraft } : prev));
+      toast.success('Gender updated.');
+      return true;
+    } finally {
+      setGenderSaving(false);
+    }
+  }
+
   function effectiveSelectedLeagues(): string[] {
     const s = athlete?.selected_leagues;
     if (s == null || s.length === 0) return ['engine', 'run'];
@@ -820,23 +841,6 @@ export default function SettingsPage() {
     }
   }
 
-  function handleAssistantOpenChange(open: boolean) {
-    setAssistantOpen(open);
-    if (!open) {
-      setAssistantInput('');
-      setAssistantReply(null);
-    }
-  }
-
-  function handleAssistantSend() {
-    setAssistantReply(getScoringAssistantReply(assistantInput));
-  }
-
-  function handleAssistantSuggestion(question: string) {
-    setAssistantInput(question);
-    setAssistantReply(getScoringAssistantReply(question));
-  }
-
   const wearsApple = athleteWearsApple(athlete?.wearables ?? null);
   const appleConnected =
     appleHkLiveOk === true
@@ -863,6 +867,10 @@ export default function SettingsPage() {
     }
     if (dialog === 'username') {
       setUsernameDraft(athlete.username ?? '');
+    }
+    if (dialog === 'gender') {
+      const g = athlete.gender;
+      setGenderDraft(g === 'male' || g === 'female' ? g : null);
     }
     setSettingsDialog(dialog);
   }
@@ -924,12 +932,11 @@ export default function SettingsPage() {
       nameSaving={nameSaving}
       usernameDraft={usernameDraft}
       usernameSaving={usernameSaving}
+      genderDraft={genderDraft}
+      genderSaving={genderSaving}
       supportBody={supportBody}
       supportSending={supportSending}
       restorePurchasing={restorePurchasing}
-      assistantOpen={assistantOpen}
-      assistantInput={assistantInput}
-      assistantReply={assistantReply}
       deleteAccountOpen={deleteAccountOpen}
       deleteAccountWorking={deleteAccountWorking}
       wearableLogoForCode={wearableLogoForCode}
@@ -955,6 +962,12 @@ export default function SettingsPage() {
           if (ok) closeSettingsDialog();
         })
       }
+      onGenderDraftChange={setGenderDraft}
+      onSaveGender={() =>
+        void saveGenderInline().then((ok) => {
+          if (ok) closeSettingsDialog();
+        })
+      }
       onPasswordReset={() => {
         void handlePasswordResetEmail();
         closeSettingsDialog();
@@ -969,10 +982,6 @@ export default function SettingsPage() {
         if (uid) presentPaywall(uid);
         else window.location.href = '/premium';
       }}
-      onAssistantOpenChange={handleAssistantOpenChange}
-      onAssistantInputChange={setAssistantInput}
-      onAssistantSend={handleAssistantSend}
-      onAssistantSuggestion={handleAssistantSuggestion}
       onSupportBodyChange={setSupportBody}
       onSendSupport={() =>
         void sendSupportMessage().then((ok) => {

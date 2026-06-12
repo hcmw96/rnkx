@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { ChevronRight, MessageCircle, Search, UserPlus, Check, X } from 'lucide-react';
 import { AppShell } from '@/components/app/AppShell';
 import { PremiumGate } from '@/components/PremiumGate';
+import { FriendsPreview } from '@/components/premium/PreviewMocks';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { invokePushNotify } from '@/lib/pushNotify';
@@ -433,7 +434,14 @@ export default function FriendsPage({ embedded = false }: FriendsPageProps) {
 
   return (
     <AppShell>
-      <PremiumGate athleteId={athleteId} userId={authUserId}>
+      <PremiumGate
+        athleteId={athleteId}
+        userId={authUserId}
+        description="Add friends, compare scores, and message athletes you train with."
+        previewContent={
+          !loading && friends.length === 0 && incoming.length === 0 ? <FriendsPreview /> : undefined
+        }
+      >
         {content}
       </PremiumGate>
     </AppShell>

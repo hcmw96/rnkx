@@ -1,4 +1,5 @@
-/** Decorative previews shown behind blurred PremiumGate overlays */
+/** Sample UI shown behind PremiumGate scrims when the live view would be empty. */
+import { MessageCircle, Users } from 'lucide-react';
 import { InsightsPreviewChart } from '@/components/insights/DashboardInsights';
 
 export function InsightsPreview() {
@@ -15,9 +16,6 @@ const MOCK_ROWS = [
 export function SocialPreview() {
   return (
     <div className="bg-zinc-950">
-      <p className="px-4 pb-3 pt-1 text-center text-xs text-muted-foreground">
-        Friends, clubs, and messages are included with Premium.
-      </p>
       <div className="grid grid-cols-3 border-y border-border" aria-hidden>
         {(['Friends', 'Clubs', 'Discover'] as const).map((label, i) => (
           <div
@@ -32,6 +30,80 @@ export function SocialPreview() {
         ))}
       </div>
       <FriendsPreview />
+    </div>
+  );
+}
+
+const MOCK_CHATS = [
+  { name: 'Alex K.', message: 'Great session today — new PB!', time: '2h', dm: true },
+  { name: 'London Run Club', message: 'See you at the Saturday tempo.', time: '5h', dm: false },
+  { name: 'Jamie L.', message: 'Are you racing this weekend?', time: '1d', dm: true },
+] as const;
+
+export function ChatPreview() {
+  return (
+    <div className="space-y-2 bg-card px-3 py-4">
+      {MOCK_CHATS.map((chat) => (
+        <div
+          key={chat.name}
+          className="flex items-center gap-3 rounded-lg border border-border bg-zinc-900/80 p-3"
+          aria-hidden
+        >
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-muted">
+            {chat.dm ? (
+              <MessageCircle className="h-5 w-5 text-muted-foreground" />
+            ) : (
+              <Users className="h-5 w-5 text-muted-foreground" />
+            )}
+          </div>
+          <div className="min-w-0 flex-1">
+            <div className="flex items-center justify-between gap-2">
+              <div className="h-4 w-28 rounded bg-muted/80" />
+              <div className="h-3 w-8 rounded bg-muted/40" />
+            </div>
+            <div className="mt-1.5 h-3 w-full max-w-[12rem] rounded bg-muted/50" />
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+const MOCK_CLUBS = [
+  { name: 'Hybrid Athletes', type: 'Engine', members: 12 },
+  { name: 'London Run Club', type: 'Run', members: 28 },
+] as const;
+
+export function ClubsPreview() {
+  return (
+    <ul className="space-y-2 px-3 py-4">
+      {MOCK_CLUBS.map((club) => (
+        <li
+          key={club.name}
+          className="rounded-xl border border-border bg-zinc-900/80 p-4"
+          aria-hidden
+        >
+          <div className="flex items-start gap-3">
+            <div className="h-12 w-12 shrink-0 rounded-xl bg-muted/60" />
+            <div className="min-w-0 flex-1 space-y-2">
+              <div className="h-4 w-36 rounded bg-muted/80" />
+              <div className="h-3 w-24 rounded bg-muted/50" />
+              <div className="flex gap-2">
+                <div className="h-5 w-16 rounded-full bg-primary/20" />
+                <div className="h-5 w-20 rounded-full bg-muted/40" />
+              </div>
+            </div>
+          </div>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+export function JoinClubPreview() {
+  return (
+    <div className="space-y-3 p-4" aria-hidden>
+      <div className="h-11 w-full rounded-lg bg-neon-lime/25" />
     </div>
   );
 }

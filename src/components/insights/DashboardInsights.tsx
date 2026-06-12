@@ -292,7 +292,7 @@ function EmptyChartHint({ compact }: { compact?: boolean }) {
   );
 }
 
-/** Blurred preview for PremiumGate — matches live chart styling. */
+/** Sample chart for PremiumGate scrims — matches live chart styling. */
 export function InsightsPreviewChart() {
   const data = PREVIEW_TREND_POINTS.map((p) => ({ label: p.label, total: p.total }));
   return (

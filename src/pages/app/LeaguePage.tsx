@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button';
 import { EditLeagueModal } from '@/components/leagues/EditLeagueModal';
 import { LeaderboardRows, type LeaderboardRowData } from '@/components/leaderboard/LeaderboardRows';
 import { clubImageDisplayUrl } from '@/lib/clubImageUpload';
-import { clubGenderLabel } from '@/lib/clubGender';
+import { ClubGenderChip } from '@/components/leagues/ClubGenderChip';
 import { fetchPrivateLeague } from '@/lib/clubContext';
 import { haptic } from '@/lib/haptics';
 import { cn } from '@/lib/utils';
@@ -214,7 +214,11 @@ export default function LeaguePage() {
 
   return (
     <AppShell>
-      <PremiumGate athleteId={athleteId} userId={authUserId}>
+      <PremiumGate
+        athleteId={athleteId}
+        userId={authUserId}
+        description="View club leaderboards, season scores, and member rankings."
+      >
         <section className="mx-auto max-w-lg space-y-4" {...pullHandlers}>
           {(isRefreshing || pullDistance > 0) && (
             <p className="text-center text-xs text-muted-foreground">
@@ -261,8 +265,9 @@ export default function LeaguePage() {
                           Run · Pace
                         </span>
                       )}
+                      <ClubGenderChip gender={league.gender} />
                       <span className="text-xs text-muted-foreground">
-                        {league.is_public ? 'Public' : 'Private'} · {clubGenderLabel(league.gender)} · {members.length} member{members.length !== 1 ? 's' : ''}
+                        {league.is_public ? 'Public' : 'Private'} · {members.length} member{members.length !== 1 ? 's' : ''}
                       </span>
                     </div>
                   </div>

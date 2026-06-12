@@ -4,10 +4,10 @@ import { invokePushNotify } from '@/lib/pushNotify';
 import { supabase } from '@/services/supabase';
 import { toast } from 'sonner';
 import { clubImageDisplayUrl } from '@/lib/clubImageUpload';
+import { ClubGenderChip } from '@/components/leagues/ClubGenderChip';
 import {
   athleteCanJoinClub,
   clubGenderJoinMessage,
-  clubGenderLabel,
   normalizeClubGender,
 } from '@/lib/clubGender';
 import { resolveAthleteId } from '@/lib/resolveAthleteId';
@@ -192,9 +192,12 @@ export default function DiscoverClubsPage() {
                     )}
                   </div>
                   <div className="min-w-0 flex-1">
-                    <p className="type-heading truncate">{club.name}</p>
+                    <div className="flex min-w-0 items-center gap-1.5">
+                      <p className="type-heading truncate">{club.name}</p>
+                      <ClubGenderChip gender={club.gender} />
+                    </div>
                     <p className="type-meta mt-0.5">
-                      {club.memberCount} member{club.memberCount !== 1 ? 's' : ''} · {clubGenderLabel(club.gender)}
+                      {club.memberCount} member{club.memberCount !== 1 ? 's' : ''}
                     </p>
                   </div>
                 </button>

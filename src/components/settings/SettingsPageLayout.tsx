@@ -1,18 +1,20 @@
 import * as React from 'react';
 import type { ComponentType } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   Activity,
   AlignLeft,
   Check,
   CreditCard,
   FileText,
+  ChevronDown,
   Globe,
   Heart,
   HelpCircle,
+  Info,
   Lock,
   LogOut,
   Mail,
-  MessageCircle,
   Plus,
   RefreshCw,
   RotateCcw,
@@ -24,6 +26,7 @@ import {
   Trophy,
   User,
 } from 'lucide-react';
+import { WearableCompatibility } from '@/components/WearableCompatibility';
 import { AppShell } from '@/components/app/AppShell';
 import { PremiumGate } from '@/components/PremiumGate';
 import { SHOW_RECOVERY } from '@/lib/featureFlags';
@@ -38,6 +41,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Switch } from '@/components/ui/switch';
@@ -46,7 +50,6 @@ import {
   ENGINE_LEAGUE_AVATAR_FALLBACK,
   RUN_LEAGUE_AVATAR_FALLBACK,
 } from '@/lib/leagueAvatars';
-import { SCORING_ASSISTANT_SUGGESTIONS } from '@/lib/scoringAssistant';
 import { APP_DOCUMENTS, type AppDocument } from '@/lib/appDocuments';
 import { DocViewerSheet } from '@/components/settings/DocViewerSheet';
 import {
@@ -56,6 +59,8 @@ import {
   SettingsRowDivider,
   SettingsSectionHeader,
 } from '@/components/settings/SettingsRows';
+import { ProfileGenderSelect } from '@/components/settings/ProfileGenderSelect';
+import { athleteProfileGenderLabel, type AthleteProfileGender } from '@/lib/clubGender';
 import { formatLeaguesSubtitle, formatSyncAgo, maxHrSourceLabel } from '@/lib/settingsFormat';
 import { cn } from '@/lib/utils';
 import { WhoopLogo } from '@/components/BrandLogos';
@@ -71,6 +76,7 @@ type SettingsDialog =
   | 'email'
   | 'displayName'
   | 'username'
+  | 'gender'
   | 'password'
   | 'leagues'
   | 'subscription'
@@ -94,6 +100,7 @@ export type SettingsPageLayoutProps = {
     profile_public: boolean | null;
     last_synced: string | null;
     user_id: string | null;
+    gender: string | null;
   } | null;
   userEmail: string | null;
   terraConnections: TerraConnectionRow[];
@@ -115,12 +122,11 @@ export type SettingsPageLayoutProps = {
   nameSaving: boolean;
   usernameDraft: string;
   usernameSaving: boolean;
+  genderDraft: AthleteProfileGender;
+  genderSaving: boolean;
   supportBody: string;
   supportSending: boolean;
   restorePurchasing: boolean;
-  assistantOpen: boolean;
-  assistantInput: string;
-  assistantReply: string | null;
   deleteAccountOpen: boolean;
   deleteAccountWorking: boolean;
   wearableLogoForCode: (code: string) => ComponentType<{ className?: string }> | null;
@@ -138,16 +144,14 @@ export type SettingsPageLayoutProps = {
   onSaveDisplayName: () => void;
   onUsernameDraftChange: (value: string) => void;
   onSaveUsername: () => void;
+  onGenderDraftChange: (value: AthleteProfileGender) => void;
+  onSaveGender: () => void;
   onPasswordReset: () => void;
   onToggleLeague: (league: 'engine' | 'run') => void;
   onHealthDataChange: (value: boolean) => void;
   onProfilePublicChange: (value: boolean) => void;
   onRestorePurchases: () => void;
   onUnlockPremium: () => void;
-  onAssistantOpenChange: (open: boolean) => void;
-  onAssistantInputChange: (value: string) => void;
-  onAssistantSend: () => void;
-  onAssistantSuggestion: (question: string) => void;
   onSupportBodyChange: (value: string) => void;
   onSendSupport: () => void;
   onSignOut: () => void;
@@ -157,6 +161,7 @@ export type SettingsPageLayoutProps = {
 };
 
 export function SettingsPageLayout(props: SettingsPageLayoutProps) {
+  const navigate = useNavigate();
   const {
     loading,
     athlete,
@@ -180,12 +185,11 @@ export function SettingsPageLayout(props: SettingsPageLayoutProps) {
     nameSaving,
     usernameDraft,
     usernameSaving,
+    genderDraft,
+    genderSaving,
     supportBody,
     supportSending,
     restorePurchasing,
-    assistantOpen,
-    assistantInput,
-    assistantReply,
     deleteAccountOpen,
     deleteAccountWorking,
     wearableLogoForCode,
@@ -203,16 +207,14 @@ export function SettingsPageLayout(props: SettingsPageLayoutProps) {
     onSaveDisplayName,
     onUsernameDraftChange,
     onSaveUsername,
+    onGenderDraftChange,
+    onSaveGender,
     onPasswordReset,
     onToggleLeague,
     onHealthDataChange,
     onProfilePublicChange,
     onRestorePurchases,
     onUnlockPremium,
-    onAssistantOpenChange,
-    onAssistantInputChange,
-    onAssistantSend,
-    onAssistantSuggestion,
     onSupportBodyChange,
     onSendSupport,
     onSignOut,
@@ -222,6 +224,7 @@ export function SettingsPageLayout(props: SettingsPageLayoutProps) {
   } = props;
 
   const [activeDoc, setActiveDoc] = React.useState<AppDocument | null>(null);
+  const [devicesHowToOpen, setDevicesHowToOpen] = React.useState(false);
 
   const appleSubtitle = appleConnected
     ? formatSyncAgo(athlete?.last_synced)
@@ -257,68 +260,6 @@ export function SettingsPageLayout(props: SettingsPageLayoutProps) {
                 </AlertDialogFooter>
               </AlertDialogContent>
             </AlertDialog>
-
-            <Dialog open={assistantOpen} onOpenChange={onAssistantOpenChange}>
-              <DialogContent className="max-w-md border-border bg-card">
-                <DialogHeader>
-                  <DialogTitle className="type-card-title">Ask the Assistant</DialogTitle>
-                  <p className="text-sm text-muted-foreground">
-                    Quick answers about scoring, leagues, and fair play.
-                  </p>
-                </DialogHeader>
-                <div className="space-y-3">
-                  <Input
-                    placeholder="Ask about scoring, leagues, or fair play…"
-                    value={assistantInput}
-                    onChange={(e) => onAssistantInputChange(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter') onAssistantSend();
-                    }}
-                  />
-                  <div className="flex flex-wrap gap-2">
-                    {SCORING_ASSISTANT_SUGGESTIONS.map((suggestion) => (
-                      <button
-                        key={suggestion}
-                        type="button"
-                        className="rounded-full border border-border/80 bg-muted/30 px-2.5 py-1 text-left text-[11px] text-muted-foreground transition hover:border-neon-lime/40 hover:text-foreground"
-                        onClick={() => onAssistantSuggestion(suggestion)}
-                      >
-                        {suggestion}
-                      </button>
-                    ))}
-                  </div>
-                  {assistantReply ? (
-                    <div className="rounded-lg border border-border/80 bg-zinc-950/50 p-3">
-                      <p className="text-xs font-semibold uppercase tracking-wide text-neon-lime">Answer</p>
-                      <p className="mt-1.5 text-sm leading-relaxed text-foreground">{assistantReply}</p>
-                    </div>
-                  ) : null}
-                </div>
-                <DialogFooter className="gap-2 sm:gap-0">
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    className="sm:mr-auto"
-                    onClick={() => {
-                      onAssistantOpenChange(false);
-                      setActiveDoc(APP_DOCUMENTS.rules);
-                    }}
-                  >
-                    Full rules
-                  </Button>
-                  <Button type="button" variant="outline" onClick={() => onAssistantOpenChange(false)}>
-                    Close
-                  </Button>
-                  <Button
-                    type="button"
-                    className="bg-neon-lime text-black hover:bg-neon-lime/90"
-                    onClick={onAssistantSend}
-                  >
-                    Ask
-                  </Button>
-                </DialogFooter>
-              </DialogContent>
-            </Dialog>
 
             <Dialog open={settingsDialog != null} onOpenChange={(open) => !open && onCloseDialog()}>
               <DialogContent className="max-w-md border-border bg-card">
@@ -376,6 +317,26 @@ export function SettingsPageLayout(props: SettingsPageLayoutProps) {
                       </Button>
                       <Button type="button" disabled={usernameSaving} onClick={onSaveUsername}>
                         {usernameSaving ? 'Saving…' : 'Save'}
+                      </Button>
+                    </DialogFooter>
+                  </>
+                ) : null}
+
+                {settingsDialog === 'gender' ? (
+                  <>
+                    <DialogHeader>
+                      <DialogTitle>Gender</DialogTitle>
+                      <p className="text-sm text-muted-foreground">
+                        Used for men&apos;s and women&apos;s club matching. Mixed clubs are open to everyone.
+                      </p>
+                    </DialogHeader>
+                    <ProfileGenderSelect value={genderDraft} onChange={onGenderDraftChange} />
+                    <DialogFooter>
+                      <Button type="button" variant="outline" onClick={onCloseDialog}>
+                        Cancel
+                      </Button>
+                      <Button type="button" disabled={genderSaving} onClick={onSaveGender}>
+                        {genderSaving ? 'Saving…' : 'Save'}
                       </Button>
                     </DialogFooter>
                   </>
@@ -660,6 +621,35 @@ export function SettingsPageLayout(props: SettingsPageLayoutProps) {
                   </Button>
                 </div>
 
+                <SettingsRowDivider />
+                <Collapsible open={devicesHowToOpen} onOpenChange={setDevicesHowToOpen}>
+                  <CollapsibleTrigger asChild>
+                    <button
+                      type="button"
+                      className="flex w-full items-center gap-3 px-4 py-3.5 text-left transition hover:bg-muted/30 active:bg-muted/40"
+                    >
+                      <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-muted/40 text-muted-foreground">
+                        <Info className="h-4 w-4" aria-hidden />
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <p className="text-sm font-medium text-foreground">How devices work</p>
+                        <p className="text-xs text-muted-foreground">Manual vs automatic sync</p>
+                      </div>
+                      <ChevronDown
+                        className={cn(
+                          'h-4 w-4 shrink-0 text-muted-foreground transition-transform duration-200',
+                          devicesHowToOpen && 'rotate-180',
+                        )}
+                        aria-hidden
+                      />
+                    </button>
+                  </CollapsibleTrigger>
+                  <CollapsibleContent className="px-3 pb-3">
+                    <WearableCompatibility />
+                  </CollapsibleContent>
+                </Collapsible>
+                <SettingsRowDivider />
+
                 <SettingsRow
                   icon={Smartphone}
                   title="Apple Watch"
@@ -754,6 +744,13 @@ export function SettingsPageLayout(props: SettingsPageLayoutProps) {
                   title="Username"
                   subtitle={athlete.username ? `@${athlete.username}` : '—'}
                   onClick={() => onOpenDialog('username')}
+                />
+                <SettingsRowDivider />
+                <SettingsRow
+                  icon={User}
+                  title="Gender"
+                  subtitle={athleteProfileGenderLabel(athlete.gender)}
+                  onClick={() => onOpenDialog('gender')}
                 />
                 <SettingsRowDivider />
                 <SettingsRow
@@ -879,10 +876,10 @@ export function SettingsPageLayout(props: SettingsPageLayoutProps) {
                 />
                 <SettingsRowDivider />
                 <SettingsRow
-                  icon={MessageCircle}
-                  title="Ask the Assistant"
+                  icon={HelpCircle}
+                  title="FAQ"
                   compact
-                  onClick={() => onAssistantOpenChange(true)}
+                  onClick={() => navigate('/app/faq')}
                 />
                 <SettingsRowDivider />
                 <SettingsRow
