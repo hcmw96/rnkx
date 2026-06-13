@@ -10,8 +10,7 @@ import {
   ENGINE_CHART_COLOR,
   RUN_CHART_COLOR,
   WeeklyDualTrendLineChart,
-  WeeklyStackedBarChart,
-  WeeklyTrendLineChart,
+  WeeklyStackedAreaChart,
 } from '@/components/dashboard/WeeklyInsightCharts';
 import type { DailyWeekAggregate, WeeklyInsightsData } from '@/lib/dashboardWeeklyInsights';
 import { formatInsightDateLabel, weekDeltaPercent } from '@/lib/dashboardWeeklyInsights';
@@ -155,12 +154,16 @@ function InsightDetailDialog({
                 valueSuffix=" ppm"
               />
             ) : (
-              <WeeklyTrendLineChart
+              <WeeklyStackedAreaChart
                 data={rows}
-                dataKey={config.trendKey}
+                stack={{ engineKey: config.engineKey as string, runKey: config.runKey as string }}
                 height={220}
                 valueSuffix={config.valueSuffix}
-                color={ENGINE_CHART_COLOR}
+                formatValue={
+                  config.kind === 'volume'
+                    ? (v) => String(Math.round(v))
+                    : (v) => formatScore(v)
+                }
               />
             )}
           </div>
@@ -341,7 +344,7 @@ export function WeeklyInsightsSection({ data }: WeeklyInsightsSectionProps) {
         {hasChartData ? (
           <>
             <div className="mt-3 -mx-1">
-              <WeeklyStackedBarChart
+              <WeeklyStackedAreaChart
                 key={activeTab}
                 data={chartData}
                 stack={{ engineKey: config.engineKey as string, runKey: config.runKey as string }}

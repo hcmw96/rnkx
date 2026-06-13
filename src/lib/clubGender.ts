@@ -23,18 +23,17 @@ export function clubGenderChipLabel(value: string | null | undefined): string | 
   return null;
 }
 
-export type AthleteProfileGender = 'male' | 'female' | null;
+export type AthleteProfileGender = 'male' | 'female';
 
 export const ATHLETE_GENDER_OPTIONS: { value: AthleteProfileGender; label: string }[] = [
   { value: 'male', label: 'Male' },
   { value: 'female', label: 'Female' },
-  { value: null, label: 'Prefer not to say' },
 ];
 
 export function athleteProfileGenderLabel(value: string | null | undefined): string {
   if (value === 'male') return 'Male';
   if (value === 'female') return 'Female';
-  return 'Prefer not to say';
+  return 'Not set';
 }
 
 export function athleteCanJoinClub(

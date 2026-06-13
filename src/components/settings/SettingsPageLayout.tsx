@@ -122,7 +122,7 @@ export type SettingsPageLayoutProps = {
   nameSaving: boolean;
   usernameDraft: string;
   usernameSaving: boolean;
-  genderDraft: AthleteProfileGender;
+  genderDraft: AthleteProfileGender | null;
   genderSaving: boolean;
   supportBody: string;
   supportSending: boolean;
@@ -335,7 +335,11 @@ export function SettingsPageLayout(props: SettingsPageLayoutProps) {
                       <Button type="button" variant="outline" onClick={onCloseDialog}>
                         Cancel
                       </Button>
-                      <Button type="button" disabled={genderSaving} onClick={onSaveGender}>
+                      <Button
+                        type="button"
+                        disabled={genderSaving || genderDraft == null}
+                        onClick={onSaveGender}
+                      >
                         {genderSaving ? 'Saving…' : 'Save'}
                       </Button>
                     </DialogFooter>

@@ -164,7 +164,7 @@ export default function SettingsPage() {
   const [userEmail, setUserEmail] = useState<string | null>(null);
   const [nameDraft, setNameDraft] = useState('');
   const [usernameDraft, setUsernameDraft] = useState('');
-  const [genderDraft, setGenderDraft] = useState<AthleteProfileGender>(null);
+  const [genderDraft, setGenderDraft] = useState<AthleteProfileGender | null>(null);
   const [nameSaving, setNameSaving] = useState(false);
   const [usernameSaving, setUsernameSaving] = useState(false);
   const [genderSaving, setGenderSaving] = useState(false);
@@ -724,6 +724,10 @@ export default function SettingsPage() {
 
   async function saveGenderInline(): Promise<boolean> {
     if (!athlete?.id) return false;
+    if (genderDraft !== 'male' && genderDraft !== 'female') {
+      toast.error('Select Male or Female.');
+      return false;
+    }
     setGenderSaving(true);
     try {
       const { error } = await supabase
@@ -997,11 +1001,21 @@ export default function SettingsPage() {
     <AlertDialog open={showHkSyncWarning} onOpenChange={(open) => !open && dismissHkSyncWarning()}>
       <AlertDialogContent className="border-border bg-card">
         <AlertDialogHeader>
-          <AlertDialogTitle>Important — Sync Your Workouts</AlertDialogTitle>
-          <AlertDialogDescription className="text-sm leading-relaxed text-muted-foreground">
-            RNKX can only score workouts that have been manually synced. If you have trained this
-            week, please open the Health app and sync your recent workouts now before Sunday
-            midnight GMT — otherwise they won't count towards this week's leaderboard.
+          <AlertDialogTitle>Apple Watch Users</AlertDialogTitle>
+          <AlertDialogDescription asChild>
+            <div className="space-y-3 text-sm leading-relaxed text-muted-foreground">
+              <p>
+                To score your workouts, tap Sync Workouts in Settings → Devices &amp; Sync.
+              </p>
+              <p>
+                Workouts can be synced at any time and will be added to your score automatically.
+              </p>
+              <p>
+                Just make sure you sync before the weekly leaderboard closes at Sunday 11:59 PM GMT.
+                Any workouts that haven&apos;t been synced by then won&apos;t count towards that
+                week&apos;s leaderboard.
+              </p>
+            </div>
           </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>

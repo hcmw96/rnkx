@@ -4,7 +4,7 @@ import { cn } from '@/lib/utils';
 import { haptic } from '@/lib/haptics';
 
 type ProfileGenderSelectProps = {
-  value: AthleteProfileGender;
+  value: AthleteProfileGender | null;
   onChange: (value: AthleteProfileGender) => void;
 };
 
@@ -13,7 +13,7 @@ export function ProfileGenderSelect({ value, onChange }: ProfileGenderSelectProp
     <div className="flex flex-col gap-2">
       {ATHLETE_GENDER_OPTIONS.map((option) => (
         <button
-          key={option.label}
+          key={option.value}
           type="button"
           onClick={() => {
             haptic('light');

@@ -162,13 +162,7 @@ export function SeasonCard({
       ) : null}
 
       {progress ? (
-        <div className="space-y-2 pt-1">
-          <div className="h-1.5 overflow-hidden rounded-full bg-muted/80">
-            <div
-              className="h-full rounded-full bg-gradient-to-r from-neon-lime via-emerald-400 to-secondary"
-              style={{ width: `${progress.progress}%` }}
-            />
-          </div>
+        <div className="space-y-1.5 pt-1">
           <div className="flex items-center justify-between gap-3 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
             <span className="tabular-nums">
               Day {progress.currentDay} / {progress.totalDays}
@@ -180,6 +174,12 @@ export function SeasonCard({
                   ? 'Ends today'
                   : 'Season ended'}
             </span>
+          </div>
+          <div className="h-1.5 overflow-hidden rounded-full bg-muted/80">
+            <div
+              className="h-full rounded-full bg-gradient-to-r from-neon-lime via-emerald-400 to-secondary"
+              style={{ width: `${progress.progress}%` }}
+            />
           </div>
         </div>
       ) : endDays != null ? (

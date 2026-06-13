@@ -9,6 +9,7 @@ import { MomentumSection } from '@/components/dashboard/MomentumBlock';
 import { SeasonCard } from '@/components/dashboard/SeasonCard';
 import { WeeklyInsightsSection } from '@/components/dashboard/WeeklyInsightsSection';
 import { CoachNotesCard } from '@/components/dashboard/CoachNotesCard';
+import { PremiumGate } from '@/components/PremiumGate';
 import {
   RecentWorkoutsSection,
   type RecentWorkoutItem,
@@ -33,6 +34,7 @@ import { computeCategoryRank } from '@/lib/categoryRank';
 import { momentumPlacesFromRank } from '@/lib/momentumMetrics';
 import { isDespiaIphoneUa, wearablesIncludeAppleWatch } from '@/lib/despiaPlatform';
 import { runAppleWorkoutSync } from '@/lib/runAppleWorkoutSync';
+import { PREVIEW_COACH_SUMMARY, PREVIEW_WEEKLY_INSIGHTS } from '@/lib/dashboardPreviewData';
 import { supabase } from '@/services/supabase';
 
 const SYNC_STALE_MS = 24 * 60 * 60 * 1000;
@@ -160,6 +162,8 @@ export default function Dashboard() {
   const [athleteMaxHrSource, setAthleteMaxHrSource] = useState<string | null>(null);
   const [syncReminderDismissed, setSyncReminderDismissed] = useState(false);
   const [syncing, setSyncing] = useState(false);
+  const [athleteId, setAthleteId] = useState<string | undefined>();
+  const [authUserId, setAuthUserId] = useState<string | undefined>();
 
   const loadDashboard = useCallback(async (options?: { silent?: boolean }) => {
     if (!options?.silent) {
@@ -199,11 +203,16 @@ export default function Dashboard() {
 
       const userId = userData.user?.id;
       if (!userId) {
+        setAthleteId(undefined);
+        setAuthUserId(undefined);
         setLastSynced(null);
         setWearables(null);
         setLoading(false);
         return;
       }
+
+      setAthleteId(userId);
+      setAuthUserId(userId);
 
       const [{ data: statsRows, error: statsError }, { data: athleteRow, error: athleteRowError }] =
         await Promise.all([
@@ -570,9 +579,25 @@ export default function Dashboard() {
 
         <MomentumSection engine={momentumData.engine} run={momentumData.run} />
 
-        {weeklyInsights ? <WeeklyInsightsSection data={weeklyInsights} /> : null}
+        <PremiumGate
+          athleteId={athleteId}
+          userId={authUserId}
+          title="Advanced insights"
+          description="Unlock score, volume, and efficiency charts with RNKX Premium."
+          previewContent={<WeeklyInsightsSection data={PREVIEW_WEEKLY_INSIGHTS} />}
+        >
+          {weeklyInsights ? <WeeklyInsightsSection data={weeklyInsights} /> : null}
+        </PremiumGate>
 
-        {insightsSummary ? <CoachNotesCard summary={insightsSummary} /> : null}
+        <PremiumGate
+          athleteId={athleteId}
+          userId={authUserId}
+          title="Coach notes"
+          description="Personalised training insights are included with RNKX Premium."
+          previewContent={<CoachNotesCard summary={PREVIEW_COACH_SUMMARY} />}
+        >
+          {insightsSummary ? <CoachNotesCard summary={insightsSummary} /> : null}
+        </PremiumGate>
 
         <RecentWorkoutsSection items={recentWorkoutItems} />
       </section>

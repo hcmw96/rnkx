@@ -1,10 +1,8 @@
-import { useMemo } from 'react';
+import { useId, useMemo } from 'react';
 import {
-  Bar,
-  BarChart,
+  Area,
+  AreaChart,
   CartesianGrid,
-  Line,
-  LineChart,
   ResponsiveContainer,
   Tooltip,
   XAxis,
@@ -21,18 +19,21 @@ type StackKeys = {
   runKey: string;
 };
 
-type WeeklyStackedBarChartProps = {
+type WeeklyStackedAreaChartProps = {
   data: Record<string, string | number>[];
   stack: StackKeys;
   height?: number;
   valueSuffix?: string;
   formatValue?: (value: number) => string;
   className?: string;
-  /** Hover tooltip on chart bars (off for dashboard preview card). */
+  /** Hover tooltip on chart (off for dashboard preview card). */
   showTooltip?: boolean;
-  /** Show only one league's bars (Engine/Run toggle on dashboard preview). */
+  /** Show only one league's series (Engine/Run toggle on dashboard preview). */
   singleLeague?: 'engine' | 'run';
 };
+
+/** @deprecated Use {@link WeeklyStackedAreaChart}. */
+export type WeeklyStackedBarChartProps = WeeklyStackedAreaChartProps;
 
 const Y_AXIS_TICK_COUNT = 4;
 
@@ -138,7 +139,7 @@ function ChartTooltip({
   );
 }
 
-export function WeeklyStackedBarChart({
+export function WeeklyStackedAreaChart({
   data,
   stack,
   height = 120,
@@ -147,11 +148,14 @@ export function WeeklyStackedBarChart({
   className,
   showTooltip = true,
   singleLeague,
-}: WeeklyStackedBarChartProps) {
+}: WeeklyStackedAreaChartProps) {
+  const engineFillId = useId();
+  const runFillId = useId();
   const showAllTicks = data.length <= 7;
   const showEngine = !singleLeague || singleLeague === 'engine';
   const showRun = !singleLeague || singleLeague === 'run';
   const allowDecimals = valueSuffix === ' ppm';
+  const stackId = singleLeague ? undefined : 'week';
 
   const yAxis = useMemo(() => {
     const maxValue = chartMaxValue(data, stack.engineKey, stack.runKey, singleLeague);
@@ -169,11 +173,20 @@ export function WeeklyStackedBarChart({
   return (
     <div className={cn('w-full', className)} style={{ height }}>
       <ResponsiveContainer width="100%" height="100%">
-        <BarChart
+        <AreaChart
           data={data}
           margin={{ top: 6, right: 4, left: 0, bottom: showAllTicks ? 4 : 0 }}
-          barCategoryGap="20%"
         >
+          <defs>
+            <linearGradient id={engineFillId} x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor={ENGINE_CHART_COLOR} stopOpacity={0.45} />
+              <stop offset="95%" stopColor={ENGINE_CHART_COLOR} stopOpacity={0.05} />
+            </linearGradient>
+            <linearGradient id={runFillId} x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor={RUN_CHART_COLOR} stopOpacity={0.45} />
+              <stop offset="95%" stopColor={RUN_CHART_COLOR} stopOpacity={0.05} />
+            </linearGradient>
+          </defs>
           <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="hsla(0,0%,100%,0.06)" />
           <XAxis
             dataKey="dayLabel"
@@ -197,34 +210,43 @@ export function WeeklyStackedBarChart({
           {showTooltip ? (
             <Tooltip
               content={<ChartTooltip valueSuffix={valueSuffix} formatValue={formatValue} />}
-              cursor={{ fill: 'hsla(0,0%,100%,0.04)' }}
+              cursor={{ stroke: 'hsla(0,0%,100%,0.12)', strokeWidth: 1 }}
             />
           ) : null}
           {showEngine ? (
-            <Bar
+            <Area
+              type="monotone"
               dataKey={stack.engineKey}
               name="Engine"
-              stackId={singleLeague ? undefined : 'week'}
-              fill={ENGINE_CHART_COLOR}
-              radius={showRun && !singleLeague ? [0, 0, 0, 0] : [4, 4, 0, 0]}
-              maxBarSize={28}
+              stackId={stackId}
+              stroke={ENGINE_CHART_COLOR}
+              strokeWidth={2}
+              fill={`url(#${engineFillId})`}
+              dot={false}
+              activeDot={{ r: 3, fill: ENGINE_CHART_COLOR, stroke: '#0a0a0a', strokeWidth: 1.5 }}
             />
           ) : null}
           {showRun ? (
-            <Bar
+            <Area
+              type="monotone"
               dataKey={stack.runKey}
               name="Run"
-              stackId={singleLeague ? undefined : 'week'}
-              fill={RUN_CHART_COLOR}
-              radius={[4, 4, 0, 0]}
-              maxBarSize={28}
+              stackId={stackId}
+              stroke={RUN_CHART_COLOR}
+              strokeWidth={2}
+              fill={`url(#${runFillId})`}
+              dot={false}
+              activeDot={{ r: 3, fill: RUN_CHART_COLOR, stroke: '#0a0a0a', strokeWidth: 1.5 }}
             />
           ) : null}
-        </BarChart>
+        </AreaChart>
       </ResponsiveContainer>
     </div>
   );
 }
+
+/** @deprecated Use {@link WeeklyStackedAreaChart}. */
+export const WeeklyStackedBarChart = WeeklyStackedAreaChart;
 
 type WeeklyTrendLineChartProps = {
   data: Record<string, string | number>[];
@@ -241,10 +263,18 @@ export function WeeklyTrendLineChart({
   height = 200,
   valueSuffix = '',
 }: WeeklyTrendLineChartProps) {
+  const fillId = useId();
+
   return (
     <div className="w-full" style={{ height }}>
       <ResponsiveContainer width="100%" height="100%">
-        <LineChart data={data} margin={{ top: 8, right: 8, left: -16, bottom: 0 }}>
+        <AreaChart data={data} margin={{ top: 8, right: 8, left: -16, bottom: 0 }}>
+          <defs>
+            <linearGradient id={fillId} x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor={color} stopOpacity={0.45} />
+              <stop offset="95%" stopColor={color} stopOpacity={0.05} />
+            </linearGradient>
+          </defs>
           <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="hsla(0,0%,100%,0.06)" />
           <XAxis
             dataKey="dayLabel"
@@ -269,16 +299,18 @@ export function WeeklyTrendLineChart({
                 formatValue={(v) => (valueSuffix === ' min' ? String(Math.round(v)) : formatScore(v))}
               />
             }
+            cursor={{ stroke: 'hsla(0,0%,100%,0.12)', strokeWidth: 1 }}
           />
-          <Line
+          <Area
             type="monotone"
             dataKey={dataKey}
             stroke={color}
             strokeWidth={2}
-            dot={{ r: 3, fill: color }}
-            activeDot={{ r: 5 }}
+            fill={`url(#${fillId})`}
+            dot={false}
+            activeDot={{ r: 4, fill: color, stroke: '#0a0a0a', strokeWidth: 2 }}
           />
-        </LineChart>
+        </AreaChart>
       </ResponsiveContainer>
     </div>
   );
@@ -297,10 +329,23 @@ export function WeeklyDualTrendLineChart({
   height?: number;
   valueSuffix?: string;
 }) {
+  const engineFillId = useId();
+  const runFillId = useId();
+
   return (
     <div className="w-full" style={{ height }}>
       <ResponsiveContainer width="100%" height="100%">
-        <LineChart data={data} margin={{ top: 8, right: 8, left: -16, bottom: 0 }}>
+        <AreaChart data={data} margin={{ top: 8, right: 8, left: -16, bottom: 0 }}>
+          <defs>
+            <linearGradient id={engineFillId} x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor={ENGINE_CHART_COLOR} stopOpacity={0.4} />
+              <stop offset="95%" stopColor={ENGINE_CHART_COLOR} stopOpacity={0.05} />
+            </linearGradient>
+            <linearGradient id={runFillId} x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor={RUN_CHART_COLOR} stopOpacity={0.4} />
+              <stop offset="95%" stopColor={RUN_CHART_COLOR} stopOpacity={0.05} />
+            </linearGradient>
+          </defs>
           <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="hsla(0,0%,100%,0.06)" />
           <XAxis
             dataKey="dayLabel"
@@ -318,24 +363,31 @@ export function WeeklyDualTrendLineChart({
             tickCount={4}
             domain={[0, 'auto']}
           />
-          <Tooltip content={<ChartTooltip valueSuffix={valueSuffix} />} />
-          <Line
+          <Tooltip
+            content={<ChartTooltip valueSuffix={valueSuffix} />}
+            cursor={{ stroke: 'hsla(0,0%,100%,0.12)', strokeWidth: 1 }}
+          />
+          <Area
             type="monotone"
             dataKey={engineKey}
             name="Engine"
             stroke={ENGINE_CHART_COLOR}
             strokeWidth={2}
-            dot={{ r: 3, fill: ENGINE_CHART_COLOR }}
+            fill={`url(#${engineFillId})`}
+            dot={false}
+            activeDot={{ r: 4, fill: ENGINE_CHART_COLOR, stroke: '#0a0a0a', strokeWidth: 2 }}
           />
-          <Line
+          <Area
             type="monotone"
             dataKey={runKey}
             name="Run"
             stroke={RUN_CHART_COLOR}
             strokeWidth={2}
-            dot={{ r: 3, fill: RUN_CHART_COLOR }}
+            fill={`url(#${runFillId})`}
+            dot={false}
+            activeDot={{ r: 4, fill: RUN_CHART_COLOR, stroke: '#0a0a0a', strokeWidth: 2 }}
           />
-        </LineChart>
+        </AreaChart>
       </ResponsiveContainer>
     </div>
   );

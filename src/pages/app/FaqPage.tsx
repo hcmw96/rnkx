@@ -48,7 +48,7 @@ export default function FaqPage() {
                       <AccordionTrigger className="px-4 py-3.5 text-left text-sm font-medium leading-snug text-foreground hover:no-underline [&[data-state=open]]:text-neon-lime">
                         {item.question}
                       </AccordionTrigger>
-                      <AccordionContent className="px-4 pb-4 text-sm leading-relaxed text-muted-foreground">
+                      <AccordionContent className="whitespace-pre-line px-4 pb-4 text-sm leading-relaxed text-muted-foreground">
                         {item.answer}
                       </AccordionContent>
                     </AccordionItem>
