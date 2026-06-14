@@ -3,13 +3,16 @@
  *
  * Each conversation stores the ISO timestamp of the last message the user has
  * seen (opened the thread). A conversation is unread when its latest message
- * is newer than that timestamp.
+ * is newer than that timestamp. Threads with no read state and a last message
+ * older than seven days are auto-marked read so stale DMs don't flood badges.
  *
  * Keys use `convo-{conversationId}`; legacy `dm-` / `group-` keys are read for
  * backward compatibility.
  */
 
 const PREFIX = 'rnkx:last_read:';
+/** Messages older than this with no read state are treated as read backlog, not new notifications. */
+const UNREAD_STALE_MS = 7 * 24 * 60 * 60 * 1000;
 export const UNREAD_CHANGED_EVENT = 'rnkx:unread-changed';
 
 export function conversationUnreadKey(conversationId: string): string {
@@ -27,21 +30,30 @@ function readTimestamp(key: string): Date | null {
   }
 }
 
-export function markConversationRead(conversationKey: string): void {
+function persistLastRead(conversationKey: string, iso: string, notify: boolean): void {
   try {
-    const now = new Date().toISOString();
-    localStorage.setItem(PREFIX + conversationKey, now);
+    localStorage.setItem(PREFIX + conversationKey, iso);
 
     if (conversationKey.startsWith('convo-')) {
       const id = conversationKey.slice('convo-'.length);
-      localStorage.setItem(PREFIX + `dm-${id}`, now);
-      localStorage.setItem(PREFIX + `group-${id}`, now);
+      localStorage.setItem(PREFIX + `dm-${id}`, iso);
+      localStorage.setItem(PREFIX + `group-${id}`, iso);
     }
 
-    window.dispatchEvent(new Event(UNREAD_CHANGED_EVENT));
+    if (notify) {
+      window.dispatchEvent(new Event(UNREAD_CHANGED_EVENT));
+    }
   } catch {
     /* ignore storage errors */
   }
+}
+
+export function markConversationRead(conversationKey: string): void {
+  persistLastRead(conversationKey, new Date().toISOString(), true);
+}
+
+function markConversationReadAt(conversationKey: string, iso: string): void {
+  persistLastRead(conversationKey, iso, false);
 }
 
 export function getLastRead(conversationKey: string): Date | null {
@@ -78,6 +90,13 @@ export function isUnread(
   const msgDate = new Date(lastMessageAt);
   if (isNaN(msgDate.getTime())) return false;
   const lastRead = getLastRead(conversationKey);
-  if (!lastRead) return true;
+  if (!lastRead) {
+    if (Date.now() - msgDate.getTime() > UNREAD_STALE_MS) {
+      // Backlog from before we tracked reads (or after storage reset) — don't alert.
+      markConversationReadAt(conversationKey, lastMessageAt);
+      return false;
+    }
+    return true;
+  }
   return msgDate > lastRead;
 }

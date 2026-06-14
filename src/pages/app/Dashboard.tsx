@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Info, X, Zap, Loader2 } from 'lucide-react';
+import { X, Zap, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { AppShell } from '@/components/app/AppShell';
 import { Button } from '@/components/ui/button';
@@ -447,8 +447,6 @@ export default function Dashboard() {
     return isSyncStale(lastSynced);
   }, [syncReminderDismissed, lastSynced, wearables]);
 
-  const showAppleWatchSyncNote = wearablesIncludeAppleWatch(wearables);
-
   const momentumData = useMemo(() => {
     const enginePlaces = momentumPlacesFromRank(stats?.engine_rank ?? null);
     const runPlaces = momentumPlacesFromRank(stats?.run_rank ?? null);
@@ -507,18 +505,17 @@ export default function Dashboard() {
       <section className="space-y-4" {...pullHandlers}>
         {showSyncReminderBanner ? (
           <div
-            className="flex items-center gap-2 rounded-lg border border-amber-400/40 bg-amber-500/15 px-3 py-2.5 shadow-sm"
+            className="flex items-center gap-2 rounded-lg border border-border/70 bg-[hsla(0,0%,10%,1)] px-3 py-2.5 shadow-sm"
             role="status"
           >
-            <Zap className="h-5 w-5 shrink-0 text-amber-300" aria-hidden />
-            <p className="min-w-0 flex-1 text-sm font-medium leading-snug text-amber-50">
+            <Zap className="h-5 w-5 shrink-0 text-neon-lime" aria-hidden />
+            <p className="min-w-0 flex-1 text-sm font-medium leading-snug text-foreground">
               Sync your workouts to stay on the leaderboard
             </p>
             <Button
               type="button"
               size="sm"
-              variant="secondary"
-              className="shrink-0 border-amber-300/50 bg-amber-100 text-amber-950 hover:bg-amber-200"
+              className="shrink-0 bg-neon-lime font-semibold text-black hover:bg-neon-lime/90"
               disabled={syncing}
               onClick={() => void handleSyncFromBanner()}
             >
@@ -533,7 +530,7 @@ export default function Dashboard() {
             </Button>
             <button
               type="button"
-              className="shrink-0 rounded-md p-1 text-amber-200 hover:bg-amber-400/20 hover:text-white"
+              className="shrink-0 rounded-md p-1 text-muted-foreground transition-colors hover:bg-muted/40 hover:text-foreground"
               aria-label="Dismiss sync reminder"
               onClick={() => setSyncReminderDismissed(true)}
             >
@@ -565,38 +562,24 @@ export default function Dashboard() {
           runDivision={(stats?.run_division as 'Open' | 'Challenger' | 'Pro' | 'Elite' | null) ?? 'Open'}
         />
 
-        {showAppleWatchSyncNote ? (
-          <div
-            className="flex items-start gap-2.5 rounded-lg border border-border/70 bg-muted/15 px-3 py-2.5"
-            role="note"
-          >
-            <Info className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" aria-hidden />
-            <p className="text-xs leading-relaxed text-muted-foreground">
-              Apple Watch users: open the app and tap Sync after each workout to score.
-            </p>
-          </div>
-        ) : null}
-
         <MomentumSection engine={momentumData.engine} run={momentumData.run} />
 
         <PremiumGate
           athleteId={athleteId}
           userId={authUserId}
-          title="Advanced insights"
-          description="Unlock score, volume, and efficiency charts with RNKX Premium."
-          previewContent={<WeeklyInsightsSection data={PREVIEW_WEEKLY_INSIGHTS} />}
+          title="Training insights"
+          description="Unlock weekly score, volume, and efficiency charts plus personalised coach notes with RNKX Premium."
+          previewContent={
+            <div className="space-y-4">
+              <WeeklyInsightsSection data={PREVIEW_WEEKLY_INSIGHTS} />
+              <CoachNotesCard summary={PREVIEW_COACH_SUMMARY} />
+            </div>
+          }
         >
-          {weeklyInsights ? <WeeklyInsightsSection data={weeklyInsights} /> : null}
-        </PremiumGate>
-
-        <PremiumGate
-          athleteId={athleteId}
-          userId={authUserId}
-          title="Coach notes"
-          description="Personalised training insights are included with RNKX Premium."
-          previewContent={<CoachNotesCard summary={PREVIEW_COACH_SUMMARY} />}
-        >
-          {insightsSummary ? <CoachNotesCard summary={insightsSummary} /> : null}
+          <>
+            {weeklyInsights ? <WeeklyInsightsSection data={weeklyInsights} /> : null}
+            {insightsSummary ? <CoachNotesCard summary={insightsSummary} /> : null}
+          </>
         </PremiumGate>
 
         <RecentWorkoutsSection items={recentWorkoutItems} />

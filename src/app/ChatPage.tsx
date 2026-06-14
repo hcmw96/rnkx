@@ -230,23 +230,31 @@ export default function ChatPage() {
 
   return (
     <AppShell>
-      <ChatPremiumGate previewContent={!loading && items.length === 0 ? <ChatPreview /> : undefined}>
+      <div className="mx-auto max-w-lg space-y-4">
+        <div className="flex items-center justify-between gap-3">
+          <h1 className="type-page-title">Social and Chat</h1>
+          {!loading && athleteId ? (
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => setNewMsgOpen(true)}
+              className="shrink-0 text-muted-foreground hover:text-foreground"
+              aria-label="New message"
+            >
+              <PenSquare className="h-5 w-5" />
+            </Button>
+          ) : (
+            <div className="h-10 w-10 shrink-0" aria-hidden />
+          )}
+        </div>
+
+        <ChatPremiumGate previewContent={!loading && items.length === 0 ? <ChatPreview /> : undefined}>
       <div className="space-y-2" {...pullHandlers}>
         {(isRefreshing || pullDistance > 0) && (
           <p className="text-center text-xs text-muted-foreground">
             {isRefreshing ? "Refreshing chats..." : pullDistance > 72 ? "Release to refresh" : "Pull to refresh"}
           </p>
         )}
-        <div className="flex items-center justify-end mb-2">
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={() => setNewMsgOpen(true)}
-            className="text-muted-foreground hover:text-foreground"
-          >
-            <PenSquare className="h-5 w-5" />
-          </Button>
-        </div>
 
         {loading ? (
           [...Array(5)].map((_, i) => <Skeleton key={i} className="h-16 w-full rounded-lg" />)
@@ -317,6 +325,7 @@ export default function ChatPage() {
         />
       )}
       </ChatPremiumGate>
+      </div>
     </AppShell>
   );
 }

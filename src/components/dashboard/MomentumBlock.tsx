@@ -111,14 +111,10 @@ function MomentumRow({
         ) : null}
         <div className="shrink-0 text-right">
           <p className="type-stat text-foreground">
-            {placesToPromotion == null
-              ? '—'
-              : placesToPromotion === 0
-                ? 'In zone'
-                : placesToPromotion}
+            {placesToPromotion == null ? '—' : placesToPromotion}
           </p>
           <p className="mt-0.5 text-[10px] font-medium uppercase tracking-wider text-foreground">
-            {placesToPromotion === 0 ? 'Promotion zone' : 'From promotion'}
+            From promotion
           </p>
         </div>
       </div>

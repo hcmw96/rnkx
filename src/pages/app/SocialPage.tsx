@@ -42,7 +42,8 @@ export default function SocialPage() {
       <PremiumGate
         athleteId={athleteId}
         userId={authUserId}
-        description="Unlock friends, clubs, discover, and messages with RNKX Premium."
+        title="Friends and Clubs"
+        description="Unlock friends, messaging, public and private clubs with RNKX premium."
       >
         <div className="mx-auto max-w-lg space-y-4">
           <p className="text-center text-xs text-muted-foreground">

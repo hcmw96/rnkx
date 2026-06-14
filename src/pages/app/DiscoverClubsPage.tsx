@@ -192,8 +192,8 @@ export default function DiscoverClubsPage() {
                     )}
                   </div>
                   <div className="min-w-0 flex-1">
-                    <div className="flex min-w-0 items-center gap-1.5">
-                      <p className="type-heading truncate">{club.name}</p>
+                    <p className="type-heading truncate">{club.name}</p>
+                    <div className="mt-1 flex flex-wrap items-center gap-1.5 empty:hidden">
                       <ClubGenderChip gender={club.gender} />
                     </div>
                     <p className="type-meta mt-0.5">
