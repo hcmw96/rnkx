@@ -231,24 +231,20 @@ export default function ChatPage() {
   return (
     <AppShell>
       <div className="mx-auto max-w-lg space-y-4">
-        <div className="flex items-center justify-between gap-3">
-          <h1 className="type-page-title">Social and Chat</h1>
-          {!loading && athleteId ? (
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={() => setNewMsgOpen(true)}
-              className="shrink-0 text-muted-foreground hover:text-foreground"
-              aria-label="New message"
-            >
-              <PenSquare className="h-5 w-5" />
-            </Button>
-          ) : (
-            <div className="h-10 w-10 shrink-0" aria-hidden />
-          )}
-        </div>
-
         <ChatPremiumGate previewContent={!loading && items.length === 0 ? <ChatPreview /> : undefined}>
+      {!loading && athleteId ? (
+        <div className="flex justify-end">
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={() => setNewMsgOpen(true)}
+            className="shrink-0 text-muted-foreground hover:text-foreground"
+            aria-label="New message"
+          >
+            <PenSquare className="h-5 w-5" />
+          </Button>
+        </div>
+      ) : null}
       <div className="space-y-2" {...pullHandlers}>
         {(isRefreshing || pullDistance > 0) && (
           <p className="text-center text-xs text-muted-foreground">

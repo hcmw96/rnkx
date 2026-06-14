@@ -636,7 +636,7 @@ export function SettingsPageLayout(props: SettingsPageLayoutProps) {
                         <Info className="h-4 w-4" aria-hidden />
                       </div>
                       <div className="min-w-0 flex-1">
-                        <p className="text-sm font-medium text-foreground">How devices work</p>
+                        <p className="text-sm font-medium text-foreground">Wearable compatibility</p>
                         <p className="text-xs text-muted-foreground">Manual vs automatic sync</p>
                       </div>
                       <ChevronDown

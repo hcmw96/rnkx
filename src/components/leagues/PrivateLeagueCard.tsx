@@ -69,18 +69,20 @@ export function PrivateLeagueCard({
           )}
         </div>
         <div className="min-w-0 flex-1">
-          <p className="type-heading truncate">{name}</p>
-          <div className="mt-1 flex flex-wrap items-center gap-1.5 empty:hidden">
-            <ClubGenderChip gender={gender} />
+          <div className="flex min-w-0 items-center gap-1.5">
+            <p className="type-heading min-w-0 truncate">{name}</p>
             {myRank != null ? (
               <span className="shrink-0 rounded-full bg-muted px-1.5 py-0.5 text-[10px] font-semibold text-muted-foreground">
                 #{myRank}
               </span>
             ) : null}
           </div>
-          <p className="type-meta mt-0.5 truncate">
-            {description ?? `${memberCount} member${memberCount !== 1 ? 's' : ''}`}
-          </p>
+          <div className="mt-1 flex flex-wrap items-center gap-1.5">
+            <ClubGenderChip gender={gender} />
+            <p className="type-meta truncate">
+              {description ?? `${memberCount} member${memberCount !== 1 ? 's' : ''}`}
+            </p>
+          </div>
         </div>
       </Link>
 

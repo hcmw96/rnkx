@@ -193,12 +193,12 @@ export default function DiscoverClubsPage() {
                   </div>
                   <div className="min-w-0 flex-1">
                     <p className="type-heading truncate">{club.name}</p>
-                    <div className="mt-1 flex flex-wrap items-center gap-1.5 empty:hidden">
+                    <div className="mt-1 flex flex-wrap items-center gap-1.5">
                       <ClubGenderChip gender={club.gender} />
+                      <p className="type-meta">
+                        {club.memberCount} member{club.memberCount !== 1 ? 's' : ''}
+                      </p>
                     </div>
-                    <p className="type-meta mt-0.5">
-                      {club.memberCount} member{club.memberCount !== 1 ? 's' : ''}
-                    </p>
                   </div>
                 </button>
 

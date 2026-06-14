@@ -30,6 +30,7 @@ export function ChatPremiumGate({ children, previewContent }: ChatPremiumGatePro
     <PremiumGate
       athleteId={athleteId}
       userId={authUserId}
+      title="Social and Chat"
       description="Direct and group chat are included with RNKX Premium."
       previewContent={previewContent}
     >
