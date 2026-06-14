@@ -34,7 +34,7 @@ import { computeCategoryRank } from '@/lib/categoryRank';
 import { momentumPlacesFromRank } from '@/lib/momentumMetrics';
 import { isDespiaIphoneUa, wearablesIncludeAppleWatch } from '@/lib/despiaPlatform';
 import { runAppleWorkoutSync } from '@/lib/runAppleWorkoutSync';
-import { PREVIEW_COACH_SUMMARY, PREVIEW_WEEKLY_INSIGHTS } from '@/lib/dashboardPreviewData';
+import { PREVIEW_COACH_SUMMARY, PREVIEW_RECENT_WORKOUTS, PREVIEW_WEEKLY_INSIGHTS } from '@/lib/dashboardPreviewData';
 import { supabase } from '@/services/supabase';
 
 const SYNC_STALE_MS = 24 * 60 * 60 * 1000;
@@ -568,21 +568,21 @@ export default function Dashboard() {
           athleteId={athleteId}
           userId={authUserId}
           title="Training insights"
-          description="Unlock weekly score, volume, and efficiency charts plus personalised coach notes with RNKX Premium."
+          description="Unlock weekly charts, coach notes, and workout history with RNKX Premium."
           previewContent={
             <div className="space-y-4">
               <WeeklyInsightsSection data={PREVIEW_WEEKLY_INSIGHTS} />
               <CoachNotesCard summary={PREVIEW_COACH_SUMMARY} />
+              <RecentWorkoutsSection items={PREVIEW_RECENT_WORKOUTS} />
             </div>
           }
         >
-          <>
+          <div className="space-y-4">
             {weeklyInsights ? <WeeklyInsightsSection data={weeklyInsights} /> : null}
             {insightsSummary ? <CoachNotesCard summary={insightsSummary} /> : null}
-          </>
+            <RecentWorkoutsSection items={recentWorkoutItems} />
+          </div>
         </PremiumGate>
-
-        <RecentWorkoutsSection items={recentWorkoutItems} />
       </section>
     </AppShell>
   );

@@ -1,4 +1,5 @@
 import type { DailyWeekAggregate, WeeklyInsightsData } from '@/lib/dashboardWeeklyInsights';
+import type { RecentWorkoutItem } from '@/components/dashboard/RecentWorkoutsSection';
 import type { InsightsSummary } from '@/lib/insightsAggregates';
 
 const PREVIEW_DAYS: DailyWeekAggregate[] = [
@@ -58,3 +59,9 @@ export const PREVIEW_COACH_SUMMARY: InsightsSummary = {
     'Engine intensity averaged 82% this week — strong training load.',
   ],
 };
+
+export const PREVIEW_RECENT_WORKOUTS: RecentWorkoutItem[] = [
+  { id: 'preview-1', label: 'Tempo Run', dateLabel: 'Tue 10 Jun · 42 min', leagueType: 'run', score: 156 },
+  { id: 'preview-2', label: 'Engine Intervals', dateLabel: 'Mon 9 Jun · 38 min', leagueType: 'engine', score: 142 },
+  { id: 'preview-3', label: 'Easy Run', dateLabel: 'Sun 8 Jun · 35 min', leagueType: 'run', score: 98 },
+];
