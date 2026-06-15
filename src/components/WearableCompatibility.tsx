@@ -1,5 +1,5 @@
 import { useState, type ReactNode } from 'react';
-import { ChevronDown, Info, RefreshCw, Trophy, Zap } from 'lucide-react';
+import { ChevronDown, Info, Trophy } from 'lucide-react';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { cn } from '@/lib/utils';
 
@@ -13,48 +13,42 @@ type WearableDevice = {
   leagues: LeagueSupport;
 };
 
+/** Display order: Apple → Garmin → WHOOP */
 const WEARABLE_DEVICES: WearableDevice[] = [
   {
     name: 'Apple Watch',
     sync: 'manual',
-    description: 'Open the app and tap Sync after each workout.',
+    description: 'Manual sync. Open the app and tap Sync after each workout.',
+    leagues: 'both',
+  },
+  {
+    name: 'Garmin',
+    sync: 'automatic',
+    description: 'Automatic. Workouts sync in the background.',
     leagues: 'both',
   },
   {
     name: 'WHOOP',
     sync: 'automatic',
-    description: 'Workouts sync in the background.',
+    description: 'Automatic. Workouts sync in the background.',
     leagues: 'engine',
-  },
-  {
-    name: 'Garmin',
-    sync: 'automatic',
-    description: 'Workouts sync in the background.',
-    leagues: 'both',
   },
 ];
 
-const RUN_LEAGUE_DEVICES = WEARABLE_DEVICES.filter(
-  (d) => d.leagues === 'run' || d.leagues === 'both',
-).map((d) => d.name);
+function SyncChip({ mode }: { mode: SyncMode }) {
+  const isManual = mode === 'manual';
 
-const ENGINE_LEAGUE_DEVICES = WEARABLE_DEVICES.filter(
-  (d) => d.leagues === 'engine' || d.leagues === 'both',
-).map((d) => d.name);
-
-function DeviceList({ devices }: { devices: WearableDevice[] }) {
   return (
-    <div className="overflow-hidden rounded-lg border border-border/70 bg-muted/10">
-      {devices.map((device, index) => (
-        <div
-          key={device.name}
-          className={cn('px-3 py-3', index > 0 ? 'border-t border-border/60' : undefined)}
-        >
-          <p className="text-sm font-medium text-foreground">{device.name}</p>
-          <p className="mt-1 text-xs leading-relaxed text-muted-foreground">{device.description}</p>
-        </div>
-      ))}
-    </div>
+    <span
+      className={cn(
+        'shrink-0 rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide',
+        isManual
+          ? 'border border-border bg-muted/50 text-muted-foreground'
+          : 'border border-emerald-500/30 bg-emerald-500/10 text-emerald-400',
+      )}
+    >
+      {isManual ? 'Manual' : 'Automatic'}
+    </span>
   );
 }
 
@@ -74,57 +68,6 @@ function LeagueBadge({ league }: { league: 'run' | 'engine' }) {
   );
 }
 
-function LeagueSupportList() {
-  return (
-    <div className="overflow-hidden rounded-lg border border-border/70 bg-muted/10">
-      {WEARABLE_DEVICES.map((device, index) => (
-        <div
-          key={device.name}
-          className={cn('px-3 py-3', index > 0 ? 'border-t border-border/60' : undefined)}
-        >
-          <div className="flex flex-wrap items-center gap-2">
-            <p className="text-sm font-medium text-foreground">{device.name}</p>
-            <div className="flex flex-wrap gap-1">
-              {(device.leagues === 'run' || device.leagues === 'both') && <LeagueBadge league="run" />}
-              {(device.leagues === 'engine' || device.leagues === 'both') && (
-                <LeagueBadge league="engine" />
-              )}
-            </div>
-          </div>
-          {device.leagues === 'engine' ? (
-            <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
-              Engine League only. Runs still score on heart rate in Engine League.
-            </p>
-          ) : null}
-        </div>
-      ))}
-      <div className="border-t border-border/60 px-3 py-3 space-y-2">
-        <div>
-          <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-            Run League
-          </p>
-          <p className="mt-0.5 text-xs text-muted-foreground">{RUN_LEAGUE_DEVICES.join(', ')}</p>
-        </div>
-        <div>
-          <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-            Engine League
-          </p>
-          <p className="mt-0.5 text-xs text-muted-foreground">{ENGINE_LEAGUE_DEVICES.join(', ')}</p>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-type CompatibilitySectionProps = {
-  icon: typeof Info;
-  title: string;
-  subtitle: string;
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-  children: ReactNode;
-};
-
 function CompatibilitySection({
   icon: Icon,
   title,
@@ -132,7 +75,14 @@ function CompatibilitySection({
   open,
   onOpenChange,
   children,
-}: CompatibilitySectionProps) {
+}: {
+  icon: typeof Info;
+  title: string;
+  subtitle: string;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  children: ReactNode;
+}) {
   return (
     <Collapsible open={open} onOpenChange={onOpenChange}>
       <CollapsibleTrigger asChild>
@@ -166,46 +116,70 @@ type WearableCompatibilityProps = {
 };
 
 export function WearableCompatibility({ className }: WearableCompatibilityProps) {
-  const [automaticOpen, setAutomaticOpen] = useState(false);
-  const [manualOpen, setManualOpen] = useState(false);
+  const [syncOpen, setSyncOpen] = useState(false);
   const [leaguesOpen, setLeaguesOpen] = useState(false);
-
-  const automaticDevices = WEARABLE_DEVICES.filter((d) => d.sync === 'automatic');
-  const manualDevices = WEARABLE_DEVICES.filter((d) => d.sync === 'manual');
 
   return (
     <div className={cn('font-sans', className)}>
       <CompatibilitySection
-        icon={Zap}
-        title="Automatic sync"
-        subtitle={`${automaticDevices.map((d) => d.name).join(', ')}`}
-        open={automaticOpen}
-        onOpenChange={setAutomaticOpen}
+        icon={Info}
+        title="Wearable compatibility"
+        subtitle="Manual vs automatic sync"
+        open={syncOpen}
+        onOpenChange={setSyncOpen}
       >
-        <DeviceList devices={automaticDevices} />
-      </CompatibilitySection>
-
-      <CompatibilitySection
-        icon={RefreshCw}
-        title="Manual sync"
-        subtitle={`${manualDevices.map((d) => d.name).join(', ')}`}
-        open={manualOpen}
-        onOpenChange={setManualOpen}
-      >
-        <DeviceList devices={manualDevices} />
+        <div className="overflow-hidden rounded-lg border border-border/70 bg-muted/10">
+          {WEARABLE_DEVICES.map((device, index) => (
+            <div
+              key={device.name}
+              className={cn('px-3 py-3', index > 0 ? 'border-t border-border/60' : undefined)}
+            >
+              <div className="flex flex-wrap items-center gap-2">
+                <p className="text-sm font-medium text-foreground">{device.name}</p>
+                <SyncChip mode={device.sync} />
+              </div>
+              <p className="mt-1 text-xs leading-relaxed text-muted-foreground">{device.description}</p>
+            </div>
+          ))}
+          <p className="border-t border-border/60 px-3 py-2.5 text-xs text-muted-foreground/60">
+            More devices coming soon
+          </p>
+        </div>
       </CompatibilitySection>
 
       <CompatibilitySection
         icon={Trophy}
         title="League compatibility"
-        subtitle="Which devices score in Run vs Engine"
+        subtitle="Run and Engine scoring by device"
         open={leaguesOpen}
         onOpenChange={setLeaguesOpen}
       >
-        <LeagueSupportList />
+        <div className="overflow-hidden rounded-lg border border-border/70 bg-muted/10">
+          {WEARABLE_DEVICES.map((device, index) => (
+            <div
+              key={device.name}
+              className={cn('px-3 py-3', index > 0 ? 'border-t border-border/60' : undefined)}
+            >
+              <div className="flex flex-wrap items-center gap-2">
+                <p className="text-sm font-medium text-foreground">{device.name}</p>
+                <div className="flex gap-1">
+                  {(device.leagues === 'run' || device.leagues === 'both') && (
+                    <LeagueBadge league="run" />
+                  )}
+                  {(device.leagues === 'engine' || device.leagues === 'both') && (
+                    <LeagueBadge league="engine" />
+                  )}
+                </div>
+              </div>
+              {device.leagues === 'engine' ? (
+                <p className="mt-1 text-xs text-muted-foreground">
+                  Engine League only — runs still score on heart rate.
+                </p>
+              ) : null}
+            </div>
+          ))}
+        </div>
       </CompatibilitySection>
-
-      <p className="px-4 py-2 text-xs text-muted-foreground/60">More devices coming soon</p>
     </div>
   );
 }
