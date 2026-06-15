@@ -1,6 +1,4 @@
-import { fetchClubByConversationId } from '@/lib/clubContext';
-import { conversationUnreadKey, isUnread } from '@/lib/unreadMessages';
-import { supabase } from '@/services/supabase';
+import { loadDmInboxItems, loadGroupInboxItems } from '@/lib/chatInboxLoad';
 
 export type ChatNotificationItem = {
   id: string;
@@ -11,108 +9,43 @@ export type ChatNotificationItem = {
   isRead: boolean;
 };
 
-async function loadDmNotifications(athleteId: string): Promise<ChatNotificationItem[]> {
-  const { data, error } = await supabase.rpc('list_dm_inbox', { p_athlete_id: athleteId });
-  if (error) {
-    console.warn('[chatInboxNotifications] list_dm_inbox:', error.message);
-    return [];
-  }
-
-  const rows = (Array.isArray(data) ? data : []) as Record<string, unknown>[];
-  const items: ChatNotificationItem[] = [];
-
-  for (const row of rows) {
-    const conversationId = String(row.conversation_id ?? '');
-    const friendId = String(row.friend_id ?? '');
-    const lastMessageAt = typeof row.last_message_at === 'string' ? row.last_message_at : null;
-    if (!conversationId || !friendId || !lastMessageAt) continue;
-
-    const unread = isUnread(conversationUnreadKey(conversationId), lastMessageAt, {
-      myAthleteId: athleteId,
-      lastMessageAthleteId:
-        typeof row.last_message_sender_id === 'string' ? row.last_message_sender_id : null,
-    });
-
-    const name = String(row.friend_username ?? 'Direct message');
-    items.push({
-      id: conversationId,
-      name,
-      preview: `New message from ${name}`,
-      at: lastMessageAt,
-      link: `/app/chat/${friendId}`,
-      isRead: !unread,
-    });
-  }
-
-  return items;
-}
-
-async function loadGroupNotifications(athleteId: string): Promise<ChatNotificationItem[]> {
-  const { data: memberships } = await supabase
-    .from('conversation_members')
-    .select('conversation_id')
-    .eq('athlete_id', athleteId);
-
-  if (!memberships?.length) return [];
-
-  const convoIds = memberships.map((m) => m.conversation_id as string);
-  const { data: convos } = await supabase
-    .from('conversations')
-    .select('id, name')
-    .in('id', convoIds)
-    .eq('is_group', true);
-
-  if (!convos?.length) return [];
-
-  const items: ChatNotificationItem[] = [];
-
-  for (const convo of convos) {
-    const conversationId = convo.id as string;
-    const { data: lastMsgs } = await supabase
-      .from('conversation_messages')
-      .select('content, created_at, athlete_id')
-      .eq('conversation_id', conversationId)
-      .order('created_at', { ascending: false })
-      .limit(1);
-
-    const lastMsg = lastMsgs?.[0] as
-      | { content?: string; created_at?: string; athlete_id?: string }
-      | undefined;
-    const lastMessageAt = lastMsg?.created_at;
-    if (!lastMessageAt) continue;
-
-    const { club } = await fetchClubByConversationId(conversationId);
-    const unread = isUnread(conversationUnreadKey(conversationId), lastMessageAt, {
-      myAthleteId: athleteId,
-      lastMessageAthleteId: lastMsg?.athlete_id ?? null,
-    });
-
-    const name = club?.name || convo.name?.trim() || 'Group chat';
-    items.push({
-      id: conversationId,
-      name,
-      preview: `New message from ${name}`,
-      at: lastMessageAt,
-      link: `/app/chat/group/${conversationId}`,
-      isRead: !unread,
-    });
-  }
-
-  return items;
-}
-
 /** Same inbox sources as ChatPage — used for the Notifications messages section. */
 export async function fetchChatNotifications(athleteId: string): Promise<ChatNotificationItem[]> {
-  const [dms, groups] = await Promise.all([
-    loadDmNotifications(athleteId),
-    loadGroupNotifications(athleteId),
+  const [dmItems, groupItems] = await Promise.all([
+    loadDmInboxItems(athleteId),
+    loadGroupInboxItems(athleteId),
   ]);
 
-  const all = [...dms, ...groups];
-  all.sort((a, b) => {
-    if (a.isRead !== b.isRead) return a.isRead ? 1 : -1;
-    return new Date(b.at).getTime() - new Date(a.at).getTime();
+  const all: ChatNotificationItem[] = [
+    ...dmItems
+      .filter((item) => item.unread && item.lastMessageAt !== new Date(0).toISOString())
+      .map((item) => ({
+        id: item.conversationId,
+        name: item.name,
+        preview: item.type === 'group' ? `New message in ${item.name}` : `New message from ${item.name}`,
+        at: item.lastMessageAt,
+        link: item.link,
+        isRead: false,
+      })),
+    ...groupItems
+      .filter((item) => item.unread && item.lastMessageAt !== new Date(0).toISOString())
+      .map((item) => ({
+        id: item.conversationId,
+        name: item.name,
+        preview: `New message in ${item.name}`,
+        at: item.lastMessageAt,
+        link: item.link,
+        isRead: false,
+      })),
+  ];
+
+  const seen = new Set<string>();
+  const deduped = all.filter((item) => {
+    if (seen.has(item.id)) return false;
+    seen.add(item.id);
+    return true;
   });
 
-  return all.slice(0, 40);
+  deduped.sort((a, b) => new Date(b.at).getTime() - new Date(a.at).getTime());
+  return deduped.slice(0, 40);
 }

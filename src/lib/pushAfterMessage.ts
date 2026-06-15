@@ -17,9 +17,18 @@ export async function notifyConversationMessagePush(
   ]);
 
   const isGroup = Boolean(convo?.is_group);
-  const memberCount = (members ?? []).length;
 
-  if (isGroup || memberCount !== 2) {
+  if (isGroup) {
+    invokePushNotify('notify-new-message', {
+      conversation_id: conversationId,
+      sender_athlete_id: senderAthleteId,
+      message_body: trimmed,
+    });
+    return;
+  }
+
+  const memberCount = (members ?? []).length;
+  if (memberCount !== 2) {
     invokePushNotify('notify-new-message', {
       conversation_id: conversationId,
       sender_athlete_id: senderAthleteId,

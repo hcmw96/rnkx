@@ -201,6 +201,15 @@ export function ProfileOverviewCard(props: ProfileOverviewCardProps) {
   );
 }
 
+/** Public preview — identity only (no season stats or career). */
+export function ProfilePreviewCard(props: ProfileIdentityProps) {
+  return (
+    <article className="overflow-hidden rounded-xl border border-border bg-card p-4 shadow-sm">
+      <ProfileIdentity {...props} />
+    </article>
+  );
+}
+
 function CareerStat({ label, value }: { label: string; value: string }) {
   return (
     <div className="rounded-xl border border-border/80 bg-zinc-950/40 px-3 py-4">

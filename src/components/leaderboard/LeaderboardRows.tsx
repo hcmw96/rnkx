@@ -3,7 +3,6 @@ import { getCountryByName } from '@/data/countries';
 import { formatScore } from '@/lib/formatScore';
 import { AthleteAvatarImg } from '@/components/AthleteAvatarImg';
 import { cn } from '@/lib/utils';
-import { toast } from 'sonner';
 
 export type LeaderboardRowData = {
   id: string;
@@ -21,7 +20,6 @@ type LeaderboardRowsProps = {
   rows: LeaderboardRowData[];
   league: LeaderboardLeague;
   currentUserId: string | null;
-  friendIds: Set<string>;
   /** Country subtitle under username; off for club leaderboards. */
   showSubtitle?: boolean;
 };
@@ -45,7 +43,6 @@ export function LeaderboardRows({
   rows,
   league,
   currentUserId,
-  friendIds,
   showSubtitle = true,
 }: LeaderboardRowsProps) {
   const scoreClass = LEAGUE_SCORE_CLASS[league];
@@ -58,7 +55,7 @@ export function LeaderboardRows({
           ? (getCountryByName(item.country)?.name ?? item.country)
           : null;
         const pointsDisplay = Number.isFinite(item.score) ? formatScore(item.score) : '0';
-        const canViewProfile = friendIds.has(item.id) && !isSelf;
+        const canOpenProfile = !isSelf;
         const isFirst = item.rank === 1;
 
         const rowInner = (
@@ -98,34 +95,17 @@ export function LeaderboardRows({
         const className = cn(
           'flex items-center gap-2 rounded-lg border bg-[hsla(0,0%,10%,1)] px-2.5 py-2 shadow-sm',
           isSelf ? LEAGUE_SELF_BORDER[league] : 'border-border/70',
-          canViewProfile && cn('transition-colors', LEAGUE_HOVER_BORDER[league]),
+          canOpenProfile && cn('transition-colors', LEAGUE_HOVER_BORDER[league]),
         );
 
         return (
           <li key={item.id}>
-            {canViewProfile ? (
+            {canOpenProfile ? (
               <Link to={`/app/friends/${item.id}`} className={className}>
                 {rowInner}
               </Link>
             ) : (
-              <div
-                className={className}
-                role={!isSelf ? 'button' : undefined}
-                tabIndex={!isSelf ? 0 : undefined}
-                onClick={() => {
-                  if (isSelf) return;
-                  toast.message('Add this athlete as a friend to view their profile.', {
-                    description: 'Social → Friends → search by username',
-                  });
-                }}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter' && !isSelf) {
-                    toast.message('Add this athlete as a friend to view their profile.');
-                  }
-                }}
-              >
-                {rowInner}
-              </div>
+              <div className={className}>{rowInner}</div>
             )}
           </li>
         );

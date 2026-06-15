@@ -7,6 +7,7 @@ import { NewMessageModal } from "@/components/chat/NewMessageModal";
 import { supabase } from "@/services/supabase";
 import { resolveAthleteId } from "@/lib/resolveAthleteId";
 import { getOrCreateDmConversation } from "@/lib/chatConversation";
+import { loadUnifiedChatInbox, type ChatInboxItem } from "@/lib/chatInboxLoad";
 import { Skeleton } from "@/components/ui/skeleton";
 import { MessageCircle, Users, PenSquare } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
@@ -14,34 +15,17 @@ import { Button } from "@/components/ui/button";
 import { usePullToRefresh } from "@/hooks/usePullToRefresh";
 import { toast } from "sonner";
 import { AthleteAvatarImg } from "@/components/AthleteAvatarImg";
-import { clubImageDisplayUrl } from "@/lib/clubImageUpload";
-import { fetchClubByConversationId } from "@/lib/clubContext";
-import { conversationUnreadKey, isUnread, UNREAD_CHANGED_EVENT } from "@/lib/unreadMessages";
+import { UNREAD_CHANGED_EVENT } from "@/lib/unreadMessages";
 import type { RealtimeChannel } from "@supabase/supabase-js";
 
-interface ChatItem {
-  id: string;
-  type: "dm" | "group";
-  name: string;
-  avatar: string | null;
-  profileAvatarUrl?: string | null;
-  lastMessage: string;
-  lastMessageAt: string;
-  unread: boolean;
-  link: string;
-  conversationId?: string;
-  friendId?: string;
-}
-
 export default function ChatPage() {
-  const [items, setItems] = useState<ChatItem[]>([]);
+  const [items, setItems] = useState<ChatInboxItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [athleteId, setAthleteId] = useState<string | null>(null);
   const [newMsgOpen, setNewMsgOpen] = useState(false);
   const navigate = useNavigate();
   const channelRef = useRef<RealtimeChannel | null>(null);
-  const itemsRef = useRef<ChatItem[]>([]);
-  itemsRef.current = items;
+  const loadAllRef = useRef<() => Promise<void>>(async () => {});
 
   const loadAll = useCallback(async () => {
     try {
@@ -52,14 +36,7 @@ export default function ChatPage() {
       if (!aid) return;
       setAthleteId(aid);
 
-      const [dmItems, groupItems] = await Promise.all([
-        loadDMs(aid),
-        loadGroupChats(aid),
-      ]);
-
-      const all = [...dmItems, ...groupItems].sort(
-        (a, b) => new Date(b.lastMessageAt).getTime() - new Date(a.lastMessageAt).getTime()
-      );
+      const all = await loadUnifiedChatInbox(aid);
       setItems(all);
     } catch (err) {
       console.error("Error loading conversations:", err);
@@ -67,6 +44,8 @@ export default function ChatPage() {
       setLoading(false);
     }
   }, []);
+
+  loadAllRef.current = loadAll;
 
   useEffect(() => {
     void loadAll();
@@ -79,103 +58,6 @@ export default function ChatPage() {
   }, [loadAll]);
 
   const { isRefreshing, pullDistance, pullHandlers } = usePullToRefresh(loadAll);
-
-  async function loadDMs(athleteId: string): Promise<ChatItem[]> {
-    const { data, error } = await supabase.rpc("list_dm_inbox", {
-      p_athlete_id: athleteId,
-    });
-
-    if (error) {
-      console.error("list_dm_inbox:", error.message);
-      return [];
-    }
-
-    const rows = (Array.isArray(data) ? data : []) as Record<string, unknown>[];
-    return rows.map((row) => {
-      const r = row as {
-        conversation_id: string;
-        friend_id: string;
-        friend_username: string | null;
-        friend_avatar_url: string | null;
-        last_message: string | null;
-        last_message_at: string | null;
-        last_message_sender_id?: string | null;
-      };
-      const lastMessageAt = r.last_message_at || new Date(0).toISOString();
-      return {
-        id: `dm-${r.conversation_id}`,
-        type: "dm" as const,
-        name: r.friend_username || "Unknown",
-        avatar: null,
-        profileAvatarUrl: r.friend_avatar_url,
-        lastMessage: r.last_message || "No messages yet",
-        lastMessageAt,
-        unread: isUnread(conversationUnreadKey(r.conversation_id), lastMessageAt, {
-          myAthleteId: athleteId,
-          lastMessageAthleteId: r.last_message_sender_id ?? null,
-        }),
-        link: `/app/chat/${r.friend_id}`,
-        conversationId: r.conversation_id,
-        friendId: r.friend_id,
-      };
-    });
-  }
-
-  async function loadGroupChats(athleteId: string): Promise<ChatItem[]> {
-    const { data: memberships } = await supabase
-      .from("conversation_members")
-      .select("conversation_id")
-      .eq("athlete_id", athleteId);
-
-    if (!memberships?.length) return [];
-
-    const convoIds = memberships.map((m) => m.conversation_id as string);
-
-    const { data: convos } = await supabase
-      .from("conversations")
-      .select("id, name")
-      .in("id", convoIds)
-      .eq("is_group", true);
-
-    if (!convos?.length) return [];
-
-    const results: ChatItem[] = [];
-    for (const convo of convos) {
-      const { data: lastMsgs } = await supabase
-        .from("conversation_messages")
-        .select("content, created_at, athlete_id")
-        .eq("conversation_id", convo.id)
-        .order("created_at", { ascending: false })
-        .limit(1);
-
-      const lastMsg = lastMsgs?.[0] as
-        | { content?: string; created_at?: string; athlete_id?: string }
-        | undefined;
-
-      const { club } = await fetchClubByConversationId(convo.id as string);
-      const displayName = club?.name || convo.name?.trim() || "Group chat";
-      const avatar = club
-        ? clubImageDisplayUrl(club.image_url, { cacheKey: club.id, leagueType: club.league_type })
-        : null;
-
-      const lastMessageAt = lastMsg?.created_at || new Date(0).toISOString();
-      results.push({
-        id: `group-${convo.id}`,
-        type: "group",
-        name: displayName,
-        avatar,
-        lastMessage: lastMsg?.content || "No messages yet",
-        lastMessageAt,
-        unread: isUnread(conversationUnreadKey(convo.id as string), lastMessageAt, {
-          myAthleteId: athleteId,
-          lastMessageAthleteId: lastMsg?.athlete_id ?? null,
-        }),
-        link: `/app/chat/group/${convo.id}`,
-      });
-    }
-
-    return results;
-  }
 
   // Realtime: bump unread dot when a new message arrives in any conversation we know about.
   useEffect(() => {
@@ -196,12 +78,24 @@ export default function ChatPage() {
             content?: string | null;
           };
           setItems((prev) => {
-            const updated = prev.map((item) => {
-              const convId = newMsg.conversation_id;
-              const matches = item.id === `group-${convId}` || item.id === `dm-${convId}`;
-              if (!matches) return item;
-              const isMine = athleteId != null && newMsg.athlete_id === athleteId;
-              if (isMine) return item;
+            const convId = newMsg.conversation_id;
+            const idx = prev.findIndex(
+              (item) => item.id === `group-${convId}` || item.id === `dm-${convId}`,
+            );
+            if (idx < 0) {
+              void loadAllRef.current();
+              return prev;
+            }
+            const isMine = athleteId != null && newMsg.athlete_id === athleteId;
+            const updated = prev.map((item, i) => {
+              if (i !== idx) return item;
+              if (isMine) {
+                return {
+                  ...item,
+                  lastMessage: newMsg.content || item.lastMessage,
+                  lastMessageAt: newMsg.created_at,
+                };
+              }
               return {
                 ...item,
                 lastMessage: newMsg.content || item.lastMessage,

@@ -200,7 +200,6 @@ export default function LeaguePage() {
       })),
     [rankedRows],
   );
-  const friendIds = useMemo(() => new Set(rankedRows.map((r) => r.athleteId)), [rankedRows]);
   const leagueImageUrl = useMemo(
     () =>
       league
@@ -339,7 +338,6 @@ export default function LeaguePage() {
                     rows={leaderboardRows}
                     league={league.league_type === 'run' ? 'run' : 'engine'}
                     currentUserId={athleteId ?? null}
-                    friendIds={friendIds}
                     showSubtitle={false}
                   />
                 )}

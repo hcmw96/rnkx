@@ -666,7 +666,6 @@ export default function LeaderboardPage() {
                 rows={rows}
                 league={activeLeague}
                 currentUserId={currentUserId}
-                friendIds={friendIds}
               />
             )}
           </PremiumGate>
@@ -682,7 +681,6 @@ export default function LeaderboardPage() {
               rows={rows}
               league={activeLeague}
               currentUserId={currentUserId}
-              friendIds={friendIds}
             />
           )
         )}

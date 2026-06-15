@@ -1,4 +1,4 @@
--- Push reliability: vault secret fallbacks, drop duplicate message trigger (client invokes notify-new-message).
+-- Push reliability: vault secret fallbacks (message push trigger managed in 20260615142000).
 
 create or replace function public.invoke_push_notification(
   p_edge_function text,
@@ -66,5 +66,3 @@ end;
 $$;
 
 grant execute on function public.category_leaderboard_rank(uuid, uuid, text) to service_role;
-
-drop trigger if exists conversation_messages_push on public.conversation_messages;
