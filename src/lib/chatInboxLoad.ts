@@ -8,6 +8,7 @@ export type ChatInboxItem = {
   name: string;
   avatar: string | null;
   profileAvatarUrl?: string | null;
+  leagueType?: 'engine' | 'run' | null;
   lastMessage: string;
   lastMessageAt: string;
   unread: boolean;
@@ -80,26 +81,31 @@ export async function loadGroupInboxItems(athleteId: string): Promise<ChatInboxI
       last_message_sender_id?: string | null;
     };
     const conversationId = String(r.conversation_id);
-    const lastMessageAt = r.last_message_at || new Date(0).toISOString();
     const leagueId = r.league_id ? String(r.league_id) : conversationId;
-    const avatar = r.club_image_url
-      ? clubImageDisplayUrl(r.club_image_url, {
-          cacheKey: leagueId,
-          leagueType: r.club_league_type ?? 'engine',
-        })
-      : null;
+    const leagueType =
+      r.club_league_type === 'run' ? 'run' : r.club_league_type === 'engine' ? 'engine' : null;
+    const hasMessage = Boolean(r.last_message?.trim());
+    const lastMessageAt =
+      hasMessage && r.last_message_at ? r.last_message_at : new Date(0).toISOString();
+    const avatar = clubImageDisplayUrl(r.club_image_url, {
+      cacheKey: leagueId,
+      leagueType: leagueType ?? 'engine',
+    });
 
     return {
       id: `group-${conversationId}`,
       type: 'group' as const,
       name: r.group_name?.trim() || 'Group chat',
       avatar,
-      lastMessage: r.last_message || 'No messages yet',
+      leagueType,
+      lastMessage: hasMessage ? r.last_message!.trim() : 'No messages yet',
       lastMessageAt,
-      unread: isUnread(conversationUnreadKey(conversationId), lastMessageAt, {
-        myAthleteId: athleteId,
-        lastMessageAthleteId: r.last_message_sender_id ?? null,
-      }),
+      unread: hasMessage
+        ? isUnread(conversationUnreadKey(conversationId), r.last_message_at ?? null, {
+            myAthleteId: athleteId,
+            lastMessageAthleteId: r.last_message_sender_id ?? null,
+          })
+        : false,
       link: `/app/chat/group/${conversationId}`,
       conversationId,
     };
@@ -112,7 +118,10 @@ export async function loadUnifiedChatInbox(athleteId: string): Promise<ChatInbox
     loadGroupInboxItems(athleteId),
   ]);
 
-  return [...dmItems, ...groupItems].sort(
-    (a, b) => new Date(b.lastMessageAt).getTime() - new Date(a.lastMessageAt).getTime(),
-  );
+  return [...dmItems, ...groupItems].sort((a, b) => {
+    const aTs = new Date(a.lastMessageAt).getTime();
+    const bTs = new Date(b.lastMessageAt).getTime();
+    if (aTs !== bTs) return bTs - aTs;
+    return a.name.localeCompare(b.name);
+  });
 }

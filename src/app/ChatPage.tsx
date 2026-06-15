@@ -9,7 +9,8 @@ import { resolveAthleteId } from "@/lib/resolveAthleteId";
 import { getOrCreateDmConversation } from "@/lib/chatConversation";
 import { loadUnifiedChatInbox, type ChatInboxItem } from "@/lib/chatInboxLoad";
 import { Skeleton } from "@/components/ui/skeleton";
-import { MessageCircle, Users, PenSquare } from "lucide-react";
+import { MessageCircle, PenSquare } from "lucide-react";
+import { LeagueChevronLogo } from "@/components/leagues/LeagueChevronLogo";
 import { formatDistanceToNow } from "date-fns";
 import { Button } from "@/components/ui/button";
 import { usePullToRefresh } from "@/hooks/usePullToRefresh";
@@ -170,13 +171,13 @@ export default function ChatPage() {
                   ) : item.avatar ? (
                     <img src={item.avatar} alt="" className="w-full h-full object-cover" />
                   ) : (
-                    <Users className="h-5 w-5 text-muted-foreground" />
+                    <LeagueChevronLogo className="h-full w-full" />
                   )}
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center justify-between">
                     <span className="font-medium text-foreground truncate">{item.name}</span>
-                    {item.lastMessageAt !== new Date(0).toISOString() && (
+                    {item.lastMessage !== "No messages yet" && item.lastMessageAt !== new Date(0).toISOString() && (
                       <span className="text-xs text-muted-foreground">
                         {formatDistanceToNow(new Date(item.lastMessageAt), { addSuffix: true })}
                       </span>

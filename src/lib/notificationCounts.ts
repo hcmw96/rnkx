@@ -47,6 +47,8 @@ export async function fetchUnreadMessageCount(athleteId: string): Promise<number
 
   for (const row of (Array.isArray(groupRows) ? groupRows : []) as Record<string, unknown>[]) {
     const conversationId = String(row.conversation_id ?? '');
+    const lastMessage = typeof row.last_message === 'string' ? row.last_message.trim() : '';
+    if (!lastMessage) continue;
     const lastMessageAt = typeof row.last_message_at === 'string' ? row.last_message_at : null;
     const lastMessageSenderId =
       typeof row.last_message_sender_id === 'string' ? row.last_message_sender_id : null;

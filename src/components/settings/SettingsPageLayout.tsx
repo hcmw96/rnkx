@@ -7,11 +7,9 @@ import {
   Check,
   CreditCard,
   FileText,
-  ChevronDown,
   Globe,
   Heart,
   HelpCircle,
-  Info,
   Lock,
   LogOut,
   Mail,
@@ -41,7 +39,6 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Switch } from '@/components/ui/switch';
@@ -224,8 +221,6 @@ export function SettingsPageLayout(props: SettingsPageLayoutProps) {
   } = props;
 
   const [activeDoc, setActiveDoc] = React.useState<AppDocument | null>(null);
-  const [devicesHowToOpen, setDevicesHowToOpen] = React.useState(false);
-
   const appleSubtitle = appleConnected
     ? formatSyncAgo(athlete?.last_synced)
     : 'HealthKit via iPhone app';
@@ -626,32 +621,7 @@ export function SettingsPageLayout(props: SettingsPageLayoutProps) {
                 </div>
 
                 <SettingsRowDivider />
-                <Collapsible open={devicesHowToOpen} onOpenChange={setDevicesHowToOpen}>
-                  <CollapsibleTrigger asChild>
-                    <button
-                      type="button"
-                      className="flex w-full items-center gap-3 px-4 py-3.5 text-left transition hover:bg-muted/30 active:bg-muted/40"
-                    >
-                      <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-muted/40 text-muted-foreground">
-                        <Info className="h-4 w-4" aria-hidden />
-                      </div>
-                      <div className="min-w-0 flex-1">
-                        <p className="text-sm font-medium text-foreground">Wearable compatibility</p>
-                        <p className="text-xs text-muted-foreground">Manual vs automatic sync</p>
-                      </div>
-                      <ChevronDown
-                        className={cn(
-                          'h-4 w-4 shrink-0 text-muted-foreground transition-transform duration-200',
-                          devicesHowToOpen && 'rotate-180',
-                        )}
-                        aria-hidden
-                      />
-                    </button>
-                  </CollapsibleTrigger>
-                  <CollapsibleContent className="px-3 pb-3">
-                    <WearableCompatibility />
-                  </CollapsibleContent>
-                </Collapsible>
+                <WearableCompatibility />
                 <SettingsRowDivider />
 
                 <SettingsRow
