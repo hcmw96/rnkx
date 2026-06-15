@@ -1,15 +1,11 @@
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import { getOneSignalApiKey, getOneSignalAppId } from '../_shared/onesignalEnv.ts';
 import { buildOneSignalPayload, pathFromUrl } from '../_shared/onesignalPush.ts';
+import { authenticateNotifyRequest, notifyCorsHeaders, notifyJson } from '../_shared/pushAuth.ts';
 
-const ONESIGNAL_API = 'https://onesignal.com/api/v1/notifications';
 const SYNC_REMINDER_URL = 'https://rnkx.netlify.app/app/profile';
 const SYNC_REMINDER_PATH = pathFromUrl(SYNC_REMINDER_URL, '/app/profile');
-
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-};
 
 type AthleteRow = {
   id: string;
@@ -18,11 +14,10 @@ type AthleteRow = {
 };
 
 function json(data: unknown, status = 200) {
-  return new Response(JSON.stringify(data), {
-    status,
-    headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-  });
+  return notifyJson(data, status);
 }
+
+const ONESIGNAL_API = 'https://onesignal.com/api/v1/notifications';
 
 function startOfTodayUtcIso(): string {
   const d = new Date();
@@ -77,17 +72,22 @@ async function sendSyncReminderPush(
 
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
-    return new Response('ok', { headers: corsHeaders });
+    return new Response('ok', { headers: notifyCorsHeaders });
   }
 
   if (req.method !== 'POST') {
     return json({ error: 'Method not allowed' }, 405);
   }
 
+  const auth = await authenticateNotifyRequest(req);
+  if (!auth || auth.kind !== 'service') {
+    return json({ error: 'Unauthorized' }, 401);
+  }
+
   const supabaseUrl = Deno.env.get('SUPABASE_URL');
   const serviceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
-  const appId = Deno.env.get('ONESIGNAL_APP_ID')?.trim();
-  const apiKey = Deno.env.get('ONESIGNAL_API_KEY')?.trim();
+  const appId = getOneSignalAppId();
+  const apiKey = getOneSignalApiKey();
 
   if (!supabaseUrl || !serviceKey) {
     console.error('[notify-sync-reminder] missing SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY');
@@ -95,13 +95,8 @@ serve(async (req) => {
   }
 
   if (!appId || !apiKey) {
-    console.error('[notify-sync-reminder] missing ONESIGNAL_APP_ID or ONESIGNAL_API_KEY');
+    console.error('[notify-sync-reminder] missing OneSignal credentials');
     return json({ error: 'Server misconfiguration' }, 500);
-  }
-
-  const authHeader = req.headers.get('Authorization');
-  if (authHeader !== `Bearer ${serviceKey}`) {
-    return json({ error: 'Unauthorized' }, 401);
   }
 
   let body: { athlete_id?: string } = {};

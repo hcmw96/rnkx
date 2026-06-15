@@ -3,7 +3,7 @@ import { cn } from '@/lib/utils';
 import { Link } from 'react-router-dom';
 import { LeagueChevronLogo } from '@/components/leagues/LeagueChevronLogo';
 import { clubImageDisplayUrl } from '@/lib/clubImageUpload';
-import { ClubGenderChip } from '@/components/leagues/ClubGenderChip';
+import { ClubListMeta } from '@/components/leagues/ClubGenderChip';
 
 export type ClubLeagueType = 'engine' | 'run';
 
@@ -77,12 +77,12 @@ export function PrivateLeagueCard({
               </span>
             ) : null}
           </div>
-          <div className="mt-1 flex flex-wrap items-center gap-1.5">
-            <ClubGenderChip gender={gender} />
-            <p className="type-meta truncate">
-              {description ?? `${memberCount} member${memberCount !== 1 ? 's' : ''}`}
-            </p>
-          </div>
+          <ClubListMeta
+            gender={gender}
+            leagueType={leagueType}
+            memberCount={memberCount}
+            description={description}
+          />
         </div>
       </Link>
 

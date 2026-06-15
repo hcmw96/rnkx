@@ -21,3 +21,37 @@ export function ClubGenderChip({ gender, className }: ClubGenderChipProps) {
     </span>
   );
 }
+
+type ClubListMetaProps = {
+  gender: string | null | undefined;
+  leagueType?: 'engine' | 'run' | string | null;
+  memberCount: number;
+  description?: string | null;
+  className?: string;
+};
+
+/** One-line members + optional gender label (no chip) for compact club list rows. */
+export function ClubListMeta({
+  gender,
+  leagueType = 'engine',
+  memberCount,
+  description,
+  className,
+}: ClubListMetaProps) {
+  const genderLabel = clubGenderChipLabel(gender);
+  const membersText =
+    description ?? `${memberCount} member${memberCount !== 1 ? 's' : ''}`;
+  const accentClass = leagueType === 'run' ? 'text-secondary' : 'text-primary';
+
+  return (
+    <p className={cn('type-meta mt-1 truncate', className)}>
+      {membersText}
+      {genderLabel ? (
+        <>
+          <span className="text-muted-foreground"> – </span>
+          <span className={cn('font-medium', accentClass)}>{genderLabel}</span>
+        </>
+      ) : null}
+    </p>
+  );
+}

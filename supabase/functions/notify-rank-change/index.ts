@@ -1,20 +1,10 @@
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import { authenticateNotifyRequest, notifyCorsHeaders, notifyJson } from '../_shared/pushAuth.ts';
+import { getOneSignalApiKey, getOneSignalAppId } from '../_shared/onesignalEnv.ts';
 import { buildOneSignalPayload } from '../_shared/onesignalPush.ts';
 
 const ONESIGNAL_API = 'https://onesignal.com/api/v1/notifications';
-
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-};
-
-function json(data: unknown, status = 200) {
-  return new Response(JSON.stringify(data), {
-    status,
-    headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-  });
-}
 
 function formatLeagueType(t: string): string {
   const s = t.trim();
@@ -24,22 +14,27 @@ function formatLeagueType(t: string): string {
 
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
-    return new Response('ok', { headers: corsHeaders });
+    return new Response('ok', { headers: notifyCorsHeaders });
   }
 
   try {
     if (req.method !== 'POST') {
-      return json({ success: true });
+      return notifyJson({ success: true });
+    }
+
+    const auth = await authenticateNotifyRequest(req);
+    if (!auth) {
+      return notifyJson({ success: false, error: 'Unauthorized' }, 401);
     }
 
     const supabaseUrl = Deno.env.get('SUPABASE_URL');
     const serviceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
-    const appId = Deno.env.get('ONESIGNAL_APP_ID')?.trim();
-    const apiKey = Deno.env.get('ONESIGNAL_API_KEY')?.trim();
+    const appId = getOneSignalAppId();
+    const apiKey = getOneSignalApiKey();
 
     if (!supabaseUrl || !serviceKey || !appId || !apiKey) {
       console.error('[notify-rank-change] missing env');
-      return json({ success: true });
+      return notifyJson({ success: true });
     }
 
     let body: {
@@ -51,7 +46,7 @@ serve(async (req) => {
     try {
       body = await req.json();
     } catch {
-      return json({ success: true });
+      return notifyJson({ success: true });
     }
 
     const athleteId = typeof body.athlete_id === 'string' ? body.athlete_id.trim() : '';
@@ -61,11 +56,11 @@ serve(async (req) => {
 
     if (!athleteId || oldRank === null || newRank === null) {
       console.warn('[notify-rank-change] missing fields');
-      return json({ success: true });
+      return notifyJson({ success: true });
     }
 
     if (newRank === oldRank) {
-      return json({ success: true });
+      return notifyJson({ success: true });
     }
 
     const supabase = createClient(supabaseUrl, serviceKey);
@@ -77,11 +72,11 @@ serve(async (req) => {
 
     if (athErr) {
       console.error('[notify-rank-change] athlete lookup', athErr);
-      return json({ success: true });
+      return notifyJson({ success: true });
     }
     if (!athlete?.id) {
       console.warn('[notify-rank-change] unknown athlete', athleteId);
-      return json({ success: true });
+      return notifyJson({ success: true });
     }
     const externalUserId = String(athlete.id);
 
@@ -122,5 +117,5 @@ serve(async (req) => {
     console.error('[notify-rank-change]', e);
   }
 
-  return json({ success: true });
+  return notifyJson({ success: true });
 });

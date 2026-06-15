@@ -2,6 +2,8 @@ import type { WorkoutObject } from '@/services/despia';
 import { supabase } from '@/services/supabase';
 import type { ProcessActivityRpcResult } from '@/types/shareCards';
 
+import { notifyWorkoutScoredPushes } from './pushAfterWorkoutScored';
+
 export type SyncAppleWorkoutsResult = {
   processed: number;
   results: ProcessActivityRpcResult[];
@@ -28,6 +30,10 @@ export async function syncAppleWorkoutsToDatabase(
   const results = Array.isArray(rawResults)
     ? (rawResults as ProcessActivityRpcResult[])
     : [];
+
+  if (processed > 0 && results.length > 0) {
+    notifyWorkoutScoredPushes(athleteId, results);
+  }
 
   return { processed, results, error: null };
 }

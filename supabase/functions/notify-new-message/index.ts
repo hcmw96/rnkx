@@ -1,21 +1,11 @@
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
+import { authenticateNotifyRequest, notifyCorsHeaders, notifyJson } from '../_shared/pushAuth.ts';
+import { getOneSignalApiKey, getOneSignalAppId } from '../_shared/onesignalEnv.ts';
 import { buildOneSignalPayload } from '../_shared/onesignalPush.ts';
 
 const ONESIGNAL_API = 'https://onesignal.com/api/v1/notifications';
-
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-};
-
-function json(data: unknown, status = 200) {
-  return new Response(JSON.stringify(data), {
-    status,
-    headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-  });
-}
 
 function sanitize(s: string, max: number): string {
   const t = s.replace(/[\r\n\u0000]/g, ' ').trim();
@@ -24,29 +14,40 @@ function sanitize(s: string, max: number): string {
 
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
-    return new Response('ok', { headers: corsHeaders });
+    return new Response('ok', { headers: notifyCorsHeaders });
   }
 
   try {
     if (req.method !== 'POST') {
-      return json({ success: true });
+      return notifyJson({ success: true });
+    }
+
+    const auth = await authenticateNotifyRequest(req);
+    if (!auth) {
+      return notifyJson({ success: false, error: 'Unauthorized' }, 401);
     }
 
     const supabaseUrl = Deno.env.get('SUPABASE_URL');
     const serviceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
-    const appId = Deno.env.get('ONESIGNAL_APP_ID')?.trim();
-    const apiKey = Deno.env.get('ONESIGNAL_API_KEY')?.trim();
+    const appId = getOneSignalAppId();
+    const apiKey = getOneSignalApiKey();
 
     if (!supabaseUrl || !serviceKey || !appId || !apiKey) {
       console.error('[notify-new-message] missing env');
-      return json({ success: true });
+      return notifyJson({ success: true });
     }
 
     let body: Record<string, unknown>;
     try {
       body = await req.json();
     } catch {
-      return json({ success: true });
+      return notifyJson({ success: true });
+    }
+
+    const senderFromBody =
+      typeof body.sender_athlete_id === 'string' ? body.sender_athlete_id.trim() : '';
+    if (auth.kind === 'user' && senderFromBody && auth.athleteId !== senderFromBody) {
+      return notifyJson({ success: false, error: 'Forbidden' }, 403);
     }
 
     const supabase = createClient(supabaseUrl, serviceKey);
@@ -209,7 +210,7 @@ serve(async (req) => {
           conversationId,
           senderAthleteId,
         });
-        return json({ success: true });
+        return notifyJson({ success: true });
       }
 
       const { data: senderRow } = await supabase
@@ -228,7 +229,7 @@ serve(async (req) => {
         await notifyAthlete(rid, senderDisplay, preview, `/app/chat/group/${conversationId}`);
       }
 
-      return json({ success: true });
+      return notifyJson({ success: true });
     }
 
     const receiverAthleteId =
@@ -240,7 +241,7 @@ serve(async (req) => {
 
     if (!receiverAthleteId) {
       console.warn('[notify-new-message] missing receiver_athlete_id and not a group payload');
-      return json({ success: true });
+      return notifyJson({ success: true });
     }
 
     if (!senderName && senderAthleteIdForDm) {
@@ -271,5 +272,5 @@ serve(async (req) => {
     console.error('[notify-new-message]', e);
   }
 
-  return json({ success: true });
+  return notifyJson({ success: true });
 });
