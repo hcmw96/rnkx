@@ -2,12 +2,16 @@ import { motion } from 'framer-motion';
 import { FormEvent, useState } from 'react';
 import { Loader2 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import { toast } from 'sonner';
 import { WelcomeScreen } from '@/components/onboarding/WelcomeScreen';
 import RNKXLogo from '@/components/RNKXLogo';
+import { AppleSignInButton } from '@/components/auth/AppleSignInButton';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { supabase } from '@/services/supabase';
+import { isAthleteProfileComplete } from '@/lib/authPostLogin';
+import { isDespiaIOS, signInWithApple } from '@/lib/appleSignIn';
 import { getPendingLeagueInvitePath } from '@/lib/shareLeagueInvite';
+import { supabase } from '@/services/supabase';
 
 export default function AthleteAuth() {
   const navigate = useNavigate();
@@ -15,9 +19,48 @@ export default function AthleteAuth() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [authBusy, setAuthBusy] = useState(false);
+  const [appleBusy, setAppleBusy] = useState(false);
   const [authError, setAuthError] = useState<string | null>(null);
 
+  const showAppleSignIn = isDespiaIOS();
+  const authFlowBusy = authBusy || appleBusy;
+
   const canSubmit = email.trim().length > 3 && password.length >= 6;
+
+  const navigateAfterAuth = async (mode: 'login' | 'signup') => {
+    if (mode === 'signup') {
+      navigate('/onboarding', { replace: true });
+      return;
+    }
+
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    if (!user) {
+      navigate('/onboarding', { replace: true });
+      return;
+    }
+
+    const complete = await isAthleteProfileComplete(user.id);
+    navigate(complete ? (getPendingLeagueInvitePath() ?? '/app') : '/onboarding', { replace: true });
+  };
+
+  const handleAppleSignIn = async () => {
+    setAuthError(null);
+    setAppleBusy(true);
+    try {
+      const result = await signInWithApple();
+      if (result.cancelled) return;
+      if (result.error) {
+        setAuthError(result.error.message);
+        toast.error(result.error.message);
+        return;
+      }
+      await navigateAfterAuth('login');
+    } finally {
+      setAppleBusy(false);
+    }
+  };
 
   const handleAuthSubmit = async (event: FormEvent) => {
     event.preventDefault();
@@ -31,7 +74,7 @@ export default function AthleteAuth() {
         setAuthError(error.message);
         return;
       }
-      navigate(getPendingLeagueInvitePath() ?? '/app', { replace: true });
+      await navigateAfterAuth('login');
       return;
     }
 
@@ -52,7 +95,7 @@ export default function AthleteAuth() {
         return;
       }
 
-      navigate('/onboarding', { replace: true });
+      await navigateAfterAuth('signup');
     }
   };
 
@@ -147,7 +190,7 @@ export default function AthleteAuth() {
                 required
               />
             </div>
-            <Button type="submit" disabled={authBusy || !canSubmit} className="h-12 w-full font-semibold">
+            <Button type="submit" disabled={authFlowBusy || !canSubmit} className="h-12 w-full font-semibold">
               {authBusy ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -160,6 +203,27 @@ export default function AthleteAuth() {
               )}
             </Button>
           </form>
+
+          {showAppleSignIn ? (
+            <>
+              <div className="flex items-center gap-3">
+                <div className="h-px flex-1 bg-border" />
+                <span className="text-xs text-muted-foreground">or</span>
+                <div className="h-px flex-1 bg-border" />
+              </div>
+              <AppleSignInButton
+                mode={authStep === 'signup' ? 'signup' : 'login'}
+                disabled={authFlowBusy}
+                onClick={() => void handleAppleSignIn()}
+              />
+              {appleBusy ? (
+                <p className="flex items-center justify-center gap-2 text-sm text-muted-foreground">
+                  <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
+                  Connecting to Apple…
+                </p>
+              ) : null}
+            </>
+          ) : null}
         </motion.div>
       </div>
     </div>
