@@ -3,6 +3,7 @@ import { FormEvent, useState } from 'react';
 import { Loader2 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { WelcomeScreen } from '@/components/onboarding/WelcomeScreen';
+import RNKXLogo from '@/components/RNKXLogo';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { supabase } from '@/services/supabase';
@@ -74,7 +75,7 @@ export default function AthleteAuth() {
     <div className="min-h-app bg-background text-foreground">
       <div className="mx-auto flex min-h-full w-full max-w-lg flex-col px-4 pb-10 pt-4">
         <header className="mb-6 flex flex-col items-center gap-2 pt-6">
-          <h1 className="font-display text-4xl tracking-wide text-primary">RNKX</h1>
+          <RNKXLogo size="md" />
           <p className="text-center text-sm text-muted-foreground">Train. Compete. Rise.</p>
         </header>
 

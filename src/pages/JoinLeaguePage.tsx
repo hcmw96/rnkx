@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { Loader2 } from 'lucide-react';
+import RNKXLogo from '@/components/RNKXLogo';
 import { Button } from '@/components/ui/button';
 import { PremiumGate } from '@/components/PremiumGate';
 import { JoinClubPreview } from '@/components/premium/PreviewMocks';
@@ -175,7 +176,7 @@ export default function JoinLeaguePage() {
     return (
       <div className="flex min-h-screen flex-col items-center justify-center bg-background px-4 text-foreground">
         <div className="w-full max-w-md space-y-4 text-center">
-          <h1 className="font-display text-2xl text-primary">RNKX</h1>
+          <RNKXLogo size="sm" />
           <p className="text-muted-foreground">Invalid or expired invite link.</p>
           <Button asChild variant="outline">
             <Link to="/auth">Go home</Link>
@@ -189,7 +190,7 @@ export default function JoinLeaguePage() {
     return (
       <div className="flex min-h-screen flex-col items-center justify-center bg-background px-4 text-foreground">
         <div className="w-full max-w-md space-y-6 text-center">
-          <h1 className="font-display text-2xl text-primary">RNKX</h1>
+          <RNKXLogo size="sm" />
           <p className="text-muted-foreground">You need an account to join this club.</p>
           <div className="flex flex-col gap-3 sm:flex-row sm:justify-center">
             <Button asChild className="font-semibold">
@@ -208,7 +209,7 @@ export default function JoinLeaguePage() {
     return (
       <div className="flex min-h-screen flex-col items-center justify-center bg-background px-4 text-foreground">
         <div className="w-full max-w-md space-y-4 text-center">
-          <h1 className="font-display text-2xl text-primary">RNKX</h1>
+          <RNKXLogo size="sm" />
           <p className="text-muted-foreground">Finish setting up your profile before joining a club.</p>
           <Button asChild>
             <Link to="/onboarding">Complete profile</Link>
@@ -230,7 +231,7 @@ export default function JoinLeaguePage() {
     return (
       <div className="flex min-h-screen flex-col items-center justify-center bg-background px-4 text-foreground">
         <div className="w-full max-w-md space-y-4 text-center">
-          <h1 className="font-display text-2xl text-primary">RNKX</h1>
+          <RNKXLogo size="sm" />
           <p className="text-muted-foreground">Invalid or expired invite link.</p>
           <Button asChild variant="outline">
             <Link to="/app/social/leagues">My clubs</Link>

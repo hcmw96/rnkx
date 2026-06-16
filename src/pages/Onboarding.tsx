@@ -1,6 +1,7 @@
 import { AnimatePresence } from 'framer-motion';
 import { useCallback, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import RNKXLogo from '@/components/RNKXLogo';
 import CountrySelect from '@/components/onboarding/CountrySelect';
 import DateOfBirthPicker from '@/components/onboarding/DateOfBirthPicker';
 import DisplayNameInput from '@/components/onboarding/DisplayNameInput';
@@ -145,7 +146,7 @@ export default function Onboarding() {
     <div className="min-h-app bg-background text-foreground">
       <div className="mx-auto flex min-h-full w-full max-w-lg flex-col px-4 pb-10 pt-4">
         <header className="mb-6 flex flex-col items-center gap-2 pt-6">
-          <h1 className="font-display text-4xl tracking-wide text-primary">RNKX</h1>
+          <RNKXLogo size="md" />
           <p className="text-center text-sm text-muted-foreground">Complete your profile</p>
         </header>
 
