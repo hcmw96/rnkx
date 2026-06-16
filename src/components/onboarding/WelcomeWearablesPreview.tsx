@@ -2,6 +2,7 @@ import { AppleLogo, GarminLogo, WhoopLogo } from '@/components/BrandLogos';
 import { cn } from '@/lib/utils';
 
 type WelcomeWearablesPreviewProps = {
+  compact?: boolean;
   className?: string;
 };
 
@@ -27,17 +28,18 @@ const DEVICES = [
   },
 ] as const;
 
-export function WelcomeWearablesPreview({ className }: WelcomeWearablesPreviewProps) {
+export function WelcomeWearablesPreview({ compact = false, className }: WelcomeWearablesPreviewProps) {
   return (
     <article
       className={cn(
-        'mx-auto w-full max-w-[340px] overflow-hidden rounded-2xl border border-white/10 bg-card/95 px-4 py-6 shadow-[0_24px_60px_-12px_rgba(0,0,0,0.65)] backdrop-blur-md sm:px-5',
+        'mx-auto w-full max-w-[340px] overflow-hidden rounded-2xl border border-white/10 bg-card/95 shadow-[0_24px_60px_-12px_rgba(0,0,0,0.65)] backdrop-blur-md',
+        compact ? 'px-4 py-4 sm:px-5' : 'px-4 py-6 sm:px-5',
         className,
       )}
       aria-hidden
     >
       <p className="type-section-label text-center">Device sync</p>
-      <div className="mt-5 grid grid-cols-3 gap-x-2">
+      <div className={cn('grid grid-cols-3 gap-x-2', compact ? 'mt-3' : 'mt-5')}>
         {DEVICES.map(({ Logo, label, tileClass, logoClass }) => (
           <div key={label} className="flex min-w-0 flex-col items-center gap-2">
             <div
@@ -52,8 +54,8 @@ export function WelcomeWearablesPreview({ className }: WelcomeWearablesPreviewPr
           </div>
         ))}
       </div>
-      <p className="type-body-muted mt-5 text-center text-sm">Workouts sync automatically in the background</p>
-      <div className="mt-4 rounded-lg border border-emerald-500/20 bg-emerald-500/10 px-3 py-2 text-center text-xs font-medium text-emerald-400">
+      <p className={cn('type-body-muted text-center text-sm', compact ? 'mt-3' : 'mt-5')}>Workouts sync automatically in the background</p>
+      <div className={cn('rounded-lg border border-emerald-500/20 bg-emerald-500/10 px-3 py-2 text-center text-xs font-medium text-emerald-400', compact ? 'mt-2.5' : 'mt-4')}>
         Last synced · 2 min ago
       </div>
     </article>

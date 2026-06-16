@@ -15,26 +15,29 @@ import { cn } from '@/lib/utils';
 
 const ONBOARDING_BG = '/assets/onboarding-bg.jpg';
 
+/** Padding on the Embla viewport so card shadows are not clipped. Height follows the tallest slide. */
+const PREVIEW_CAROUSEL_CLASS = 'w-full [&>div]:py-2';
+
 const SLIDES: readonly { headline: string; preview: ReactNode }[] = [
   {
     headline: 'Your training has a ranking.',
     preview: (
-      <WelcomeLeaderboardPreview league="engine" rows={WELCOME_ENGINE_LEADERBOARD_ROWS} />
+      <WelcomeLeaderboardPreview compact league="engine" rows={WELCOME_ENGINE_LEADERBOARD_ROWS} />
     ),
   },
   {
     headline: 'Climb the board with every session.',
     preview: (
-      <WelcomeLeaderboardPreview league="run" rows={WELCOME_LEADERBOARD_CLIMB_ROWS} />
+      <WelcomeLeaderboardPreview compact league="run" rows={WELCOME_LEADERBOARD_CLIMB_ROWS} />
     ),
   },
   {
     headline: 'WHOOP, Apple Health, and more — synced automatically.',
-    preview: <WelcomeWearablesPreview />,
+    preview: <WelcomeWearablesPreview compact />,
   },
   {
     headline: 'Compete with people who actually push you.',
-    preview: <WelcomePrivateGroupPreview />,
+    preview: <WelcomePrivateGroupPreview compact />,
   },
 ];
 
@@ -112,53 +115,60 @@ export function WelcomeScreen({ onGetStarted, onLogIn }: WelcomeScreenProps) {
     [api],
   );
 
+  const activeSlide = SLIDES[activeIndex];
+
   return (
-    <div className="fixed inset-0 z-50 flex flex-col overflow-hidden bg-black text-foreground">
+    <div className="fixed inset-0 z-50 flex h-[100dvh] flex-col overflow-hidden bg-black text-foreground">
       <div className="pointer-events-none absolute inset-0" aria-hidden>
         <img
           src={ONBOARDING_BG}
           alt=""
-          className="h-full w-full object-cover object-[center_22%]"
+          className="h-full w-full object-cover object-[center_24%]"
         />
         <div className="absolute inset-0 bg-gradient-to-t from-black via-black/55 to-black/10" />
         <div className="absolute inset-0 bg-black/15" />
       </div>
 
-      <div className="relative z-10 flex min-h-0 flex-1 flex-col px-4 pt-[calc(0.5rem+env(safe-area-inset-top,0px))] sm:px-6">
-        <div className="flex shrink-0 justify-center py-2">
+      <header className="relative z-20 shrink-0 px-4 pb-1 pt-[calc(0.75rem+env(safe-area-inset-top,0px))] sm:px-6">
+        <div className="flex justify-center">
           <RNKXLogo size="md" />
         </div>
+      </header>
 
-        <div className="flex min-h-0 flex-1 flex-col items-center justify-center py-2">
+      <div className="relative z-10 flex min-h-0 flex-1 flex-col px-4 sm:px-6">
+        <div aria-hidden className="min-h-0 flex-1" />
+
+        <div className="mx-auto flex w-full max-w-[340px] shrink-0 flex-col items-center gap-3">
           <Carousel
             setApi={setApi}
             opts={{
-              align: 'start',
+              align: 'center',
               loop: true,
               duration: reducedMotion ? 0 : 24,
             }}
-            className="w-full"
+            className={PREVIEW_CAROUSEL_CLASS}
             aria-label="Welcome highlights"
           >
-            <CarouselContent className="-ml-0">
-              {SLIDES.map((slide, index) => (
-                <CarouselItem key={slide.headline} className="basis-full pl-0">
-                  <div className="flex flex-col items-center gap-4 px-1">
-                    <div className="w-full">{slide.preview}</div>
-                    <h1
-                      className="max-w-sm text-center font-sans text-[clamp(1.375rem,4.5vw,1.75rem)] font-bold leading-snug text-white"
-                      aria-live={activeIndex === index ? 'polite' : 'off'}
-                    >
-                      {slide.headline}
-                    </h1>
+            <CarouselContent className="-ml-0 items-stretch">
+              {SLIDES.map((slide) => (
+                <CarouselItem key={slide.headline} className="basis-full self-stretch pl-0">
+                  <div className="flex h-full w-full items-center justify-center px-1">
+                    {slide.preview}
                   </div>
                 </CarouselItem>
               ))}
             </CarouselContent>
           </Carousel>
 
+          <h1
+            className="mx-auto max-w-sm text-center font-sans text-[clamp(1.25rem,4.2vw,1.625rem)] font-bold leading-snug text-white"
+            aria-live="polite"
+          >
+            {activeSlide.headline}
+          </h1>
+
           <div
-            className="mt-4 flex items-center justify-center gap-2"
+            className="flex items-center justify-center gap-2"
             role="tablist"
             aria-label="Welcome slides"
           >
@@ -178,10 +188,12 @@ export function WelcomeScreen({ onGetStarted, onLogIn }: WelcomeScreenProps) {
             ))}
           </div>
         </div>
+
+        <div aria-hidden className="min-h-0 flex-1" />
       </div>
 
-      <div className="relative z-20 shrink-0 border-t border-white/10 bg-black/55 px-4 pb-[calc(1.25rem+env(safe-area-inset-bottom,0px))] pt-4 backdrop-blur-md sm:px-6">
-        <div className="mx-auto flex w-full max-w-lg flex-col gap-3">
+      <footer className="relative z-20 shrink-0 border-t border-white/10 bg-black/55 px-4 pb-[calc(1.25rem+env(safe-area-inset-bottom,0px))] pt-4 backdrop-blur-md sm:px-6">
+        <div className="mx-auto flex w-full max-w-[340px] flex-col gap-3">
           <Button
             type="button"
             onClick={onGetStarted}
@@ -197,7 +209,7 @@ export function WelcomeScreen({ onGetStarted, onLogIn }: WelcomeScreenProps) {
             Log in
           </button>
         </div>
-      </div>
+      </footer>
     </div>
   );
 }

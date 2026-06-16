@@ -7,6 +7,8 @@ import { cn } from '@/lib/utils';
 type WelcomeLeaderboardPreviewProps = {
   rows?: WelcomeLeaderboardRow[];
   league?: LeagueKind;
+  /** Tighter rows for welcome carousel viewport */
+  compact?: boolean;
   className?: string;
 };
 
@@ -18,6 +20,7 @@ const LEAGUE_LABEL: Record<LeagueKind, string> = {
 export function WelcomeLeaderboardPreview({
   rows = WELCOME_LEADERBOARD_ROWS,
   league = 'run',
+  compact = false,
   className,
 }: WelcomeLeaderboardPreviewProps) {
   const isEngine = league === 'engine';
@@ -30,16 +33,17 @@ export function WelcomeLeaderboardPreview({
       )}
       aria-hidden
     >
-      <header className="border-b border-border/60 px-4 py-3">
+      <header className={cn('border-b border-border/60 px-4', compact ? 'py-2' : 'py-3')}>
         <p className="type-section-label">{LEAGUE_LABEL[league]}</p>
         <p className="type-meta mt-0.5">Season leaderboard</p>
       </header>
-      <ul className="divide-y divide-border/50 py-1">
+      <ul className={cn('divide-y divide-border/50', compact ? 'py-0.5' : 'py-1')}>
         {rows.map((row) => (
           <li
             key={`${row.rank}-${row.username}`}
             className={cn(
-              'mx-2 flex items-center gap-2.5 rounded-lg px-2 py-2.5',
+              'mx-2 flex items-center gap-2.5 rounded-lg px-2',
+              compact ? 'py-1.5' : 'py-2.5',
               row.isYou &&
                 (isEngine
                   ? 'border border-neon-lime/40 bg-neon-lime/[0.08] ring-1 ring-neon-lime/15'
@@ -54,7 +58,7 @@ export function WelcomeLeaderboardPreview({
             >
               {row.rank}
             </span>
-            <div className="relative h-9 w-9 shrink-0 overflow-hidden rounded-full border border-border/80 bg-[hsla(0,0%,14%,1)]">
+            <div className={cn('relative shrink-0 overflow-hidden rounded-full border border-border/80 bg-[hsla(0,0%,14%,1)]', compact ? 'h-8 w-8' : 'h-9 w-9')}>
               <AthleteAvatarImg avatarUrl={row.avatarUrl} league={league} />
             </div>
             <div className="min-w-0 flex-1">

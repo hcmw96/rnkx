@@ -38,15 +38,18 @@ export const WELCOME_PRIVATE_GROUP_ROWS: WelcomeLeaderboardRow[] = [
 ];
 
 type WelcomePrivateGroupPreviewProps = {
+  /** Tighter layout for welcome carousel viewport */
+  compact?: boolean;
   className?: string;
 };
 
-export function WelcomePrivateGroupPreview({ className }: WelcomePrivateGroupPreviewProps) {
+export function WelcomePrivateGroupPreview({ compact = false, className }: WelcomePrivateGroupPreviewProps) {
   const faceStack = [
     MOCK_ATHLETES.finnHarper,
     MOCK_ATHLETES.islaDavies,
     MOCK_ATHLETES.connorOShea,
   ];
+  const rows = compact ? WELCOME_PRIVATE_GROUP_ROWS.slice(0, 3) : WELCOME_PRIVATE_GROUP_ROWS;
 
   return (
     <article
@@ -56,7 +59,7 @@ export function WelcomePrivateGroupPreview({ className }: WelcomePrivateGroupPre
       )}
       aria-hidden
     >
-      <header className="border-b border-border/60 px-4 py-3">
+      <header className={cn('border-b border-border/60 px-4', compact ? 'py-2.5' : 'py-3')}>
         <div className="flex items-start gap-3">
           <div className="relative h-11 w-11 shrink-0 overflow-hidden rounded-xl border border-border/80 bg-[hsla(0,0%,14%,1)]">
             <LeagueChevronLogo className="h-full w-full" />
@@ -72,31 +75,34 @@ export function WelcomePrivateGroupPreview({ className }: WelcomePrivateGroupPre
             <p className="type-meta mt-0.5">8 members · Run</p>
           </div>
         </div>
-        <div className="mt-3 flex items-center gap-2">
-          <div className="flex -space-x-2">
-            {faceStack.map((member) => (
-              <div
-                key={member.username}
-                className="relative h-7 w-7 overflow-hidden rounded-full border-2 border-card ring-1 ring-border/40"
-              >
-                <AthleteAvatarImg avatarUrl={member.avatarUrl} league="run" />
-              </div>
-            ))}
+        {!compact ? (
+          <div className="mt-3 flex items-center gap-2">
+            <div className="flex -space-x-2">
+              {faceStack.map((member) => (
+                <div
+                  key={member.username}
+                  className="relative h-7 w-7 overflow-hidden rounded-full border-2 border-card ring-1 ring-border/40"
+                >
+                  <AthleteAvatarImg avatarUrl={member.avatarUrl} league="run" />
+                </div>
+              ))}
+            </div>
+            <span className="text-xs text-muted-foreground">+5 more in your crew</span>
           </div>
-          <span className="text-xs text-muted-foreground">+5 more in your crew</span>
-        </div>
+        ) : null}
       </header>
 
-      <div className="px-4 py-2">
+      <div className={cn('px-4', compact ? 'py-1' : 'py-2')}>
         <p className="type-section-label">Club leaderboard</p>
       </div>
 
-      <ul className="divide-y divide-border/50 pb-1">
-        {WELCOME_PRIVATE_GROUP_ROWS.map((row) => (
+      <ul className={cn('divide-y divide-border/50', compact ? 'pb-0.5' : 'pb-1')}>
+        {rows.map((row) => (
           <li
             key={`${row.rank}-${row.username}`}
             className={cn(
-              'mx-2 flex items-center gap-2.5 rounded-lg px-2 py-2.5',
+              'mx-2 flex items-center gap-2.5 rounded-lg px-2',
+              compact ? 'py-1.5' : 'py-2.5',
               row.isYou && 'border border-electric-cyan/40 bg-electric-cyan/[0.08] ring-1 ring-electric-cyan/15',
             )}
           >
@@ -108,7 +114,7 @@ export function WelcomePrivateGroupPreview({ className }: WelcomePrivateGroupPre
             >
               {row.rank}
             </span>
-            <div className="relative h-9 w-9 shrink-0 overflow-hidden rounded-full border border-border/80 bg-[hsla(0,0%,14%,1)]">
+            <div className={cn('relative shrink-0 overflow-hidden rounded-full border border-border/80 bg-[hsla(0,0%,14%,1)]', compact ? 'h-8 w-8' : 'h-9 w-9')}>
               <AthleteAvatarImg avatarUrl={row.avatarUrl} league="run" />
             </div>
             <div className="min-w-0 flex-1">
