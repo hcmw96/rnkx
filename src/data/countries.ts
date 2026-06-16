@@ -13,6 +13,7 @@ function flagFromCode(code: string): string {
 
 /** Top ~50 countries by population (UN / World Bank order, rounded). */
 const POPULATION_ORDER: { name: string; code: string }[] = [
+  { name: 'United Kingdom', code: 'GB' },
   { name: 'India', code: 'IN' },
   { name: 'China', code: 'CN' },
   { name: 'United States', code: 'US' },
@@ -33,7 +34,6 @@ const POPULATION_ORDER: { name: string; code: string }[] = [
   { name: 'Turkey', code: 'TR' },
   { name: 'Germany', code: 'DE' },
   { name: 'Thailand', code: 'TH' },
-  { name: 'United Kingdom', code: 'GB' },
   { name: 'Tanzania', code: 'TZ' },
   { name: 'France', code: 'FR' },
   { name: 'South Africa', code: 'ZA' },

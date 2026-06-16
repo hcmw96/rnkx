@@ -76,7 +76,7 @@ export default function AthleteAuth() {
       <div className="mx-auto flex min-h-full w-full max-w-lg flex-col px-4 pb-10 pt-4">
         <header className="mb-6 flex flex-col items-center gap-2 pt-6">
           <RNKXLogo size="md" />
-          <p className="text-center text-sm text-muted-foreground">Train. Compete. Rise.</p>
+          <p className="text-center text-sm text-muted-foreground">Train. Compete. Rank.</p>
         </header>
 
         {authError && (

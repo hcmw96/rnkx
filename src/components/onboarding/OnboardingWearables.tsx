@@ -1,5 +1,6 @@
 import { useState, useEffect, type ComponentType } from 'react';
 import { Loader2, Lock } from 'lucide-react';
+import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import { useWearableConnect } from '@/hooks/useWearableConnect';
 import {
@@ -146,18 +147,35 @@ function LeagueBadges({ support }: { support: LeagueSupport }) {
 }
 
 interface OnboardingWearablesProps {
+  initialConnected?: WearableProvider[];
   onConnectionsChange?: (connected: WearableProvider[]) => void;
-  onConnectLater?: () => void;
+  /** Skip wearable setup entirely */
+  onSkip?: () => void;
+  /** Advance after connecting one or more devices */
+  onContinue?: () => void;
 }
 
-const OnboardingWearables = ({ onConnectionsChange, onConnectLater }: OnboardingWearablesProps) => {
-  const [connected, setConnected] = useState<WearableProvider[]>([]);
+const OnboardingWearables = ({
+  initialConnected = [],
+  onConnectionsChange,
+  onSkip,
+  onContinue,
+}: OnboardingWearablesProps) => {
+  const [connected, setConnected] = useState<WearableProvider[]>(initialConnected);
 
   const { connect, loading } = useWearableConnect({
     onSuccess: (provider) => {
-      setConnected((prev) => [...prev, provider]);
+      setConnected((prev) => {
+        if (prev.includes(provider)) return prev;
+        return [...prev, provider];
+      });
+      toast.success(`${nameMap[provider]} connected`);
     },
   });
+
+  useEffect(() => {
+    setConnected(initialConnected);
+  }, [initialConnected]);
 
   useEffect(() => {
     onConnectionsChange?.(connected);
@@ -222,13 +240,26 @@ const OnboardingWearables = ({ onConnectionsChange, onConnectLater }: Onboarding
         })}
       </SettingsGroup>
 
-      {onConnectLater ? (
+      {connected.length > 0 && onContinue ? (
         <button
           type="button"
-          onClick={onConnectLater}
-          className="w-full py-2 text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
+          onClick={onContinue}
+          className="w-full rounded-lg bg-neon-lime py-3 text-sm font-semibold text-black transition-colors hover:bg-neon-lime/90"
         >
-          Connect later
+          Continue
+        </button>
+      ) : null}
+
+      {onSkip ? (
+        <button
+          type="button"
+          onClick={onSkip}
+          className={cn(
+            'w-full py-2 text-sm font-semibold text-foreground/80 underline decoration-foreground/40 underline-offset-4 transition-colors hover:text-neon-lime hover:decoration-neon-lime/60',
+            connected.length > 0 && 'text-muted-foreground hover:text-foreground',
+          )}
+        >
+          I&apos;ll do this later.
         </button>
       ) : null}
 

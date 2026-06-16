@@ -180,13 +180,13 @@ export default function Onboarding() {
           )}
 
           {step === 4 && (
-            <OnboardingStep key="s4" title="Gender" subtitle="Used for fair scoring benchmarks.">
+            <OnboardingStep key="s4" title="Gender" subtitle="Used for athlete categories and rankings.">
               <GenderSelect value={gender} onChange={setGender} />
             </OnboardingStep>
           )}
 
           {step === 5 && (
-            <OnboardingStep key="s5" title="Country" subtitle="Where do you train?">
+            <OnboardingStep key="s5" title="Country" subtitle="Choose where you'll compete and represent.">
               <CountrySelect value={country} onChange={setCountry} />
             </OnboardingStep>
           )}
@@ -208,8 +208,10 @@ export default function Onboarding() {
               subtitle="Sync your workouts and climb the ranks."
             >
               <OnboardingWearables
+                initialConnected={wearables}
                 onConnectionsChange={onWearablesChange}
-                onConnectLater={() => setStep(8)}
+                onSkip={() => setStep(8)}
+                onContinue={() => setStep(8)}
               />
             </OnboardingStep>
           )}

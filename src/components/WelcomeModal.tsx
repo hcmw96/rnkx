@@ -1,19 +1,45 @@
-import { useCallback, useRef, useState } from 'react';
-import { Trophy } from 'lucide-react';
+import { useCallback, useRef, useState, type ComponentType } from 'react';
+import { ArrowUpDown, CalendarCheck, Trophy, Zap } from 'lucide-react';
 
+import RNKXLogo from '@/components/RNKXLogo';
 import { Button } from '@/components/ui/button';
-import { HowItWorksScrollBody } from '@/components/HowItWorksContent';
+import { cn } from '@/lib/utils';
 import { supabase } from '@/services/supabase';
 import { toast } from 'sonner';
 
 type WelcomeModalProps = {
   athleteId: string;
-  /** Shown in the headline (“Hey …!”) — usually display_name or username */
-  greetingName: string;
   onDismiss?: () => void;
 };
 
-export function WelcomeModal({ athleteId, greetingName, onDismiss }: WelcomeModalProps) {
+const FEATURES: readonly {
+  icon: ComponentType<{ className?: string }>;
+  title: string;
+  description: string;
+}[] = [
+  {
+    icon: Zap,
+    title: 'Earn Points',
+    description: 'Your workouts are automatically converted into points.',
+  },
+  {
+    icon: Trophy,
+    title: 'Climb Leaderboards',
+    description: 'Compete globally, with friends and inside clubs.',
+  },
+  {
+    icon: ArrowUpDown,
+    title: 'Promotion & Relegation',
+    description: 'Rise through the divisions every season.',
+  },
+  {
+    icon: CalendarCheck,
+    title: 'Weekly Bonus',
+    description: 'Train consistently to earn bonus points.',
+  },
+];
+
+export function WelcomeModal({ athleteId, onDismiss }: WelcomeModalProps) {
   const [busy, setBusy] = useState(false);
   const inFlightRef = useRef(false);
 
@@ -34,54 +60,67 @@ export function WelcomeModal({ athleteId, greetingName, onDismiss }: WelcomeModa
     }
   }, [athleteId, onDismiss]);
 
-  const displayLine = greetingName.trim() || 'there';
-
   return (
     <div
-      className="fixed inset-0 z-[100] flex flex-col bg-zinc-950/95 backdrop-blur-sm animate-in fade-in duration-200"
+      className="fixed inset-0 z-[100] flex h-[100dvh] flex-col overflow-hidden bg-black text-foreground animate-in fade-in duration-200"
       role="dialog"
       aria-modal="true"
       aria-labelledby="welcome-modal-title"
     >
-      <header className="shrink-0 bg-gradient-to-br from-emerald-800 via-green-950 to-zinc-950 px-6 pb-8 pt-[calc(2.5rem+env(safe-area-inset-top,0px))]">
-        <div className="mx-auto flex max-w-lg flex-col items-center pt-6 text-center sm:pt-8">
-          <div className="mb-5 flex flex-col items-center gap-2">
-            <div className="flex items-center gap-2 rounded-full border border-white/10 bg-black/25 px-4 py-2">
-              <Trophy className="h-8 w-8 text-[#ADFF2F]" aria-hidden />
-              <span
-                id="welcome-modal-title"
-                className="font-sans text-lg font-semibold tracking-wide text-white sm:text-xl"
+      <div className="flex min-h-0 flex-1 flex-col px-5 pb-4 pt-[calc(1.5rem+env(safe-area-inset-top,0px))] sm:px-6">
+        <header className="flex shrink-0 flex-col items-center text-center">
+          <RNKXLogo size="md" />
+          <p id="welcome-modal-title" className="mt-4 font-sans text-base font-semibold text-white">
+            Welcome to RNKX
+          </p>
+          <p className="mt-1 text-sm text-muted-foreground">The Digital Performance Sport</p>
+          <p className="mt-2 text-sm font-medium text-neon-lime">Train. Compete. Rank.</p>
+        </header>
+
+        <ul className="mt-6 flex min-h-0 flex-1 flex-col justify-center gap-2.5">
+          {FEATURES.map(({ icon: Icon, title, description }) => (
+            <li
+              key={title}
+              className="flex items-start gap-3 rounded-xl border border-white/10 bg-card/80 px-3.5 py-3"
+            >
+              <div
+                className={cn(
+                  'flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-neon-lime/20 bg-neon-lime/10',
+                )}
+                aria-hidden
               >
-                Welcome to RNKX
-              </span>
-            </div>
-            <p className="text-3xl font-bold leading-tight text-white sm:text-4xl">
-              Hey {displayLine}! 👋
-            </p>
-            <p className="max-w-md text-sm font-medium text-emerald-100/90">
-              Here's how to climb the ranks
-            </p>
-          </div>
-        </div>
-      </header>
+                <Icon className="h-4 w-4 text-neon-lime" />
+              </div>
+              <div className="min-w-0 pt-0.5">
+                <p className="text-sm font-semibold text-white">{title}</p>
+                <p className="mt-0.5 text-xs leading-relaxed text-muted-foreground">{description}</p>
+              </div>
+            </li>
+          ))}
+        </ul>
 
-      <div className="min-h-0 flex-1 overflow-y-auto px-4 py-6">
-        <HowItWorksScrollBody />
-      </div>
-
-      <div className="shrink-0 border-t border-zinc-800/80 bg-zinc-950 px-4 pb-[calc(1.25rem+env(safe-area-inset-bottom,0px))] pt-5">
-        <div className="mx-auto max-w-lg">
-          <Button
-            type="button"
-            size="lg"
-            disabled={busy}
-            className="h-14 w-full rounded-xl bg-[#ADFF2F] font-sans text-lg font-bold tracking-wide text-zinc-900 shadow-[0_0_28px_rgba(173,255,47,0.28)] hover:bg-[#9EF01A]"
-            onClick={() => void dismiss()}
-          >
-            Got it, let's go! 🚀
-          </Button>
+        <div className="mt-4 shrink-0 space-y-1.5 text-center">
+          <p className="text-sm font-semibold text-white">New Season. New Opportunity.</p>
+          <p className="text-xs leading-relaxed text-muted-foreground">
+            Every 6–8 weeks the rankings reset and the race begins again.
+          </p>
+          <p className="text-xs leading-relaxed text-muted-foreground/80">
+            Full scoring guides and competition rules are available anytime in Settings.
+          </p>
         </div>
       </div>
+
+      <footer className="shrink-0 border-t border-white/10 bg-black px-5 pb-[calc(1.25rem+env(safe-area-inset-bottom,0px))] pt-4 sm:px-6">
+        <Button
+          type="button"
+          size="lg"
+          disabled={busy}
+          className="h-12 w-full rounded-lg bg-neon-lime font-sans text-base font-semibold text-black hover:bg-neon-lime/90"
+          onClick={() => void dismiss()}
+        >
+          Got it, let&apos;s go
+        </Button>
+      </footer>
     </div>
   );
 }

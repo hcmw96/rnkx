@@ -12,7 +12,7 @@ const leagues = [
   {
     value: 'run',
     name: 'Run League',
-    tagline: '🏃 Pace-based competition',
+    tagline: 'Pace-based competition',
     icon: Activity,
     selectedBorder: 'border-electric-cyan',
     selectedBg: 'bg-electric-cyan/[0.06]',
@@ -23,7 +23,7 @@ const leagues = [
   {
     value: 'engine',
     name: 'Engine League',
-    tagline: '❤️ Heart-rate competition',
+    tagline: 'Heart-rate competition',
     icon: Heart,
     selectedBorder: 'border-neon-lime',
     selectedBg: 'bg-neon-lime/[0.06]',

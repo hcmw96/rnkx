@@ -60,7 +60,6 @@ function SessionRoutes() {
   const [session, setSession] = useState<Session | null>(null);
   const [profileComplete, setProfileComplete] = useState(false);
   const [welcomeAthleteId, setWelcomeAthleteId] = useState<string | null>(null);
-  const [welcomeGreetingName, setWelcomeGreetingName] = useState('');
   const [showWelcomeOverlay, setShowWelcomeOverlay] = useState(false);
 
   const refetchProfile = useCallback(async () => {
@@ -126,7 +125,6 @@ function SessionRoutes() {
   useEffect(() => {
     if (!session?.user?.id || !profileComplete) {
       setWelcomeAthleteId(null);
-      setWelcomeGreetingName('');
       setShowWelcomeOverlay(false);
       return;
     }
@@ -137,13 +135,13 @@ function SessionRoutes() {
       const [byUserId, byId] = await Promise.all([
         supabase
           .from('athletes')
-          .select('id, username, display_name, has_seen_welcome')
+          .select('id, has_seen_welcome')
           .eq('user_id', uid)
           .not('username', 'is', null)
           .maybeSingle(),
         supabase
           .from('athletes')
-          .select('id, username, display_name, has_seen_welcome')
+          .select('id, has_seen_welcome')
           .eq('id', uid)
           .not('username', 'is', null)
           .maybeSingle(),
@@ -151,8 +149,6 @@ function SessionRoutes() {
 
       type Row = {
         id: string;
-        username: string | null;
-        display_name: string | null;
         has_seen_welcome: boolean | null;
       };
 
@@ -161,20 +157,11 @@ function SessionRoutes() {
 
       if (!row?.id) {
         setWelcomeAthleteId(null);
-        setWelcomeGreetingName('');
         setShowWelcomeOverlay(false);
         return;
       }
 
-      const greet =
-        typeof row.display_name === 'string' && row.display_name.trim()
-          ? row.display_name.trim()
-          : typeof row.username === 'string'
-            ? row.username.trim()
-            : 'there';
-
       setWelcomeAthleteId(row.id);
-      setWelcomeGreetingName(greet);
       setShowWelcomeOverlay(row.has_seen_welcome !== true);
     })();
 
@@ -261,7 +248,6 @@ function SessionRoutes() {
       {welcomeAthleteId && showWelcomeOverlay ? (
         <WelcomeModal
           athleteId={welcomeAthleteId}
-          greetingName={welcomeGreetingName}
           onDismiss={() => setShowWelcomeOverlay(false)}
         />
       ) : null}
