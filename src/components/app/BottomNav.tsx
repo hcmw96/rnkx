@@ -23,7 +23,8 @@ export function BottomNav() {
               : path === "/app/social"
                 ? location.pathname.startsWith("/app/social") ||
                   location.pathname.startsWith("/app/friends") ||
-                  location.pathname.startsWith("/app/leagues")
+                  location.pathname.startsWith("/app/leagues") ||
+                  location.pathname.startsWith("/app/chat")
                 : path === "/app/profile"
                   ? location.pathname === "/app/profile"
                   : location.pathname === path || location.pathname.startsWith(`${path}/`);

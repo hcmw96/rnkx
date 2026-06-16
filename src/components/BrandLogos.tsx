@@ -18,19 +18,28 @@ interface BrandImgLogoProps {
   alt: string;
 }
 
-function BrandImgLogo({ className, src, alt }: BrandImgLogoProps) {
+function BrandImgLogo({
+  className,
+  src,
+  alt,
+  wordmark = false,
+}: BrandImgLogoProps & { wordmark?: boolean }) {
   return (
     <div
       className={cn(
-        'flex h-full w-full max-w-full min-w-0 shrink-0 items-center justify-center text-center',
-        className
+        'flex min-w-0 shrink-0 items-center justify-center text-center',
+        wordmark ? 'h-full w-full' : 'h-full w-full max-w-full',
+        className,
       )}
     >
       <img
         src={src}
         alt={alt}
         draggable={false}
-        className="max-h-full w-auto max-w-full object-contain"
+        className={cn(
+          'object-contain object-center',
+          wordmark ? 'h-full w-full' : 'max-h-full w-auto max-w-full',
+        )}
         style={{ filter: WHITE_LOGO_FILTER }}
       />
     </div>
@@ -42,7 +51,7 @@ export function StravaLogo({ className }: { className?: string }) {
 }
 
 export function WhoopLogo({ className }: { className?: string }) {
-  return <BrandImgLogo className={className} src={whoopImg} alt="WHOOP" />;
+  return <BrandImgLogo className={className} src={whoopImg} alt="WHOOP" wordmark />;
 }
 
 export function AppleLogo({ className }: { className?: string }) {
@@ -50,7 +59,7 @@ export function AppleLogo({ className }: { className?: string }) {
 }
 
 export function GarminLogo({ className }: { className?: string }) {
-  return <BrandImgLogo className={className} src={garminImg} alt="Garmin" />;
+  return <BrandImgLogo className={className} src={garminImg} alt="Garmin" wordmark />;
 }
 
 export function PolarLogo({ className }: { className?: string }) {

@@ -191,14 +191,25 @@ export default function Onboarding() {
           )}
 
           {step === 6 && (
-            <OnboardingStep key="s6" title="Leagues" subtitle="Choose one or both. You can change this later.">
+            <OnboardingStep
+              key="s6"
+              title="Choose Your Leagues"
+              subtitle="Compete in one or both leagues. You can change this anytime."
+            >
               <LeagueSelect value={leagues} onChange={setLeagues} connectedWearables={wearables} />
             </OnboardingStep>
           )}
 
           {step === 7 && (
-            <OnboardingStep key="s7" title="Wearables" subtitle="Connect devices you use (optional for now).">
-              <OnboardingWearables onConnectionsChange={onWearablesChange} />
+            <OnboardingStep
+              key="s7"
+              title="Connect Your Wearable"
+              subtitle="Sync your workouts and climb the ranks."
+            >
+              <OnboardingWearables
+                onConnectionsChange={onWearablesChange}
+                onConnectLater={() => setStep(8)}
+              />
             </OnboardingStep>
           )}
 

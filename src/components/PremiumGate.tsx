@@ -7,6 +7,10 @@ import { usePremium } from '@/services/revenuecat';
 const DEFAULT_TITLE = 'Premium feature';
 const DEFAULT_DESCRIPTION = 'Upgrade to RNKX Premium to unlock this feature.';
 
+/** Fill scrollable main area below header + bottom nav (non-compact gates only). */
+const FULL_PAGE_MIN_HEIGHT =
+  'min-h-[calc(100dvh-var(--safe-area-top)-var(--safe-area-bottom)-9.5rem)]';
+
 type PremiumGateProps = {
   athleteId: string | undefined;
   /** Supabase auth user id — used as RevenueCat `external_id` when opening the paywall. */
@@ -40,7 +44,7 @@ export function PremiumGate({
       <div
         className={cn(
           'animate-pulse rounded-xl bg-muted/10',
-          compact ? 'min-h-[5rem]' : 'min-h-[12rem]',
+          compact ? 'min-h-[5rem]' : FULL_PAGE_MIN_HEIGHT,
           className,
         )}
         aria-hidden
@@ -57,9 +61,17 @@ export function PremiumGate({
   const preview = previewContent ?? children;
 
   return (
-    <div className={cn('relative overflow-hidden rounded-xl', className)}>
-      <div className="pointer-events-none select-none opacity-50" aria-hidden>
-        {preview ?? <div className={cn('bg-muted/15', compact ? 'min-h-[5rem]' : 'min-h-[12rem]')} />}
+    <div className={cn('relative rounded-xl', !compact && FULL_PAGE_MIN_HEIGHT, className)}>
+      <div
+        className={cn(
+          'pointer-events-none select-none opacity-50',
+          !compact && FULL_PAGE_MIN_HEIGHT,
+        )}
+        aria-hidden
+      >
+        {preview ?? (
+          <div className={cn('bg-muted/15', compact ? 'min-h-[5rem]' : FULL_PAGE_MIN_HEIGHT)} />
+        )}
       </div>
 
       {badge ? (

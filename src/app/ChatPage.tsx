@@ -126,7 +126,7 @@ export default function ChatPage() {
   return (
     <AppShell>
       <div className="mx-auto max-w-lg space-y-4">
-        <ChatPremiumGate previewContent={!loading && items.length === 0 ? <ChatPreview /> : undefined}>
+        <ChatPremiumGate previewContent={<ChatPreview />}>
       {!loading && athleteId ? (
         <div className="flex justify-end">
           <Button
