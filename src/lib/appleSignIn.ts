@@ -3,8 +3,7 @@ import { supabase } from '@/services/supabase';
 
 const APPLE_CLIENT_ID = 'com.despia.rnkx.web';
 /** Apple form_post target — must match a Return URL on Services ID com.despia.rnkx.web */
-const APPLE_POST_CALLBACK_URI =
-  'https://rnkx.netlify.app/.netlify/functions/apple-auth-callback';
+const APPLE_POST_CALLBACK_URI = 'https://rnkx.netlify.app/api/auth/apple/callback';
 const APPLE_SDK_URL =
   'https://appleid.cdn-apple.com/appleauth/static/jsapi/appleid/1/en_US/appleid.auth.js';
 const APPLE_NONCE_STORAGE_KEY = 'rnkx_apple_auth_nonce';

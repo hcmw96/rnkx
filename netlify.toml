@@ -15,8 +15,7 @@
   to = "/.netlify/functions/apple-auth-callback"
   status = 200
   force = true
-  [redirects.conditions]
-    Method = ["POST"]
+  conditions = {Method = ["POST"]}
 
 [[headers]]
   for = "/.well-known/apple-app-site-association"
