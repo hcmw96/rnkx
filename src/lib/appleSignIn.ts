@@ -152,6 +152,13 @@ function invokeAppleSignIn(): void {
   }
 }
 
+function mapSupabaseAppleAuthError(message: string): string {
+  if (message.includes('Unacceptable audience')) {
+    return 'Apple Sign In is not configured in Supabase yet. Add com.despia.rnkx.web to Authentication → Providers → Apple → Client IDs.';
+  }
+  return message;
+}
+
 async function finishAppleSession(
   idToken: string,
   rawNonce: string,
@@ -166,7 +173,7 @@ async function finishAppleSession(
   sessionStorage.removeItem(APPLE_NONCE_STORAGE_KEY);
 
   if (error) {
-    return { error: { message: error.message } };
+    return { error: { message: mapSupabaseAppleAuthError(error.message) } };
   }
 
   const userId = data.user?.id ?? data.session?.user?.id;
