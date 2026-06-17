@@ -34,22 +34,7 @@ declare global {
           usePopup: boolean;
           nonce: string;
         }) => void;
-        signIn: () => Promise<{
-          authorization: {
-            id_token: string;
-            code?: string;
-            state?: string;
-          };
-          user?: {
-            email?: string;
-            name?: {
-              firstName?: string;
-              lastName?: string;
-              givenName?: string;
-              familyName?: string;
-            };
-          };
-        }>;
+        signIn: () => Promise<unknown> | void;
       };
     };
   }

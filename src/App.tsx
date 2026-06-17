@@ -28,6 +28,7 @@ import Dashboard from './pages/app/Dashboard';
 import JoinLeaguePage from './pages/JoinLeaguePage';
 import AthleteAuth from './pages/AthleteAuth';
 import WhoopCallback from './pages/auth/WhoopCallback';
+import AppleAuthComplete from './pages/auth/AppleAuthComplete';
 import Onboarding from './pages/Onboarding';
 import NotificationsPage from './pages/app/NotificationsPage';
 import { NotificationNavigationBridge } from '@/components/NotificationNavigationBridge';
@@ -265,6 +266,7 @@ function SessionRoutes() {
         <Route path="/waiver" element={<WaiverPageRoute />} />
         <Route path="/cookies" element={<CookiesPageRoute />} />
         <Route path="/auth/whoop/callback" element={<WhoopCallback />} />
+        <Route path="/auth/apple/complete" element={<AppleAuthComplete />} />
         <Route path="/whoop-callback" element={<WhoopCallback />} />
         <Route path="/app/whoop-callback" element={<WhoopCallback />} />
         <Route path="/join/:code" element={<JoinLeaguePage />} />

@@ -1,3 +1,14 @@
+[build]
+  command = "npm run build"
+  publish = "dist"
+  functions = "netlify/functions"
+
+[[redirects]]
+  from = "/api/auth/apple/callback"
+  to = "/.netlify/functions/apple-auth-callback"
+  status = 200
+  force = true
+
 [[headers]]
   for = "/.well-known/apple-app-site-association"
   [headers.values]

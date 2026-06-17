@@ -55,9 +55,14 @@ export default function AthleteAuth() {
   const handleAppleSignIn = async () => {
     setAuthError(null);
     setAppleBusy(true);
+    let keepBusy = false;
     try {
       const result = await signInWithApple();
       if (result.cancelled) return;
+      if (result.redirecting) {
+        keepBusy = true;
+        return;
+      }
       if (result.error) {
         setAuthError(result.error.message);
         toast.error(result.error.message);
@@ -65,7 +70,7 @@ export default function AthleteAuth() {
       }
       await navigateAfterAuth('login');
     } finally {
-      setAppleBusy(false);
+      if (!keepBusy) setAppleBusy(false);
     }
   };
 
