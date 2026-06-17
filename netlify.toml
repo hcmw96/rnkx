@@ -9,6 +9,15 @@
   status = 200
   force = true
 
+# Legacy Return URL — Apple may still POST to site root.
+[[redirects]]
+  from = "/"
+  to = "/.netlify/functions/apple-auth-callback"
+  status = 200
+  force = true
+  [redirects.conditions]
+    Method = ["POST"]
+
 [[headers]]
   for = "/.well-known/apple-app-site-association"
   [headers.values]
