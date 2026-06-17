@@ -1,5 +1,5 @@
 import { motion } from 'framer-motion';
-import { FormEvent, useState } from 'react';
+import { FormEvent, useEffect, useState } from 'react';
 import { Loader2 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
@@ -9,7 +9,7 @@ import { AppleSignInButton } from '@/components/auth/AppleSignInButton';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { isAthleteProfileComplete } from '@/lib/authPostLogin';
-import { isDespiaIOS, signInWithApple } from '@/lib/appleSignIn';
+import { isDespiaIOS, loadAppleAuthSdk, signInWithApple } from '@/lib/appleSignIn';
 import { getPendingLeagueInvitePath } from '@/lib/shareLeagueInvite';
 import { supabase } from '@/services/supabase';
 
@@ -24,6 +24,13 @@ export default function AthleteAuth() {
 
   const showAppleSignIn = isDespiaIOS();
   const authFlowBusy = authBusy || appleBusy;
+
+  useEffect(() => {
+    if (!showAppleSignIn) return;
+    void loadAppleAuthSdk().catch(() => {
+      // Button tap will surface load errors if preload fails.
+    });
+  }, [showAppleSignIn]);
 
   const canSubmit = email.trim().length > 3 && password.length >= 6;
 

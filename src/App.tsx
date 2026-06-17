@@ -109,15 +109,23 @@ function SessionRoutes() {
       }
     })();
 
+    const initFailsafe = window.setTimeout(() => {
+      if (!cancelled) setInitialized(true);
+    }, 10_000);
+
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((_event, newSession) => {
       if (cancelled) return;
-      void applySession(newSession);
+      // Defer async Supabase calls — running them synchronously in this handler can deadlock getSession().
+      window.setTimeout(() => {
+        if (!cancelled) void applySession(newSession);
+      }, 0);
     });
 
     return () => {
       cancelled = true;
+      window.clearTimeout(initFailsafe);
       subscription.unsubscribe();
     };
   }, []);
