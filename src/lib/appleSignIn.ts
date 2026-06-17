@@ -116,6 +116,117 @@ export type AppleSignInResult = {
   cancelled?: boolean;
 };
 
+type AppleAuthSuccess = {
+  authorization: {
+    id_token: string;
+    code?: string;
+    state?: string;
+  };
+  user?: {
+    name?: {
+      firstName?: string;
+      lastName?: string;
+      givenName?: string;
+      familyName?: string;
+    };
+  };
+};
+
+function parseAppleSuccessDetail(detail: unknown): AppleAuthSuccess | null {
+  if (!detail || typeof detail !== 'object') return null;
+  const record = detail as Record<string, unknown>;
+
+  const authFromDetail = record.authorization;
+  if (authFromDetail && typeof authFromDetail === 'object') {
+    const auth = authFromDetail as Record<string, unknown>;
+    if (typeof auth.id_token === 'string') {
+      return {
+        authorization: auth as AppleAuthSuccess['authorization'],
+        user: record.user as AppleAuthSuccess['user'],
+      };
+    }
+  }
+
+  const data = record.data;
+  if (data && typeof data === 'object') {
+    const dataRecord = data as Record<string, unknown>;
+    const nestedAuth = dataRecord.authorization ?? dataRecord;
+    if (nestedAuth && typeof nestedAuth === 'object') {
+      const auth = nestedAuth as Record<string, unknown>;
+      if (typeof auth.id_token === 'string') {
+        return {
+          authorization: auth as AppleAuthSuccess['authorization'],
+          user: (dataRecord.user ?? record.user) as AppleAuthSuccess['user'],
+        };
+      }
+    }
+  }
+
+  return null;
+}
+
+/**
+ * On Despia iOS (usePopup: false) signIn() often resolves undefined — credentials arrive via DOM events.
+ * @see https://developer.apple.com/videos/play/wwdc2022/10122/
+ */
+function requestAppleAuthorization(hashedNonce: string): Promise<AppleAuthSuccess> {
+  return new Promise((resolve, reject) => {
+    let settled = false;
+
+    const finish = (fn: () => void) => {
+      if (settled) return;
+      settled = true;
+      cleanup();
+      fn();
+    };
+
+    const cleanup = () => {
+      document.removeEventListener('AppleIDSignInOnSuccess', onSuccess);
+      document.removeEventListener('AppleIDSignInOnFailure', onFailure);
+      window.clearTimeout(timeoutId);
+    };
+
+    const onSuccess = (event: Event) => {
+      const parsed = parseAppleSuccessDetail((event as CustomEvent).detail);
+      if (parsed) {
+        finish(() => resolve(parsed));
+        return;
+      }
+      finish(() => reject(new Error('Apple Sign In returned an unexpected response.')));
+    };
+
+    const onFailure = (event: Event) => {
+      const detail = (event as CustomEvent).detail;
+      finish(() => reject(detail?.error ?? detail ?? new Error('Apple Sign In failed.')));
+    };
+
+    document.addEventListener('AppleIDSignInOnSuccess', onSuccess);
+    document.addEventListener('AppleIDSignInOnFailure', onFailure);
+
+    const timeoutId = window.setTimeout(() => {
+      finish(() => reject(new Error('Apple Sign In timed out. Please try again.')));
+    }, 120_000);
+
+    // Despia iOS WebView: usePopup must be false — popups are blocked; native Face ID dialog is used instead.
+    window.AppleID.auth.init({
+      clientId: APPLE_CLIENT_ID,
+      scope: 'name email',
+      redirectURI: APPLE_REDIRECT_URI,
+      usePopup: false,
+      nonce: hashedNonce,
+    });
+
+    void window.AppleID.auth.signIn().then((response) => {
+      const parsed = parseAppleSuccessDetail(response);
+      if (parsed) finish(() => resolve(parsed));
+      // Otherwise wait for AppleIDSignInOnSuccess — signIn() may resolve undefined on iOS.
+    }).catch((error) => {
+      // SDK may reject internally; the DOM event can still deliver credentials.
+      console.warn('[Apple Sign In] signIn promise rejected', error);
+    });
+  });
+}
+
 export async function signInWithApple(): Promise<AppleSignInResult> {
   if (!isDespiaIOS()) {
     return { error: { message: 'Sign in with Apple is only available on the RNKX iOS app.' } };
@@ -127,17 +238,8 @@ export async function signInWithApple(): Promise<AppleSignInResult> {
     const rawNonce = generateRawNonce();
     const hashedNonce = await sha256Hex(rawNonce);
 
-    // Despia iOS WebView: usePopup must be false — popups are blocked; native Face ID dialog is used instead.
-    window.AppleID.auth.init({
-      clientId: APPLE_CLIENT_ID,
-      scope: 'name email',
-      redirectURI: APPLE_REDIRECT_URI,
-      usePopup: false,
-      nonce: hashedNonce,
-    });
-
-    const response = await window.AppleID.auth.signIn();
-    const idToken = response.authorization?.id_token;
+    const response = await requestAppleAuthorization(hashedNonce);
+    const idToken = response?.authorization?.id_token;
     if (!idToken) {
       return { error: { message: 'Apple Sign In did not return an identity token.' } };
     }
