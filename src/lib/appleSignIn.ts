@@ -186,7 +186,7 @@ async function finishAppleSession(
     return bootstrap;
   }
 
-  return { error: null };
+  return { error: null, userId };
 }
 
 export type AppleSignInResult = {
@@ -194,6 +194,7 @@ export type AppleSignInResult = {
   cancelled?: boolean;
   /** Native sheet opened; page will redirect to complete auth. */
   redirecting?: boolean;
+  userId?: string;
 };
 
 /**

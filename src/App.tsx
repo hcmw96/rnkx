@@ -46,6 +46,10 @@ import { supabase } from './services/supabase';
 
 const queryClient = new QueryClient();
 
+function isAppleAuthCompletePath(): boolean {
+  return typeof window !== 'undefined' && window.location.pathname === '/auth/apple/complete';
+}
+
 async function fetchAthleteProfileComplete(userId: string): Promise<boolean> {
   const [byUserId, byId] = await Promise.all([
     supabase.from('athletes').select('id').eq('user_id', userId).not('username', 'is', null).maybeSingle(),
@@ -57,7 +61,7 @@ async function fetchAthleteProfileComplete(userId: string): Promise<boolean> {
 }
 
 function SessionRoutes() {
-  const [initialized, setInitialized] = useState(false);
+  const [initialized, setInitialized] = useState(() => isAppleAuthCompletePath());
   const [session, setSession] = useState<Session | null>(null);
   const [profileComplete, setProfileComplete] = useState(false);
   const [welcomeAthleteId, setWelcomeAthleteId] = useState<string | null>(null);
@@ -240,7 +244,7 @@ function SessionRoutes() {
 
   if (!initialized) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-background">
+      <div className="flex min-h-screen items-center justify-center bg-black">
         <Loader2 className="h-10 w-10 animate-spin text-primary" aria-label="Loading session" />
       </div>
     );

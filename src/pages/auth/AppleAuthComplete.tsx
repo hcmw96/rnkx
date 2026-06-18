@@ -5,7 +5,6 @@ import { Button } from '@/components/ui/button';
 import { isAthleteProfileComplete } from '@/lib/authPostLogin';
 import { completeAppleSignInFromRedirect } from '@/lib/appleSignIn';
 import { getPendingLeagueInvitePath } from '@/lib/shareLeagueInvite';
-import { supabase } from '@/services/supabase';
 
 type Phase = 'loading' | 'error';
 
@@ -13,7 +12,7 @@ export default function AppleAuthComplete() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const [phase, setPhase] = useState<Phase>('loading');
-  const [message, setMessage] = useState('Finishing Apple Sign In…');
+  const [message, setMessage] = useState('Signing you in with Apple…');
 
   useEffect(() => {
     let cancelled = false;
@@ -28,15 +27,15 @@ export default function AppleAuthComplete() {
         return;
       }
 
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-      if (!user) {
-        navigate('/onboarding', { replace: true });
+      const userId = result.userId;
+      if (!userId) {
+        setMessage('Signed in with Apple but no user session was created.');
+        setPhase('error');
         return;
       }
 
-      const complete = await isAthleteProfileComplete(user.id);
+      const complete = await isAthleteProfileComplete(userId);
+      if (cancelled) return;
       navigate(complete ? (getPendingLeagueInvitePath() ?? '/app') : '/onboarding', { replace: true });
     })();
 

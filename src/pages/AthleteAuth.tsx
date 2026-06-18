@@ -128,6 +128,12 @@ export default function AthleteAuth() {
 
   return (
     <div className="min-h-app bg-background text-foreground">
+      {appleBusy ? (
+        <div className="fixed inset-0 z-50 flex flex-col items-center justify-center gap-3 bg-black px-6 text-center text-white">
+          <Loader2 className="h-8 w-8 animate-spin text-lime-400" aria-hidden />
+          <p className="text-sm text-white/80">Connecting to Apple…</p>
+        </div>
+      ) : null}
       <div className="mx-auto flex min-h-full w-full max-w-lg flex-col px-4 pb-10 pt-4">
         <header className="mb-6 flex flex-col items-center gap-2 pt-6">
           <RNKXLogo size="md" />
@@ -228,12 +234,6 @@ export default function AthleteAuth() {
                 disabled={authFlowBusy}
                 onClick={() => void handleAppleSignIn()}
               />
-              {appleBusy ? (
-                <p className="flex items-center justify-center gap-2 text-sm text-muted-foreground">
-                  <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
-                  Connecting to Apple…
-                </p>
-              ) : null}
             </>
           ) : null}
         </motion.div>
