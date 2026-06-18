@@ -1,30 +1,15 @@
-import type { ReactNode } from 'react';
-import { useEffect, useState } from 'react';
+import { useAthleteSession } from '@/context/AthleteSessionContext';
 import { PremiumGate } from '@/components/PremiumGate';
-import { resolveAthleteId } from '@/lib/resolveAthleteId';
-import { supabase } from '@/services/supabase';
 
 type ChatPremiumGateProps = {
-  children: ReactNode;
+  children: React.ReactNode;
   /** Sample inbox when the live thread list would be empty. */
-  previewContent?: ReactNode;
+  previewContent?: React.ReactNode;
 };
 
 /** Messaging is a Premium feature — teaser shows inbox UI behind a light scrim. */
 export function ChatPremiumGate({ children, previewContent }: ChatPremiumGateProps) {
-  const [authUserId, setAuthUserId] = useState<string | undefined>();
-  const [athleteId, setAthleteId] = useState<string | undefined>();
-
-  useEffect(() => {
-    void (async () => {
-      const { data } = await supabase.auth.getUser();
-      const uid = data.user?.id;
-      setAuthUserId(uid);
-      if (uid) {
-        setAthleteId(await resolveAthleteId(uid));
-      }
-    })();
-  }, []);
+  const { authUserId, athleteId } = useAthleteSession();
 
   return (
     <PremiumGate

@@ -11,7 +11,9 @@ import { AppLayout } from '@/components/app/AppLayout';
 import { RequireAuth } from '@/components/app/RequireAuth';
 import { SHOW_RECOVERY } from '@/lib/featureFlags';
 import { clearRouteCaches } from '@/lib/routeCaches';
+import { clearPremiumCache } from '@/lib/premiumCache';
 import { clearAthleteIdCache } from '@/lib/resolveAthleteId';
+import { AthleteSessionProvider } from '@/context/AthleteSessionContext';
 import LeaderboardPage from './pages/app/LeaderboardPage';
 import ProfilePage from './pages/app/ProfilePage';
 import SettingsPage from './pages/app/SettingsPage';
@@ -100,6 +102,7 @@ function SessionRoutes() {
         if (!s?.user) {
           if (!cancelled) {
             clearAthleteIdCache();
+            clearPremiumCache();
             clearRouteCaches();
             setSession(null);
             setProfileComplete(false);
@@ -275,6 +278,7 @@ function SessionRoutes() {
 
   return (
     <ProfileGateContext.Provider value={{ refetchProfile }}>
+      <AthleteSessionProvider authUserId={session?.user?.id}>
       <ScoreSharePromptProvider authUserId={session?.user?.id} enabled={showApp}>
       <NotificationCountProvider enabled={showApp}>
       <AchievementUnlockProvider authUserId={session?.user?.id} enabled={showApp}>
@@ -388,6 +392,7 @@ function SessionRoutes() {
       </AchievementUnlockProvider>
       </NotificationCountProvider>
       </ScoreSharePromptProvider>
+      </AthleteSessionProvider>
     </ProfileGateContext.Provider>
   );
 }

@@ -10,6 +10,10 @@ import { invokePushNotify } from '@/lib/pushNotify';
 import { formatScore } from '@/lib/formatScore';
 import { AthleteAvatarImg } from '@/components/AthleteAvatarImg';
 import { leagueFromSelectedLeagues } from '@/lib/leagueAvatars';
+import { useAthleteSession } from '@/context/AthleteSessionContext';
+import { getAuthUserId } from '@/lib/authSession';
+import { getFriendsCache, setFriendsCache } from '@/lib/routeCaches';
+import { resolveAthleteId } from '@/lib/resolveAthleteId';
 import { supabase } from '@/services/supabase';
 import { toast } from 'sonner';
 
@@ -35,36 +39,37 @@ type FriendsPageProps = {
 };
 
 export default function FriendsPage({ embedded = false }: FriendsPageProps) {
-  const [athleteId, setAthleteId] = useState<string | undefined>();
-  const [authUserId, setAuthUserId] = useState<string | undefined>();
+  const { authUserId, athleteId: sessionAthleteId } = useAthleteSession();
+  const cached = getFriendsCache();
   const [search, setSearch] = useState('');
   const [results, setResults] = useState<AthleteLite[]>([]);
   const [searching, setSearching] = useState(false);
-  const [incoming, setIncoming] = useState<(FriendshipRow & { requester: AthleteLite })[]>([]);
-  const [outgoing, setOutgoing] = useState<(FriendshipRow & { recipient: AthleteLite })[]>([]);
-  const [friends, setFriends] = useState<FriendWithMeta[]>([]);
+  const [incoming, setIncoming] = useState<(FriendshipRow & { requester: AthleteLite })[]>(
+    (cached?.incoming as (FriendshipRow & { requester: AthleteLite })[]) ?? [],
+  );
+  const [outgoing, setOutgoing] = useState<(FriendshipRow & { recipient: AthleteLite })[]>(
+    (cached?.outgoing as (FriendshipRow & { recipient: AthleteLite })[]) ?? [],
+  );
+  const [friends, setFriends] = useState<FriendWithMeta[]>(
+    (cached?.friends as FriendWithMeta[]) ?? [],
+  );
   const [cancellingOutgoingId, setCancellingOutgoingId] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(!cached);
+  const athleteId = sessionAthleteId;
 
-  const loadFriendsData = useCallback(async () => {
-    const { data: auth } = await supabase.auth.getUser();
-    const uid = auth.user?.id;
+  const loadFriendsData = useCallback(async (options?: { silent?: boolean }) => {
+    if (!options?.silent) {
+      setLoading(true);
+    }
+    const uid = authUserId ?? (await getAuthUserId());
     if (!uid) {
-      setAthleteId(undefined);
-      setAuthUserId(undefined);
       setIncoming([]);
       setOutgoing([]);
       setFriends([]);
       setLoading(false);
       return;
     }
-    setAuthUserId(uid);
-    const [byUserId, byId] = await Promise.all([
-      supabase.from('athletes').select('id').eq('user_id', uid).not('username', 'is', null).maybeSingle(),
-      supabase.from('athletes').select('id').eq('id', uid).not('username', 'is', null).maybeSingle(),
-    ]);
-    const aid = (byUserId.data?.id ?? byId.data?.id) as string | undefined;
-    setAthleteId(aid);
+    const aid = sessionAthleteId ?? (await resolveAthleteId(uid));
     if (!aid) {
       setIncoming([]);
       setOutgoing([]);
@@ -171,11 +176,16 @@ export default function FriendsPage({ embedded = false }: FriendsPageProps) {
     }
 
     setLoading(false);
-  }, []);
+  }, [authUserId, sessionAthleteId]);
 
   useEffect(() => {
-    void loadFriendsData();
+    void loadFriendsData({ silent: !!getFriendsCache() });
   }, [loadFriendsData]);
+
+  useEffect(() => {
+    if (loading) return;
+    setFriendsCache({ incoming, outgoing, friends });
+  }, [loading, incoming, outgoing, friends]);
 
   useEffect(() => {
     if (!search.trim() || search.trim().length < 2 || !athleteId) {

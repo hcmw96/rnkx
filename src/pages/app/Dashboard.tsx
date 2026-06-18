@@ -35,6 +35,7 @@ import { isDespiaIphoneUa, wearablesIncludeAppleWatch } from '@/lib/despiaPlatfo
 import { runAppleWorkoutSync } from '@/lib/runAppleWorkoutSync';
 import { PREVIEW_COACH_SUMMARY, PREVIEW_RECENT_WORKOUTS, PREVIEW_WEEKLY_INSIGHTS } from '@/lib/dashboardPreviewData';
 import { getDashboardCache, setDashboardCache } from '@/lib/routeCaches';
+import { getAuthUserId } from '@/lib/authSession';
 import { supabase } from '@/services/supabase';
 
 const SYNC_STALE_MS = 24 * 60 * 60 * 1000;
@@ -180,9 +181,9 @@ export default function Dashboard() {
     }
     setError(null);
 
-      const [{ data: userData, error: userError }, { data: seasonResult, error: seasonError }] =
+      const [{ data: sessionData, error: userError }, { data: seasonResult, error: seasonError }] =
         await Promise.all([
-          supabase.auth.getUser(),
+          supabase.auth.getSession(),
           supabase
             .from('seasons')
             .select('id,name,starts_at,ends_at')
@@ -210,7 +211,7 @@ export default function Dashboard() {
         return;
       }
 
-      const userId = userData.user?.id;
+      const userId = sessionData.session?.user?.id;
       if (!userId) {
         setAthleteId(undefined);
         setAuthUserId(undefined);
@@ -441,11 +442,8 @@ export default function Dashboard() {
   const handleSyncFromBanner = useCallback(async () => {
     if (syncing) return;
 
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-    const athleteId = user?.id;
-    if (!athleteId) {
+    const userId = await getAuthUserId();
+    if (!userId) {
       toast.error('Not signed in.');
       return;
     }
@@ -453,7 +451,7 @@ export default function Dashboard() {
     setSyncing(true);
     try {
       toast.message('Syncing workouts…');
-      const result = await runAppleWorkoutSync(athleteId, {
+      const result = await runAppleWorkoutSync(userId, {
         max_hr: athleteMaxHr,
         max_hr_source: athleteMaxHrSource,
       });
@@ -466,7 +464,7 @@ export default function Dashboard() {
       toast.success(`Synced ${result.processed} workout${result.processed === 1 ? '' : 's'}.`);
       await loadDashboard({ silent: true });
       await refreshAchievements();
-      await promptFromAppleSync(athleteId, result.workouts, result.results);
+      await promptFromAppleSync(userId, result.workouts, result.results);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Sync failed');
     } finally {

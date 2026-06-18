@@ -41,14 +41,14 @@ export function PremiumGate({
 
   if (loading) {
     return (
-      <div
-        className={cn(
-          'animate-pulse rounded-xl bg-muted/10',
-          compact ? 'min-h-[5rem]' : FULL_PAGE_MIN_HEIGHT,
-          className,
-        )}
-        aria-hidden
-      />
+      <div className={cn('relative', !compact && FULL_PAGE_MIN_HEIGHT, className)}>
+        {children}
+        <div
+          className="pointer-events-none absolute inset-0 bg-background/40"
+          aria-busy="true"
+          aria-label="Checking premium access"
+        />
+      </div>
     );
   }
 

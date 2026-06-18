@@ -1,23 +1,23 @@
 import { useCallback, useEffect, useState } from 'react';
 import despia from 'despia-native';
+import { getAuthUserId } from '@/lib/authSession';
+import {
+  fetchPremiumStatus,
+  getCachedPremium,
+  setCachedPremium,
+} from '@/lib/premiumCache';
 import { supabase } from '@/services/supabase';
 
 export async function checkPremium(): Promise<boolean> {
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) {
+  const userId = await getAuthUserId();
+  if (!userId) {
     return false;
   }
 
-  const athleteResult = await supabase
-    .from('athletes')
-    .select('is_premium')
-    .eq('user_id', user.id)
-    .single();
+  const cached = getCachedPremium(userId);
+  if (cached !== null) return cached;
 
-  const premium = athleteResult.data?.is_premium === true;
-  return premium;
+  return fetchPremiumStatus(userId);
 }
 
 export async function checkEntitlements(): Promise<boolean> {
@@ -38,11 +38,10 @@ export async function checkEntitlements(): Promise<boolean> {
 export async function applyPremiumIfStoreHasEntitlement(): Promise<boolean> {
   const isPremium = await checkEntitlements();
   if (!isPremium) return false;
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (user) {
-    await supabase.from('athletes').update({ is_premium: true }).eq('user_id', user.id);
+  const userId = await getAuthUserId();
+  if (userId) {
+    await supabase.from('athletes').update({ is_premium: true }).eq('user_id', userId);
+    setCachedPremium(userId, true);
   }
   return true;
 }
@@ -76,27 +75,29 @@ export function usePremium(
   loading: boolean;
   presentPaywall: () => void;
 } {
-  const [isPremium, setIsPremium] = useState(false);
-  const [loading, setLoading] = useState(true);
+  const initialPremium = userId ? getCachedPremium(userId) : null;
+  const [isPremium, setIsPremium] = useState(initialPremium ?? false);
+  const [loading, setLoading] = useState(initialPremium === null);
 
   useEffect(() => {
     let cancelled = false;
-    setLoading(true);
+
+    if (!userId) {
+      setIsPremium(false);
+      setLoading(false);
+      return;
+    }
+
+    const cached = getCachedPremium(userId);
+    if (cached !== null) {
+      setIsPremium(cached);
+      setLoading(false);
+    } else {
+      setLoading(true);
+    }
 
     void (async () => {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-
-      if (cancelled) return;
-
-      if (!user) {
-        setIsPremium(false);
-        setLoading(false);
-        return;
-      }
-
-      const ok = await checkPremium();
+      const ok = await fetchPremiumStatus(userId);
       if (cancelled) return;
       setIsPremium(ok);
       setLoading(false);
@@ -105,7 +106,7 @@ export function usePremium(
     return () => {
       cancelled = true;
     };
-  }, [athleteId]);
+  }, [athleteId, userId]);
 
   const onPresentPaywall = useCallback(() => {
     if (userId) {

@@ -4,6 +4,9 @@ import { ChatPremiumGate } from "@/components/chat/ChatPremiumGate";
 import { ChatPreview } from "@/components/premium/PreviewMocks";
 import { NewMessageModal } from "@/components/chat/NewMessageModal";
 import { supabase } from "@/services/supabase";
+import { useAthleteSession } from "@/context/AthleteSessionContext";
+import { getAuthUserId } from "@/lib/authSession";
+import { getChatCache, setChatCache } from "@/lib/routeCaches";
 import { resolveAthleteId } from "@/lib/resolveAthleteId";
 import { getOrCreateDmConversation } from "@/lib/chatConversation";
 import { loadUnifiedChatInbox, type ChatInboxItem } from "@/lib/chatInboxLoad";
@@ -19,20 +22,23 @@ import { UNREAD_CHANGED_EVENT } from "@/lib/unreadMessages";
 import type { RealtimeChannel } from "@supabase/supabase-js";
 
 export default function ChatPage() {
-  const [items, setItems] = useState<ChatInboxItem[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [athleteId, setAthleteId] = useState<string | null>(null);
+  const { athleteId: sessionAthleteId } = useAthleteSession();
+  const cached = getChatCache();
+  const [items, setItems] = useState<ChatInboxItem[]>((cached?.items as ChatInboxItem[]) ?? []);
+  const [loading, setLoading] = useState(!cached);
+  const [athleteId, setAthleteId] = useState<string | null>(cached?.athleteId ?? sessionAthleteId ?? null);
   const [newMsgOpen, setNewMsgOpen] = useState(false);
   const navigate = useNavigate();
   const channelRef = useRef<RealtimeChannel | null>(null);
   const loadAllRef = useRef<() => Promise<void>>(async () => {});
 
-  const loadAll = useCallback(async () => {
+  const loadAll = useCallback(async (options?: { silent?: boolean }) => {
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
-
-      const aid = await resolveAthleteId(user.id);
+      if (!options?.silent) {
+        setLoading(true);
+      }
+      const uid = await getAuthUserId();
+      const aid = sessionAthleteId ?? (uid ? await resolveAthleteId(uid) : undefined);
       if (!aid) return;
       setAthleteId(aid);
 
@@ -43,13 +49,18 @@ export default function ChatPage() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [sessionAthleteId]);
 
   loadAllRef.current = loadAll;
 
   useEffect(() => {
-    void loadAll();
+    void loadAll({ silent: !!getChatCache() });
   }, [loadAll]);
+
+  useEffect(() => {
+    if (loading) return;
+    setChatCache({ items, athleteId });
+  }, [loading, items, athleteId]);
 
   useEffect(() => {
     const refresh = () => void loadAll();

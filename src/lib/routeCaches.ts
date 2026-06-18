@@ -39,9 +39,22 @@ export type ProfileCache = {
   achievements: unknown;
 };
 
+export type FriendsCache = {
+  incoming: unknown;
+  outgoing: unknown;
+  friends: unknown;
+};
+
+export type ChatCache = {
+  items: unknown;
+  athleteId: string | null;
+};
+
 let dashboardCache: DashboardCache | null = null;
 let leaderboardCache: LeaderboardCache | null = null;
 let profileCache: ProfileCache | null = null;
+let friendsCache: FriendsCache | null = null;
+let chatCache: ChatCache | null = null;
 
 export function getDashboardCache(): DashboardCache | null {
   return dashboardCache;
@@ -67,8 +80,26 @@ export function setProfileCache(cache: ProfileCache): void {
   profileCache = cache;
 }
 
+export function getFriendsCache(): FriendsCache | null {
+  return friendsCache;
+}
+
+export function setFriendsCache(cache: FriendsCache): void {
+  friendsCache = cache;
+}
+
+export function getChatCache(): ChatCache | null {
+  return chatCache;
+}
+
+export function setChatCache(cache: ChatCache): void {
+  chatCache = cache;
+}
+
 export function clearRouteCaches(): void {
   dashboardCache = null;
   leaderboardCache = null;
   profileCache = null;
+  friendsCache = null;
+  chatCache = null;
 }
