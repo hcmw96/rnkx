@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { X, Zap, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
-import { AppShell } from '@/components/app/AppShell';
 import { Button } from '@/components/ui/button';
 import { useAchievementUnlock } from '@/context/AchievementUnlockContext';
 import { useScoreSharePrompt } from '@/context/ScoreSharePromptContext';
@@ -35,6 +34,7 @@ import { momentumPlacesFromRank } from '@/lib/momentumMetrics';
 import { isDespiaIphoneUa, wearablesIncludeAppleWatch } from '@/lib/despiaPlatform';
 import { runAppleWorkoutSync } from '@/lib/runAppleWorkoutSync';
 import { PREVIEW_COACH_SUMMARY, PREVIEW_RECENT_WORKOUTS, PREVIEW_WEEKLY_INSIGHTS } from '@/lib/dashboardPreviewData';
+import { getDashboardCache, setDashboardCache } from '@/lib/routeCaches';
 import { supabase } from '@/services/supabase';
 
 const SYNC_STALE_MS = 24 * 60 * 60 * 1000;
@@ -149,21 +149,30 @@ function activityLabel(activityType: string | null, leagueType: string): string 
 export default function Dashboard() {
   const { refreshAchievements } = useAchievementUnlock();
   const { promptFromAppleSync } = useScoreSharePrompt();
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [season, setSeason] = useState<ActiveSeason | null>(null);
-  const [stats, setStats] = useState<AthleteStats | null>(null);
-  const [recentActivities, setRecentActivities] = useState<RecentActivity[]>([]);
-  const [weeklyInsights, setWeeklyInsights] = useState<WeeklyInsightsData | null>(null);
-  const [insightsSummary, setInsightsSummary] = useState<InsightsSummary | null>(null);
-  const [lastSynced, setLastSynced] = useState<string | null>(null);
-  const [wearables, setWearables] = useState<string[] | null>(null);
-  const [athleteMaxHr, setAthleteMaxHr] = useState<number | string | null>(null);
-  const [athleteMaxHrSource, setAthleteMaxHrSource] = useState<string | null>(null);
+  const cached = getDashboardCache();
+  const [loading, setLoading] = useState(!cached);
+  const [error, setError] = useState<string | null>((cached?.error as string | null) ?? null);
+  const [season, setSeason] = useState<ActiveSeason | null>((cached?.season as ActiveSeason | null) ?? null);
+  const [stats, setStats] = useState<AthleteStats | null>((cached?.stats as AthleteStats | null) ?? null);
+  const [recentActivities, setRecentActivities] = useState<RecentActivity[]>(
+    (cached?.recentActivities as RecentActivity[]) ?? [],
+  );
+  const [weeklyInsights, setWeeklyInsights] = useState<WeeklyInsightsData | null>(
+    (cached?.weeklyInsights as WeeklyInsightsData | null) ?? null,
+  );
+  const [insightsSummary, setInsightsSummary] = useState<InsightsSummary | null>(
+    (cached?.insightsSummary as InsightsSummary | null) ?? null,
+  );
+  const [lastSynced, setLastSynced] = useState<string | null>(cached?.lastSynced ?? null);
+  const [wearables, setWearables] = useState<string[] | null>(cached?.wearables ?? null);
+  const [athleteMaxHr, setAthleteMaxHr] = useState<number | string | null>(cached?.athleteMaxHr ?? null);
+  const [athleteMaxHrSource, setAthleteMaxHrSource] = useState<string | null>(
+    cached?.athleteMaxHrSource ?? null,
+  );
   const [syncReminderDismissed, setSyncReminderDismissed] = useState(false);
   const [syncing, setSyncing] = useState(false);
-  const [athleteId, setAthleteId] = useState<string | undefined>();
-  const [authUserId, setAuthUserId] = useState<string | undefined>();
+  const [athleteId, setAthleteId] = useState<string | undefined>(cached?.athleteId);
+  const [authUserId, setAuthUserId] = useState<string | undefined>(cached?.authUserId);
 
   const loadDashboard = useCallback(async (options?: { silent?: boolean }) => {
     if (!options?.silent) {
@@ -385,8 +394,40 @@ export default function Dashboard() {
   }, []);
 
   useEffect(() => {
-    void loadDashboard();
+    void loadDashboard({ silent: !!getDashboardCache() });
   }, [loadDashboard]);
+
+  useEffect(() => {
+    if (loading) return;
+    setDashboardCache({
+      season,
+      stats,
+      recentActivities,
+      weeklyInsights,
+      insightsSummary,
+      lastSynced,
+      wearables,
+      athleteMaxHr,
+      athleteMaxHrSource,
+      athleteId,
+      authUserId,
+      error,
+    });
+  }, [
+    loading,
+    season,
+    stats,
+    recentActivities,
+    weeklyInsights,
+    insightsSummary,
+    lastSynced,
+    wearables,
+    athleteMaxHr,
+    athleteMaxHrSource,
+    athleteId,
+    authUserId,
+    error,
+  ]);
 
   const refreshDashboard = useCallback(() => loadDashboard({ silent: true }), [loadDashboard]);
 
@@ -490,19 +531,16 @@ export default function Dashboard() {
 
   if (loading) {
     return (
-      <AppShell>
-        <section className="space-y-2">
-          <p className="text-sm text-muted-foreground">Loading dashboard...</p>
-          <div className="h-32 animate-pulse rounded-lg bg-muted/30" />
-          <div className="h-28 animate-pulse rounded-lg bg-muted/30" />
-        </section>
-      </AppShell>
+      <section className="space-y-2">
+        <p className="text-sm text-muted-foreground">Loading dashboard...</p>
+        <div className="h-32 animate-pulse rounded-lg bg-muted/30" />
+        <div className="h-28 animate-pulse rounded-lg bg-muted/30" />
+      </section>
     );
   }
 
   return (
-    <AppShell>
-      <section className="space-y-4" {...pullHandlers}>
+    <section className="space-y-4" {...pullHandlers}>
         {showSyncReminderBanner ? (
           <div
             className="flex items-center gap-2 rounded-lg border border-border/70 bg-[hsla(0,0%,10%,1)] px-3 py-2.5 shadow-sm"
@@ -584,6 +622,5 @@ export default function Dashboard() {
           </div>
         </PremiumGate>
       </section>
-    </AppShell>
   );
 }

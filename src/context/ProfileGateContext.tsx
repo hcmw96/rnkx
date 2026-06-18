@@ -1,6 +1,8 @@
 import { createContext, useContext } from 'react';
 
-export const ProfileGateContext = createContext<{ refetchProfile: () => Promise<void> } | null>(null);
+export const ProfileGateContext = createContext<{
+  refetchProfile: () => Promise<boolean>;
+} | null>(null);
 
 export function useProfileGate() {
   const ctx = useContext(ProfileGateContext);

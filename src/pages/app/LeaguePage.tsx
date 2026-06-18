@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { ArrowLeft, Calendar, Heart, Pencil, Timer, Trophy } from 'lucide-react';
-import { AppShell } from '@/components/app/AppShell';
 import { PremiumGate } from '@/components/PremiumGate';
 import { Button } from '@/components/ui/button';
 import { EditLeagueModal } from '@/components/leagues/EditLeagueModal';
@@ -212,8 +211,7 @@ export default function LeaguePage() {
   );
 
   return (
-    <AppShell>
-      <PremiumGate
+    <PremiumGate
         athleteId={athleteId}
         userId={authUserId}
         description="View club leaderboards, season scores, and member rankings."
@@ -361,6 +359,5 @@ export default function LeaguePage() {
           )}
         </section>
       </PremiumGate>
-    </AppShell>
   );
 }

@@ -1,15 +1,15 @@
 import { useEffect, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
-import { Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { isAthleteProfileComplete } from '@/lib/authPostLogin';
 import { completeAppleSignInFromRedirect } from '@/lib/appleSignIn';
 import { getPendingLeagueInvitePath } from '@/lib/shareLeagueInvite';
+import { useProfileGate } from '@/context/ProfileGateContext';
 
 type Phase = 'loading' | 'error';
 
 export default function AppleAuthComplete() {
   const navigate = useNavigate();
+  const { refetchProfile } = useProfileGate();
   const [searchParams] = useSearchParams();
   const [phase, setPhase] = useState<Phase>('loading');
   const [message, setMessage] = useState('Signing you in with Apple…');
@@ -34,7 +34,7 @@ export default function AppleAuthComplete() {
         return;
       }
 
-      const complete = await isAthleteProfileComplete(userId);
+      const complete = await refetchProfile();
       if (cancelled) return;
       navigate(complete ? (getPendingLeagueInvitePath() ?? '/app') : '/onboarding', { replace: true });
     })();
@@ -42,7 +42,7 @@ export default function AppleAuthComplete() {
     return () => {
       cancelled = true;
     };
-  }, [navigate, searchParams]);
+  }, [navigate, refetchProfile, searchParams]);
 
   if (phase === 'error') {
     return (
@@ -56,8 +56,7 @@ export default function AppleAuthComplete() {
   }
 
   return (
-    <div className="flex min-h-[100dvh] flex-col items-center justify-center gap-3 bg-black px-6 text-center text-white">
-      <Loader2 className="h-8 w-8 animate-spin text-lime-400" aria-hidden />
+    <div className="flex min-h-[100dvh] flex-col items-center justify-center bg-black px-6 text-center text-white">
       <p className="text-sm text-white/80">{message}</p>
     </div>
   );

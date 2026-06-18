@@ -2,13 +2,16 @@ import { useCallback, useEffect, useState } from 'react';
 import type { Session } from '@supabase/supabase-js';
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { Loader2 } from 'lucide-react';
 import { toast, Toaster } from 'sonner';
 import { ProfileGateContext } from '@/context/ProfileGateContext';
 import { NotificationCountProvider } from '@/context/NotificationCountContext';
 import { AchievementUnlockProvider } from '@/context/AchievementUnlockContext';
 import { ScoreSharePromptProvider } from '@/context/ScoreSharePromptContext';
+import { AppLayout } from '@/components/app/AppLayout';
+import { RequireAuth } from '@/components/app/RequireAuth';
 import { SHOW_RECOVERY } from '@/lib/featureFlags';
+import { clearRouteCaches } from '@/lib/routeCaches';
+import { clearAthleteIdCache } from '@/lib/resolveAthleteId';
 import LeaderboardPage from './pages/app/LeaderboardPage';
 import ProfilePage from './pages/app/ProfilePage';
 import SettingsPage from './pages/app/SettingsPage';
@@ -44,7 +47,14 @@ import { resolveAthleteId } from './lib/resolveAthleteId';
 import { applyPremiumIfStoreHasEntitlement } from './services/revenuecat';
 import { supabase } from './services/supabase';
 
-const queryClient = new QueryClient();
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      staleTime: 30_000,
+      refetchOnWindowFocus: false,
+    },
+  },
+});
 
 function isAppleAuthCompletePath(): boolean {
   return typeof window !== 'undefined' && window.location.pathname === '/auth/apple/complete';
@@ -67,16 +77,19 @@ function SessionRoutes() {
   const [welcomeAthleteId, setWelcomeAthleteId] = useState<string | null>(null);
   const [showWelcomeOverlay, setShowWelcomeOverlay] = useState(false);
 
-  const refetchProfile = useCallback(async () => {
+  const refetchProfile = useCallback(async (): Promise<boolean> => {
     const {
       data: { session: s },
     } = await supabase.auth.getSession();
     if (!s?.user) {
       setProfileComplete(false);
-      return;
+      setSession(null);
+      return false;
     }
     const ok = await fetchAthleteProfileComplete(s.user.id);
+    setSession(s);
     setProfileComplete(ok);
+    return ok;
   }, []);
 
   useEffect(() => {
@@ -84,12 +97,19 @@ function SessionRoutes() {
 
     async function applySession(s: Session | null) {
       try {
-        setSession(s);
-        if (s?.user) {
-          const ok = await fetchAthleteProfileComplete(s.user.id);
-          if (!cancelled) setProfileComplete(ok);
-        } else if (!cancelled) {
-          setProfileComplete(false);
+        if (!s?.user) {
+          if (!cancelled) {
+            clearAthleteIdCache();
+            clearRouteCaches();
+            setSession(null);
+            setProfileComplete(false);
+          }
+          return;
+        }
+        const ok = await fetchAthleteProfileComplete(s.user.id);
+        if (!cancelled) {
+          setSession(s);
+          setProfileComplete(ok);
         }
       } catch (error) {
         console.error('applySession error:', error);
@@ -243,14 +263,15 @@ function SessionRoutes() {
   }, [session?.user?.id, profileComplete]);
 
   if (!initialized) {
-    return (
-      <div className="flex min-h-screen items-center justify-center bg-black">
-        <Loader2 className="h-10 w-10 animate-spin text-primary" aria-label="Loading session" />
-      </div>
-    );
+    return <div className="min-h-screen bg-black" aria-hidden />;
   }
 
   const showApp = !!session && profileComplete;
+  const authShell = (
+    <RequireAuth session={session} profileComplete={profileComplete}>
+      <AppLayout />
+    </RequireAuth>
+  );
 
   return (
     <ProfileGateContext.Provider value={{ refetchProfile }}>
@@ -315,156 +336,51 @@ function SessionRoutes() {
         />
         <Route
           path="/app"
-          element={
-            !session ? (
-              <Navigate to="/auth" replace />
-            ) : !profileComplete ? (
-              <Navigate to="/onboarding" replace />
-            ) : (
-              <Dashboard />
-            )
-          }
-        />
-        <Route
-          path="/app/leaderboard"
-          element={
-            !session ? (
-              <Navigate to="/auth" replace />
-            ) : !profileComplete ? (
-              <Navigate to="/onboarding" replace />
-            ) : (
-              <LeaderboardPage />
-            )
-          }
-        />
-        <Route
-          path="/app/profile"
-          element={
-            !session ? (
-              <Navigate to="/auth" replace />
-            ) : !profileComplete ? (
-              <Navigate to="/onboarding" replace />
-            ) : (
-              <ProfilePage />
-            )
-          }
-        />
-        <Route
-          path="/app/settings"
-          element={
-            !session ? (
-              <Navigate to="/auth" replace />
-            ) : !profileComplete ? (
-              <Navigate to="/onboarding" replace />
-            ) : (
-              <SettingsPage />
-            )
-          }
-        />
-        <Route
-          path="/app/faq"
-          element={
-            !session ? (
-              <Navigate to="/auth" replace />
-            ) : !profileComplete ? (
-              <Navigate to="/onboarding" replace />
-            ) : (
-              <FaqPage />
-            )
-          }
-        />
-        <Route
-          path="/app/social"
-          element={
-            !session ? (
-              <Navigate to="/auth" replace />
-            ) : !profileComplete ? (
-              <Navigate to="/onboarding" replace />
-            ) : (
-              <SocialPage />
-            )
-          }
+          element={authShell}
         >
-          <Route index element={<Navigate to="friends" replace />} />
-          <Route path="friends" element={<FriendsPage embedded />} />
-          <Route path="leagues" element={<PrivateLeaguesPage embedded />} />
-          <Route path="discover" element={<DiscoverClubsPage />} />
-          <Route path="recovery" element={<Navigate to={SHOW_RECOVERY ? '/app/settings#recovery' : '/app/settings'} replace />} />
+          <Route index element={<Dashboard />} />
+          <Route path="leaderboard" element={<LeaderboardPage />} />
+          <Route path="profile" element={<ProfilePage />} />
+          <Route path="settings" element={<SettingsPage />} />
+          <Route path="faq" element={<FaqPage />} />
+          <Route path="social" element={<SocialPage />}>
+            <Route index element={<Navigate to="friends" replace />} />
+            <Route path="friends" element={<FriendsPage embedded />} />
+            <Route path="leagues" element={<PrivateLeaguesPage embedded />} />
+            <Route path="discover" element={<DiscoverClubsPage />} />
+            <Route
+              path="recovery"
+              element={
+                <Navigate to={SHOW_RECOVERY ? '/app/settings#recovery' : '/app/settings'} replace />
+              }
+            />
+          </Route>
+          <Route path="notifications" element={<NotificationsPage />} />
+          <Route path="friends/:athleteId" element={<FriendProfilePage />} />
+          <Route path="chat" element={<ChatPage />} />
+          <Route path="leagues/:leagueId" element={<LeaguePage />} />
         </Route>
         <Route path="/app/friends" element={<Navigate to="/app/social/friends" replace />} />
         <Route
-          path="/app/notifications"
-          element={
-            !session ? (
-              <Navigate to="/auth" replace />
-            ) : !profileComplete ? (
-              <Navigate to="/onboarding" replace />
-            ) : (
-              <NotificationsPage />
-            )
-          }
-        />
-        <Route
-          path="/app/friends/:athleteId"
-          element={
-            !session ? (
-              <Navigate to="/auth" replace />
-            ) : !profileComplete ? (
-              <Navigate to="/onboarding" replace />
-            ) : (
-              <FriendProfilePage />
-            )
-          }
-        />
-        <Route
-          path="/app/chat"
-          element={
-            !session ? (
-              <Navigate to="/auth" replace />
-            ) : !profileComplete ? (
-              <Navigate to="/onboarding" replace />
-            ) : (
-              <ChatPage />
-            )
-          }
-        />
-        <Route
           path="/app/chat/group/:conversationId"
           element={
-            !session ? (
-              <Navigate to="/auth" replace />
-            ) : !profileComplete ? (
-              <Navigate to="/onboarding" replace />
-            ) : (
+            <RequireAuth session={session} profileComplete={profileComplete}>
               <GroupChatThread />
-            )
+            </RequireAuth>
           }
         />
         <Route
           path="/app/chat/:friendId"
           element={
-            !session ? (
-              <Navigate to="/auth" replace />
-            ) : !profileComplete ? (
-              <Navigate to="/onboarding" replace />
-            ) : (
+            <RequireAuth session={session} profileComplete={profileComplete}>
               <ChatThread />
-            )
+            </RequireAuth>
           }
         />
         <Route path="/app/leagues" element={<Navigate to="/app/social/leagues" replace />} />
-        <Route path="/app/recovery" element={<Navigate to={SHOW_RECOVERY ? '/app/settings#recovery' : '/app/settings'} replace />} />
         <Route
-          path="/app/leagues/:leagueId"
-          element={
-            !session ? (
-              <Navigate to="/auth" replace />
-            ) : !profileComplete ? (
-              <Navigate to="/onboarding" replace />
-            ) : (
-              <LeaguePage />
-            )
-          }
+          path="/app/recovery"
+          element={<Navigate to={SHOW_RECOVERY ? '/app/settings#recovery' : '/app/settings'} replace />}
         />
         <Route path="/" element={<Navigate to="/app" replace />} />
         <Route path="*" element={<Navigate to="/app" replace />} />

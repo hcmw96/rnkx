@@ -8,13 +8,14 @@ import RNKXLogo from '@/components/RNKXLogo';
 import { AppleSignInButton } from '@/components/auth/AppleSignInButton';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { isAthleteProfileComplete } from '@/lib/authPostLogin';
 import { isDespiaIOS, loadAppleAuthSdk, signInWithApple } from '@/lib/appleSignIn';
 import { getPendingLeagueInvitePath } from '@/lib/shareLeagueInvite';
+import { useProfileGate } from '@/context/ProfileGateContext';
 import { supabase } from '@/services/supabase';
 
 export default function AthleteAuth() {
   const navigate = useNavigate();
+  const { refetchProfile } = useProfileGate();
   const [authStep, setAuthStep] = useState<'welcome' | 'signup' | 'login'>('welcome');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -35,21 +36,12 @@ export default function AthleteAuth() {
   const canSubmit = email.trim().length > 3 && password.length >= 6;
 
   const navigateAfterAuth = async (mode: 'login' | 'signup') => {
-    if (mode === 'signup') {
+    const complete = await refetchProfile();
+    if (mode === 'signup' || !complete) {
       navigate('/onboarding', { replace: true });
       return;
     }
-
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-    if (!user) {
-      navigate('/onboarding', { replace: true });
-      return;
-    }
-
-    const complete = await isAthleteProfileComplete(user.id);
-    navigate(complete ? (getPendingLeagueInvitePath() ?? '/app') : '/onboarding', { replace: true });
+    navigate(getPendingLeagueInvitePath() ?? '/app', { replace: true });
   };
 
   const handleAppleSignIn = async () => {
@@ -129,8 +121,7 @@ export default function AthleteAuth() {
   return (
     <div className="min-h-app bg-background text-foreground">
       {appleBusy ? (
-        <div className="fixed inset-0 z-50 flex flex-col items-center justify-center gap-3 bg-black px-6 text-center text-white">
-          <Loader2 className="h-8 w-8 animate-spin text-lime-400" aria-hidden />
+        <div className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-black px-6 text-center text-white">
           <p className="text-sm text-white/80">Connecting to Apple…</p>
         </div>
       ) : null}

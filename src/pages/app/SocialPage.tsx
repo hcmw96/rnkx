@@ -2,7 +2,6 @@ import { useCallback, useEffect, useState } from 'react';
 import type { LucideIcon } from 'lucide-react';
 import { Compass, Shield, UserRound } from 'lucide-react';
 import { Link, NavLink, Outlet } from 'react-router-dom';
-import { AppShell } from '@/components/app/AppShell';
 import { PremiumGate } from '@/components/PremiumGate';
 import { supabase } from '@/services/supabase';
 import { cn } from '@/lib/utils';
@@ -38,8 +37,7 @@ export default function SocialPage() {
   }, [loadAthlete]);
 
   return (
-    <AppShell>
-      <PremiumGate
+    <PremiumGate
         athleteId={athleteId}
         userId={authUserId}
         title="Friends and Clubs"
@@ -78,6 +76,5 @@ export default function SocialPage() {
           <Outlet />
         </div>
       </PremiumGate>
-    </AppShell>
   );
 }

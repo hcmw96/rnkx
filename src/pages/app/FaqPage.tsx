@@ -1,6 +1,5 @@
 import { ArrowLeft } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import { AppShell } from '@/components/app/AppShell';
 import {
   Accordion,
   AccordionContent,
@@ -15,8 +14,7 @@ export default function FaqPage() {
   const navigate = useNavigate();
 
   return (
-    <AppShell>
-      <section className="mx-auto max-w-lg space-y-5 pb-8 font-sans">
+    <section className="mx-auto max-w-lg space-y-5 pb-8 font-sans">
         <Button
           type="button"
           variant="ghost"
@@ -59,6 +57,5 @@ export default function FaqPage() {
           ))}
         </div>
       </section>
-    </AppShell>
   );
 }

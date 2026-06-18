@@ -2,7 +2,6 @@ import { useCallback, useEffect, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { format } from 'date-fns';
 import { ArrowLeft, Check, MessageCircle, UserPlus, X } from 'lucide-react';
-import { AppShell } from '@/components/app/AppShell';
 import { ProfileOverviewCard, ProfilePreviewCard } from '@/components/profile/ProfileSections';
 import { Button } from '@/components/ui/button';
 import { getCountryByName } from '@/data/countries';
@@ -229,8 +228,7 @@ export default function FriendProfilePage() {
   };
 
   return (
-    <AppShell>
-      <section className="mx-auto max-w-lg space-y-4 pb-8">
+    <section className="mx-auto max-w-lg space-y-4 pb-8">
         <div className="flex items-center justify-between gap-2">
           <Button
             type="button"
@@ -327,6 +325,5 @@ export default function FriendProfilePage() {
           </div>
         ) : null}
       </section>
-    </AppShell>
   );
 }

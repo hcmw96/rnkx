@@ -1,6 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useNavigate, Link } from "react-router-dom";
-import { AppShell } from "@/components/app/AppShell";
 import { ChatPremiumGate } from "@/components/chat/ChatPremiumGate";
 import { ChatPreview } from "@/components/premium/PreviewMocks";
 import { NewMessageModal } from "@/components/chat/NewMessageModal";
@@ -124,8 +123,7 @@ export default function ChatPage() {
     .filter(Boolean);
 
   return (
-    <AppShell>
-      <div className="mx-auto max-w-lg space-y-4">
+    <div className="mx-auto max-w-lg space-y-4">
         <ChatPremiumGate previewContent={<ChatPreview />}>
       {!loading && athleteId ? (
         <div className="flex justify-end">
@@ -217,6 +215,5 @@ export default function ChatPage() {
       )}
       </ChatPremiumGate>
       </div>
-    </AppShell>
   );
 }

@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Bell, Check, MessageCircle, UserPlus, Users, X } from 'lucide-react';
-import { AppShell } from '@/components/app/AppShell';
 import { Button } from '@/components/ui/button';
 import { fetchChatNotifications } from '@/lib/chatInboxNotifications';
 import { fetchPushSubscriptionStatus } from '@/lib/checkPushSubscription';
@@ -260,8 +259,7 @@ export default function NotificationsPage() {
   }
 
   return (
-    <AppShell>
-      <section className="mx-auto max-w-lg space-y-6">
+    <section className="mx-auto max-w-lg space-y-6">
         <div className="space-y-1">
           <h1 className="type-page-title">Notifications</h1>
           <p className="text-sm text-muted-foreground">
@@ -415,6 +413,5 @@ export default function NotificationsPage() {
           </div>
         )}
       </section>
-    </AppShell>
   );
 }

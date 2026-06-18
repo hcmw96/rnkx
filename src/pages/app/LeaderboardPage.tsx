@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useMemo, useState, type ComponentType } from 'react';
 import { Globe, Users, Zap } from 'lucide-react';
-import { AppShell } from '@/components/app/AppShell';
 import { LeaderboardRows } from '@/components/leaderboard/LeaderboardRows';
 import { PremiumGate } from '@/components/PremiumGate';
 import { FriendsPreview } from '@/components/premium/PreviewMocks';
@@ -11,6 +10,7 @@ import { fetchAcceptedFriendIds } from '@/lib/friendships';
 import { isHiddenFromLeaderboard } from '@/lib/leaderboardHidden';
 import { haptic } from '@/lib/haptics';
 import { resolveAthleteId } from '@/lib/resolveAthleteId';
+import { getLeaderboardCache, setLeaderboardCache } from '@/lib/routeCaches';
 import { usePullToRefresh } from '@/hooks/usePullToRefresh';
 import { cn } from '@/lib/utils';
 import { supabase } from '@/services/supabase';
@@ -301,22 +301,27 @@ async function fetchMergedLeaderboard(
 }
 
 export default function LeaderboardPage() {
-  const [activeLeague, setActiveLeague] = useState<League>('engine');
-  const [scopeTab, setScopeTab] = useState<ScopeTab>('open');
-  const [seasons, setSeasons] = useState<SeasonOption[]>([]);
-  const [selectedSeasonId, setSelectedSeasonId] = useState<string | null>(null);
-  const [countryFilter, setCountryFilter] = useState<string>('all');
-  const [genderFilter, setGenderFilter] = useState<GenderFilter>('all');
-  const [merged, setMerged] = useState<MergedAthlete[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
-  const [myAthleteId, setMyAthleteId] = useState<string | null>(null);
-  const [friendIds, setFriendIds] = useState<Set<string>>(new Set());
-  const [myDivision, setMyDivision] = useState<Division>('Open');
+  const cached = getLeaderboardCache();
+  const [activeLeague, setActiveLeague] = useState<League>(cached?.activeLeague ?? 'engine');
+  const [scopeTab, setScopeTab] = useState<ScopeTab>(cached?.scopeTab ?? 'open');
+  const [seasons, setSeasons] = useState<SeasonOption[]>((cached?.seasons as SeasonOption[]) ?? []);
+  const [selectedSeasonId, setSelectedSeasonId] = useState<string | null>(cached?.selectedSeasonId ?? null);
+  const [countryFilter, setCountryFilter] = useState<string>(cached?.countryFilter ?? 'all');
+  const [genderFilter, setGenderFilter] = useState<GenderFilter>(cached?.genderFilter ?? 'all');
+  const [merged, setMerged] = useState<MergedAthlete[]>((cached?.merged as MergedAthlete[]) ?? []);
+  const [loading, setLoading] = useState(!cached);
+  const [error, setError] = useState<string | null>(cached?.error ?? null);
+  const [currentUserId, setCurrentUserId] = useState<string | null>(cached?.currentUserId ?? null);
+  const [myAthleteId, setMyAthleteId] = useState<string | null>(cached?.myAthleteId ?? null);
+  const [friendIds, setFriendIds] = useState<Set<string>>(
+    new Set(cached?.friendIds ?? []),
+  );
+  const [myDivision, setMyDivision] = useState<Division>((cached?.myDivision as Division) ?? 'Open');
 
-  const loadAll = useCallback(async () => {
-    setLoading(true);
+  const loadAll = useCallback(async (options?: { silent?: boolean }) => {
+    if (!options?.silent) {
+      setLoading(true);
+    }
     setError(null);
 
     const [{ data: auth }, { data: seasonRows, error: seasonsErr }] = await Promise.all([
@@ -361,8 +366,40 @@ export default function LeaderboardPage() {
   }, [selectedSeasonId]);
 
   useEffect(() => {
-    void loadAll();
+    void loadAll({ silent: !!getLeaderboardCache() });
   }, [loadAll]);
+
+  useEffect(() => {
+    if (loading) return;
+    setLeaderboardCache({
+      seasons,
+      selectedSeasonId,
+      merged,
+      currentUserId,
+      myAthleteId,
+      friendIds: [...friendIds],
+      myDivision,
+      activeLeague,
+      scopeTab,
+      countryFilter,
+      genderFilter,
+      error,
+    });
+  }, [
+    loading,
+    seasons,
+    selectedSeasonId,
+    merged,
+    currentUserId,
+    myAthleteId,
+    friendIds,
+    myDivision,
+    activeLeague,
+    scopeTab,
+    countryFilter,
+    genderFilter,
+    error,
+  ]);
 
   useEffect(() => {
     if (selectedSeasonId || seasons.length === 0) return;
@@ -513,8 +550,7 @@ export default function LeaderboardPage() {
   ];
 
   return (
-    <AppShell>
-      <section className="mx-auto flex max-w-lg flex-col gap-5 pb-2" {...pullHandlers}>
+    <section className="mx-auto flex max-w-lg flex-col gap-5 pb-2" {...pullHandlers}>
         {(isRefreshing || pullDistance > 0) && (
           <p className="text-center text-xs text-muted-foreground">
             {isRefreshing ? 'Refreshing…' : pullDistance > 72 ? 'Release to refresh' : ''}
@@ -686,6 +722,5 @@ export default function LeaderboardPage() {
         )}
 
       </section>
-    </AppShell>
   );
 }

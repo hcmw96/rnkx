@@ -1,1 +1,2 @@
+/api/auth/apple/callback    /.netlify/functions/apple-auth-callback    200!
 /*    /index.html    200

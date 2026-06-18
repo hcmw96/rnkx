@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useRef, useState, type ChangeEvent } from 'react';
 import { format } from 'date-fns';
 import { toast } from 'sonner';
-import { AppShell } from '@/components/app/AppShell';
 import { ProfileOverviewCard, ProfileProgressCard } from '@/components/profile/ProfileSections';
 import { getCountryByName } from '@/data/countries';
 import { fetchAchievementStates, type AchievementState } from '@/lib/achievements';
@@ -13,6 +12,7 @@ import {
   type ProfileSeasonStats,
 } from '@/lib/profileStats';
 import { leagueFromSelectedLeagues } from '@/lib/leagueAvatars';
+import { getProfileCache, setProfileCache } from '@/lib/routeCaches';
 import { supabase } from '@/services/supabase';
 
 const ATHLETE_COLUMNS =
@@ -45,17 +45,26 @@ function memberSinceLabel(createdAt: string | null | undefined): string {
 
 export default function ProfilePage() {
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const [athlete, setAthlete] = useState<AthleteRow | null>(null);
-  const [seasonStats, setSeasonStats] = useState<ProfileSeasonStats | null>(null);
-  const [careerStats, setCareerStats] = useState<ProfileCareerStats | null>(null);
-  const [standingPercent, setStandingPercent] = useState(50);
-  const [topPercent, setTopPercent] = useState(50);
-  const [achievements, setAchievements] = useState<AchievementState[]>([]);
-  const [loading, setLoading] = useState(true);
+  const cached = getProfileCache();
+  const [athlete, setAthlete] = useState<AthleteRow | null>((cached?.athlete as AthleteRow | null) ?? null);
+  const [seasonStats, setSeasonStats] = useState<ProfileSeasonStats | null>(
+    (cached?.seasonStats as ProfileSeasonStats | null) ?? null,
+  );
+  const [careerStats, setCareerStats] = useState<ProfileCareerStats | null>(
+    (cached?.careerStats as ProfileCareerStats | null) ?? null,
+  );
+  const [standingPercent, setStandingPercent] = useState(cached?.standingPercent ?? 50);
+  const [topPercent, setTopPercent] = useState(cached?.topPercent ?? 50);
+  const [achievements, setAchievements] = useState<AchievementState[]>(
+    (cached?.achievements as AchievementState[]) ?? [],
+  );
+  const [loading, setLoading] = useState(!cached);
   const [uploading, setUploading] = useState(false);
 
-  const loadProfile = useCallback(async () => {
-    setLoading(true);
+  const loadProfile = useCallback(async (options?: { silent?: boolean }) => {
+    if (!options?.silent) {
+      setLoading(true);
+    }
     const { data: auth, error: authErr } = await supabase.auth.getUser();
     if (authErr || !auth.user) {
       toast.error(authErr?.message ?? 'Not signed in.');
@@ -102,8 +111,20 @@ export default function ProfilePage() {
   }, []);
 
   useEffect(() => {
-    void loadProfile();
+    void loadProfile({ silent: !!getProfileCache() });
   }, [loadProfile]);
+
+  useEffect(() => {
+    if (loading) return;
+    setProfileCache({
+      athlete,
+      seasonStats,
+      careerStats,
+      standingPercent,
+      topPercent,
+      achievements,
+    });
+  }, [loading, athlete, seasonStats, careerStats, standingPercent, topPercent, achievements]);
 
   const openAvatarPicker = () => {
     fileInputRef.current?.click();
@@ -173,8 +194,7 @@ export default function ProfilePage() {
   const combinedScore = engineScore + runScore;
 
   return (
-    <AppShell>
-      <section className="mx-auto max-w-lg space-y-4 pb-8">
+    <section className="mx-auto max-w-lg space-y-4 pb-8">
         <input
           ref={fileInputRef}
           type="file"
@@ -213,6 +233,5 @@ export default function ProfilePage() {
           </>
         )}
       </section>
-    </AppShell>
   );
 }

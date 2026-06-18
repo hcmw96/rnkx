@@ -25,7 +25,6 @@ import {
   User,
 } from 'lucide-react';
 import { WearableCompatibility } from '@/components/WearableCompatibility';
-import { AppShell } from '@/components/app/AppShell';
 import { PremiumGate } from '@/components/PremiumGate';
 import { SHOW_RECOVERY } from '@/lib/featureFlags';
 import RecoveryPage from '@/pages/app/RecoveryPage';
@@ -226,7 +225,7 @@ export function SettingsPageLayout(props: SettingsPageLayoutProps) {
     : 'HealthKit via iPhone app';
 
   return (
-    <AppShell>
+    <>
       <section className="mx-auto max-w-lg space-y-5 pb-8">
         {loading ? (
           <p className="text-sm text-muted-foreground">Loading settings…</p>
@@ -914,6 +913,6 @@ export function SettingsPageLayout(props: SettingsPageLayoutProps) {
       </section>
 
       <DocViewerSheet doc={activeDoc} onClose={() => setActiveDoc(null)} />
-    </AppShell>
+    </>
   );
 }
