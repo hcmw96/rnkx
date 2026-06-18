@@ -30,6 +30,18 @@ export function useUnreadCount(): number {
   useEffect(() => {
     void fetchCount();
 
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((event) => {
+      if (event === 'SIGNED_OUT') {
+        setCount(0);
+        return;
+      }
+      if (event === 'SIGNED_IN' || event === 'INITIAL_SESSION') {
+        void fetchCount();
+      }
+    });
+
     const onUnreadChanged = () => void fetchCount();
     window.addEventListener(UNREAD_CHANGED_EVENT, onUnreadChanged);
     document.addEventListener('visibilitychange', onUnreadChanged);
@@ -43,6 +55,7 @@ export function useUnreadCount(): number {
       .subscribe();
 
     return () => {
+      subscription.unsubscribe();
       window.removeEventListener(UNREAD_CHANGED_EVENT, onUnreadChanged);
       document.removeEventListener('visibilitychange', onUnreadChanged);
       void supabase.removeChannel(channel);

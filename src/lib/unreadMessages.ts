@@ -11,12 +11,47 @@
  */
 
 const PREFIX = 'rnkx:last_read:';
+const SCOPE_KEY = 'rnkx:unread_scope_athlete';
 /** Messages older than this with no read state are treated as read backlog, not new notifications. */
 const UNREAD_STALE_MS = 7 * 24 * 60 * 60 * 1000;
 export const UNREAD_CHANGED_EVENT = 'rnkx:unread-changed';
 
 export function conversationUnreadKey(conversationId: string): string {
   return `convo-${conversationId}`;
+}
+
+function clearUnreadReadState(): void {
+  try {
+    const toRemove: string[] = [];
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      if (key?.startsWith(PREFIX)) toRemove.push(key);
+    }
+    toRemove.forEach((key) => localStorage.removeItem(key));
+  } catch {
+    /* ignore storage errors */
+  }
+}
+
+/** Drop read markers when a different athlete signs in on this device. */
+export function ensureUnreadScopeForAthlete(athleteId: string): void {
+  try {
+    const prev = localStorage.getItem(SCOPE_KEY);
+    if (prev && prev !== athleteId) {
+      clearUnreadReadState();
+    }
+    localStorage.setItem(SCOPE_KEY, athleteId);
+  } catch {
+    /* ignore storage errors */
+  }
+}
+
+export function notifyUnreadStateChanged(): void {
+  try {
+    window.dispatchEvent(new Event(UNREAD_CHANGED_EVENT));
+  } catch {
+    /* ignore */
+  }
 }
 
 function readTimestamp(key: string): Date | null {

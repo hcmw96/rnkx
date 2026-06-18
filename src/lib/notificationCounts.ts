@@ -1,4 +1,4 @@
-import { conversationUnreadKey, isUnread } from '@/lib/unreadMessages';
+import { conversationUnreadKey, ensureUnreadScopeForAthlete, isUnread } from '@/lib/unreadMessages';
 import { supabase } from '@/services/supabase';
 
 export async function fetchPendingInviteCount(athleteId: string): Promise<number> {
@@ -23,6 +23,8 @@ export async function fetchPendingInviteCount(athleteId: string): Promise<number
 }
 
 export async function fetchUnreadMessageCount(athleteId: string): Promise<number> {
+  ensureUnreadScopeForAthlete(athleteId);
+
   const [{ data: dmRows }, { data: groupRows }] = await Promise.all([
     supabase.rpc('list_dm_inbox', { p_athlete_id: athleteId }),
     supabase.rpc('list_group_inbox', { p_athlete_id: athleteId }),

@@ -9,7 +9,7 @@ import {
 import { syncAppIconBadge } from '@/lib/appBadgeSync';
 import { fetchTotalNotificationCount } from '@/lib/notificationCounts';
 import { resolveAthleteId } from '@/lib/resolveAthleteId';
-import { UNREAD_CHANGED_EVENT } from '@/lib/unreadMessages';
+import { notifyUnreadStateChanged, UNREAD_CHANGED_EVENT } from '@/lib/unreadMessages';
 import { supabase } from '@/services/supabase';
 
 const NotificationCountContext = createContext(0);
@@ -47,8 +47,27 @@ export function NotificationCountProvider({ children, enabled }: NotificationCou
   }, [enabled]);
 
   useEffect(() => {
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((event) => {
+      if (event === 'SIGNED_OUT') {
+        setCount(0);
+        notifyUnreadStateChanged();
+        syncAppIconBadge(0);
+        return;
+      }
+      if (event === 'SIGNED_IN' || event === 'INITIAL_SESSION') {
+        void fetchCount();
+      }
+    });
+
+    return () => subscription.unsubscribe();
+  }, [fetchCount]);
+
+  useEffect(() => {
     if (!enabled) {
       setCount(0);
+      syncAppIconBadge(0);
       return;
     }
 
@@ -80,7 +99,10 @@ export function NotificationCountProvider({ children, enabled }: NotificationCou
   }, [enabled, fetchCount]);
 
   useEffect(() => {
-    if (!enabled) return;
+    if (!enabled) {
+      syncAppIconBadge(0);
+      return;
+    }
     syncAppIconBadge(count);
   }, [count, enabled]);
 
