@@ -1,5 +1,5 @@
 import { clubImageDisplayUrl } from '@/lib/clubImageUpload';
-import { conversationUnreadKey, ensureUnreadScopeForAthlete, isUnread } from '@/lib/unreadMessages';
+import { conversationUnreadKey, isUnread, prepareUnreadStateForAthlete } from '@/lib/unreadMessages';
 import { supabase } from '@/services/supabase';
 
 export type ChatInboxItem = {
@@ -18,7 +18,7 @@ export type ChatInboxItem = {
 };
 
 export async function loadDmInboxItems(athleteId: string): Promise<ChatInboxItem[]> {
-  ensureUnreadScopeForAthlete(athleteId);
+  await prepareUnreadStateForAthlete(athleteId);
 
   const { data, error } = await supabase.rpc('list_dm_inbox', {
     p_athlete_id: athleteId,
@@ -61,7 +61,7 @@ export async function loadDmInboxItems(athleteId: string): Promise<ChatInboxItem
 }
 
 export async function loadGroupInboxItems(athleteId: string): Promise<ChatInboxItem[]> {
-  ensureUnreadScopeForAthlete(athleteId);
+  await prepareUnreadStateForAthlete(athleteId);
 
   const { data, error } = await supabase.rpc('list_group_inbox', {
     p_athlete_id: athleteId,

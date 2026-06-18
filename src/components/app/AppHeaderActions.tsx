@@ -1,12 +1,12 @@
 import { Link } from 'react-router-dom';
 import { Bell, MessageCircle, Settings } from 'lucide-react';
 import { haptic } from '@/lib/haptics';
-import { useNotificationCount } from '@/context/NotificationCountContext';
+import { usePendingFriendRequestCount } from '@/hooks/usePendingFriendRequestCount';
 import { useUnreadCount } from '@/hooks/useUnreadCount';
 
 export function AppHeaderActions() {
   const unreadMessages = useUnreadCount();
-  const notificationCount = useNotificationCount();
+  const pendingInvites = usePendingFriendRequestCount();
 
   return (
     <>
@@ -26,15 +26,15 @@ export function AppHeaderActions() {
       <Link
         to="/app/notifications"
         aria-label={
-          notificationCount > 0 ? `Notifications (${notificationCount} pending)` : 'Notifications'
+          pendingInvites > 0 ? `Notifications (${pendingInvites} pending)` : 'Notifications'
         }
         className="relative rounded-lg p-2 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
         onClick={() => haptic('light')}
       >
         <Bell className="h-5 w-5" />
-        {notificationCount > 0 && (
+        {pendingInvites > 0 && (
           <span className="absolute right-1 top-1 flex h-4 w-4 items-center justify-center rounded-full bg-neon-lime text-[10px] font-bold leading-none text-black">
-            {notificationCount > 9 ? '9+' : notificationCount}
+            {pendingInvites > 9 ? '9+' : pendingInvites}
           </span>
         )}
       </Link>

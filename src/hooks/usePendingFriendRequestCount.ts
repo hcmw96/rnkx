@@ -27,6 +27,18 @@ export function usePendingFriendRequestCount(): number {
   useEffect(() => {
     void fetchCount();
 
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((event) => {
+      if (event === 'SIGNED_OUT') {
+        setCount(0);
+        return;
+      }
+      if (event === 'SIGNED_IN' || event === 'INITIAL_SESSION') {
+        void fetchCount();
+      }
+    });
+
     const channelName = `friend-request-count-${crypto.randomUUID()}`;
     const channel = supabase
       .channel(channelName)
@@ -41,6 +53,7 @@ export function usePendingFriendRequestCount(): number {
     window.addEventListener(UNREAD_CHANGED_EVENT, fetchCount);
 
     return () => {
+      subscription.unsubscribe();
       window.removeEventListener(UNREAD_CHANGED_EVENT, fetchCount);
       void supabase.removeChannel(channel);
     };
