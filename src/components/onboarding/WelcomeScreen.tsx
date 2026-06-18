@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState, type ReactNode } from 'react';
 import RNKXLogo from '@/components/RNKXLogo';
 import { Button } from '@/components/ui/button';
+import { isDespiaIOS, loadAppleAuthSdk } from '@/lib/appleSignIn';
 import {
   Carousel,
   CarouselContent,
@@ -59,6 +60,13 @@ export function WelcomeScreen({ onGetStarted, onLogIn }: WelcomeScreenProps) {
     apply();
     media.addEventListener('change', apply);
     return () => media.removeEventListener('change', apply);
+  }, []);
+
+  useEffect(() => {
+    if (!isDespiaIOS()) return;
+    void loadAppleAuthSdk().catch(() => {
+      // Preload on welcome — tap will surface errors if this fails.
+    });
   }, []);
 
   useEffect(() => {

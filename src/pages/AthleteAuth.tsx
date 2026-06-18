@@ -47,14 +47,9 @@ export default function AthleteAuth() {
   const handleAppleSignIn = async () => {
     setAuthError(null);
     setAppleBusy(true);
-    let keepBusy = false;
     try {
       const result = await signInWithApple();
       if (result.cancelled) return;
-      if (result.redirecting) {
-        keepBusy = true;
-        return;
-      }
       if (result.error) {
         setAuthError(result.error.message);
         toast.error(result.error.message);
@@ -62,7 +57,7 @@ export default function AthleteAuth() {
       }
       await navigateAfterAuth('login');
     } finally {
-      if (!keepBusy) setAppleBusy(false);
+      setAppleBusy(false);
     }
   };
 
@@ -120,11 +115,6 @@ export default function AthleteAuth() {
 
   return (
     <div className="min-h-app bg-background text-foreground">
-      {appleBusy ? (
-        <div className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-black px-6 text-center text-white">
-          <p className="text-sm text-white/80">Connecting to Apple…</p>
-        </div>
-      ) : null}
       <div className="mx-auto flex min-h-full w-full max-w-lg flex-col px-4 pb-10 pt-4">
         <header className="mb-6 flex flex-col items-center gap-2 pt-6">
           <RNKXLogo size="md" />

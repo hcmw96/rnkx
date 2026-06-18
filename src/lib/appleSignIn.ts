@@ -1,4 +1,4 @@
-import { bootstrapAthleteAfterAuth } from '@/lib/authPostLogin';
+import { bootstrapAthleteAfterAuth, isAthleteProfileComplete } from '@/lib/authPostLogin';
 import { supabase } from '@/services/supabase';
 
 const APPLE_CLIENT_ID = 'com.despia.rnkx.web';
@@ -7,6 +7,7 @@ const APPLE_POST_CALLBACK_URI = 'https://rnkx.netlify.app/api/auth/apple/callbac
 const APPLE_SDK_URL =
   'https://appleid.cdn-apple.com/appleauth/static/jsapi/appleid/1/en_US/appleid.auth.js';
 const APPLE_NONCE_STORAGE_KEY = 'rnkx_apple_auth_nonce';
+const APPLE_AUTH_TIMEOUT_MS = 120_000;
 
 let appleSdkPromise: Promise<void> | null = null;
 
@@ -120,6 +121,50 @@ type ApplePersonName = {
   familyName?: string;
 };
 
+type AppleAuthSuccess = {
+  authorization: {
+    id_token: string;
+    code?: string;
+    state?: string;
+  };
+  user?: {
+    name?: ApplePersonName;
+  };
+};
+
+function parseAppleSuccessDetail(detail: unknown): AppleAuthSuccess | null {
+  if (!detail || typeof detail !== 'object') return null;
+  const record = detail as Record<string, unknown>;
+
+  const authFromDetail = record.authorization;
+  if (authFromDetail && typeof authFromDetail === 'object') {
+    const auth = authFromDetail as Record<string, unknown>;
+    if (typeof auth.id_token === 'string') {
+      return {
+        authorization: auth as AppleAuthSuccess['authorization'],
+        user: record.user as AppleAuthSuccess['user'],
+      };
+    }
+  }
+
+  const data = record.data;
+  if (data && typeof data === 'object') {
+    const dataRecord = data as Record<string, unknown>;
+    const nestedAuth = dataRecord.authorization ?? dataRecord;
+    if (nestedAuth && typeof nestedAuth === 'object') {
+      const auth = nestedAuth as Record<string, unknown>;
+      if (typeof auth.id_token === 'string') {
+        return {
+          authorization: auth as AppleAuthSuccess['authorization'],
+          user: (dataRecord.user ?? record.user) as AppleAuthSuccess['user'],
+        };
+      }
+    }
+  }
+
+  return null;
+}
+
 function parseAppleUserParam(raw: string | null): ApplePersonName | null {
   if (!raw?.trim()) return null;
   try {
@@ -130,26 +175,85 @@ function parseAppleUserParam(raw: string | null): ApplePersonName | null {
   }
 }
 
-/** signIn() is void in Despia WebView — never chain .then directly. */
-function invokeAppleSignIn(): void {
-  const signIn = window.AppleID?.auth?.signIn;
-  if (typeof signIn !== 'function') {
-    throw new Error('Apple Sign In is not available. Please try again.');
-  }
+/**
+ * On Despia iOS (usePopup: false) signIn() often resolves undefined — credentials arrive via DOM events.
+ * Wait for in-page completion instead of assuming an immediate redirect (avoids a ~10s reload round-trip).
+ */
+function requestAppleAuthorization(hashedNonce: string): Promise<AppleAuthSuccess> {
+  return new Promise((resolve, reject) => {
+    let settled = false;
 
-  try {
-    const result = signIn.call(window.AppleID.auth) as unknown;
-    if (result != null && typeof (result as Promise<unknown>).then === 'function') {
-      void (result as Promise<unknown>).catch((error) => {
-        console.warn('[Apple Sign In] signIn promise rejected', error);
-      });
+    const finish = (fn: () => void) => {
+      if (settled) return;
+      settled = true;
+      cleanup();
+      fn();
+    };
+
+    const cleanup = () => {
+      document.removeEventListener('AppleIDSignInOnSuccess', onSuccess);
+      document.removeEventListener('AppleIDSignInOnFailure', onFailure);
+      window.clearTimeout(timeoutId);
+    };
+
+    const onSuccess = (event: Event) => {
+      const parsed = parseAppleSuccessDetail((event as CustomEvent).detail);
+      if (parsed) {
+        finish(() => resolve(parsed));
+        return;
+      }
+      finish(() => reject(new Error('Apple Sign In returned an unexpected response.')));
+    };
+
+    const onFailure = (event: Event) => {
+      const detail = (event as CustomEvent).detail;
+      finish(() => reject(detail?.error ?? detail ?? new Error('Apple Sign In failed.')));
+    };
+
+    document.addEventListener('AppleIDSignInOnSuccess', onSuccess);
+    document.addEventListener('AppleIDSignInOnFailure', onFailure);
+
+    const timeoutId = window.setTimeout(() => {
+      finish(() => reject(new Error('Apple Sign In timed out. Please try again.')));
+    }, APPLE_AUTH_TIMEOUT_MS);
+
+    window.AppleID.auth.init({
+      clientId: APPLE_CLIENT_ID,
+      scope: 'name email',
+      redirectURI: APPLE_POST_CALLBACK_URI,
+      usePopup: false,
+      nonce: hashedNonce,
+    });
+
+    const signIn = window.AppleID?.auth?.signIn;
+    if (typeof signIn !== 'function') {
+      finish(() => reject(new Error('Apple Sign In is not available. Please try again.')));
+      return;
     }
-  } catch (error) {
-    if (!isUserCancelledError(error)) {
+
+    try {
+      const result = signIn.call(window.AppleID.auth) as unknown;
+      if (result != null && typeof (result as Promise<unknown>).then === 'function') {
+        void (result as Promise<unknown>)
+          .then((response) => {
+            const parsed = parseAppleSuccessDetail(response);
+            if (parsed) finish(() => resolve(parsed));
+          })
+          .catch((error) => {
+            if (!isUserCancelledError(error)) {
+              console.warn('[Apple Sign In] signIn promise rejected', error);
+            }
+          });
+      }
+    } catch (error) {
+      if (isUserCancelledError(error)) {
+        finish(() => reject(error));
+        return;
+      }
       console.warn('[Apple Sign In] signIn threw', error);
+      finish(() => reject(error instanceof Error ? error : new Error(getAppleAuthErrorMessage(error))));
     }
-    throw error;
-  }
+  });
 }
 
 function mapSupabaseAppleAuthError(message: string): string {
@@ -186,44 +290,45 @@ async function finishAppleSession(
     return bootstrap;
   }
 
-  return { error: null, userId };
+  const profileComplete = await isAthleteProfileComplete(userId);
+  return { error: null, userId, profileComplete };
 }
 
 export type AppleSignInResult = {
   error: { message: string } | null;
   cancelled?: boolean;
-  /** Native sheet opened; page will redirect to complete auth. */
-  redirecting?: boolean;
   userId?: string;
+  profileComplete?: boolean;
 };
 
 /**
- * Opens the native Apple sheet. With usePopup: false, Apple POSTs to our Netlify callback after Continue.
+ * Opens the native Apple sheet on Despia iOS and completes sign-in in-page when the SDK
+ * delivers credentials via DOM events (fast path). Redirect completion remains as fallback.
  */
 export async function signInWithApple(): Promise<AppleSignInResult> {
   if (!isDespiaIOS()) {
     return { error: { message: 'Sign in with Apple is only available on the RNKX iOS app.' } };
   }
 
+  let rawNonce: string | null = null;
+
   try {
     await loadAppleAuthSdk();
 
-    const rawNonce = generateRawNonce();
+    rawNonce = generateRawNonce();
     const hashedNonce = await sha256Hex(rawNonce);
     sessionStorage.setItem(APPLE_NONCE_STORAGE_KEY, rawNonce);
 
-    window.AppleID.auth.init({
-      clientId: APPLE_CLIENT_ID,
-      scope: 'name email',
-      redirectURI: APPLE_POST_CALLBACK_URI,
-      usePopup: false,
-      nonce: hashedNonce,
-    });
+    const response = await requestAppleAuthorization(hashedNonce);
+    const idToken = response.authorization.id_token;
+    if (!idToken) {
+      sessionStorage.removeItem(APPLE_NONCE_STORAGE_KEY);
+      return { error: { message: 'Apple Sign In did not return an identity token.' } };
+    }
 
-    invokeAppleSignIn();
-    return { error: null, redirecting: true };
+    return await finishAppleSession(idToken, rawNonce, response.user?.name ?? null);
   } catch (error) {
-    sessionStorage.removeItem(APPLE_NONCE_STORAGE_KEY);
+    if (rawNonce) sessionStorage.removeItem(APPLE_NONCE_STORAGE_KEY);
     if (isUserCancelledError(error)) {
       return { error: null, cancelled: true };
     }
