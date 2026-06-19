@@ -1,4 +1,5 @@
 import { AnimatePresence } from 'framer-motion';
+import { ArrowLeft } from 'lucide-react';
 import { useCallback, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import RNKXLogo from '@/components/RNKXLogo';
@@ -88,9 +89,25 @@ export default function Onboarding() {
     }
   }, [step, displayName, username, usernameValid, dob, age, gender, country, leagues, legalAccepted]);
 
-  const handleBack = () => {
+  const handlePrevStep = () => {
     setSubmitError(null);
     if (step > 1) setStep((s) => s - 1);
+  };
+
+  const handleSignInInstead = () => {
+    setSubmitError(null);
+    void (async () => {
+      await supabase.auth.signOut();
+      navigate('/auth', { replace: true, state: { authStep: 'login' } });
+    })();
+  };
+
+  const handleBack = () => {
+    if (step > 1) {
+      handlePrevStep();
+      return;
+    }
+    handleSignInInstead();
   };
 
   const handleNext = async () => {
@@ -145,7 +162,18 @@ export default function Onboarding() {
   return (
     <div className="min-h-app bg-background text-foreground">
       <div className="mx-auto flex min-h-full w-full max-w-lg flex-col px-4 pb-10 pt-4">
-        <header className="mb-6 flex flex-col items-center gap-2 pt-6">
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          className="-ml-2 mb-2 w-fit gap-2 self-start"
+          onClick={handleBack}
+        >
+          <ArrowLeft className="h-4 w-4" aria-hidden />
+          {step > 1 ? 'Back' : 'Sign in'}
+        </Button>
+
+        <header className="mb-6 flex flex-col items-center gap-2 pt-2">
           <RNKXLogo size="md" />
           <p className="text-center text-sm text-muted-foreground">Complete your profile</p>
         </header>
@@ -223,22 +251,41 @@ export default function Onboarding() {
           )}
         </AnimatePresence>
 
-        <div className="mt-8 flex gap-3">
+        <div className="mt-8 flex flex-col gap-3">
           {step > 1 ? (
-            <Button type="button" variant="outline" className="flex-1" onClick={handleBack}>
-              Back
-            </Button>
+            <div className="flex gap-3">
+              <Button type="button" variant="outline" className="flex-1 gap-2" onClick={handlePrevStep}>
+                <ArrowLeft className="h-4 w-4 shrink-0" aria-hidden />
+                Back
+              </Button>
+              <Button
+                type="button"
+                className="flex-1 font-semibold"
+                onClick={() => void handleNext()}
+                disabled={!canAdvanceFromStep() || finishing}
+              >
+                {step === 8 ? (finishing ? 'Saving…' : 'Finish & go to app') : 'Next'}
+              </Button>
+            </div>
           ) : (
-            <div className="flex-1" />
+            <Button
+              type="button"
+              className="w-full font-semibold"
+              onClick={() => void handleNext()}
+              disabled={!canAdvanceFromStep() || finishing}
+            >
+              Next
+            </Button>
           )}
-          <Button
-            type="button"
-            className="flex-1 font-semibold"
-            onClick={() => void handleNext()}
-            disabled={!canAdvanceFromStep() || finishing}
-          >
-            {step === 8 ? (finishing ? 'Saving…' : 'Finish & go to app') : 'Next'}
-          </Button>
+          {step === 1 ? (
+            <button
+              type="button"
+              onClick={handleSignInInstead}
+              className="text-center text-sm font-medium text-muted-foreground underline-offset-4 hover:text-foreground hover:underline"
+            >
+              Already have an account? Sign in
+            </button>
+          ) : null}
         </div>
       </div>
     </div>

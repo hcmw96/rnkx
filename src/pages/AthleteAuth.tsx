@@ -1,7 +1,7 @@
 import { motion } from 'framer-motion';
 import { FormEvent, useEffect, useState } from 'react';
-import { Loader2 } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
+import { Loader2, ArrowLeft } from 'lucide-react';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import { WelcomeScreen } from '@/components/onboarding/WelcomeScreen';
 import RNKXLogo from '@/components/RNKXLogo';
@@ -15,8 +15,12 @@ import { supabase } from '@/services/supabase';
 
 export default function AthleteAuth() {
   const navigate = useNavigate();
+  const location = useLocation();
   const { refetchProfile } = useProfileGate();
-  const [authStep, setAuthStep] = useState<'welcome' | 'signup' | 'login'>('welcome');
+  const [authStep, setAuthStep] = useState<'welcome' | 'signup' | 'login'>(() => {
+    const step = (location.state as { authStep?: string } | null)?.authStep;
+    return step === 'login' ? 'login' : step === 'signup' ? 'signup' : 'welcome';
+  });
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [authBusy, setAuthBusy] = useState(false);
@@ -32,6 +36,14 @@ export default function AthleteAuth() {
       // Button tap will surface load errors if preload fails.
     });
   }, [showAppleSignIn]);
+
+  useEffect(() => {
+    if ((location.state as { authStep?: string } | null)?.authStep) {
+      navigate(location.pathname, { replace: true, state: null });
+    }
+    // Clear one-time navigation state only on first paint.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const canSubmit = email.trim().length > 3 && password.length >= 6;
 
@@ -116,7 +128,21 @@ export default function AthleteAuth() {
   return (
     <div className="min-h-app bg-background text-foreground">
       <div className="mx-auto flex min-h-full w-full max-w-lg flex-col px-4 pb-10 pt-4">
-        <header className="mb-6 flex flex-col items-center gap-2 pt-6">
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          className="-ml-2 mb-2 w-fit gap-2 self-start"
+          onClick={() => {
+            setAuthStep('welcome');
+            setAuthError(null);
+          }}
+        >
+          <ArrowLeft className="h-4 w-4" aria-hidden />
+          Back
+        </Button>
+
+        <header className="mb-6 flex flex-col items-center gap-2 pt-2">
           <RNKXLogo size="md" />
           <p className="text-center text-sm text-muted-foreground">Train. Compete. Rank.</p>
         </header>
