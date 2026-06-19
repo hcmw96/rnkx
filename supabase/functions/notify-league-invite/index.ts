@@ -1,15 +1,12 @@
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
-import { authenticateNotifyRequest, notifyCorsHeaders, notifyJson } from '../_shared/pushAuth.ts';
-import { getOneSignalApiKey, getOneSignalAppId } from '../_shared/onesignalEnv.ts';
-import { buildOneSignalPayload } from '../_shared/onesignalPush.ts';
-
-const ONESIGNAL_API = 'https://onesignal.com/api/v1/notifications';
-
-function sanitize(s: string, max: number): string {
-  const t = s.replace(/[\r\n\u0000]/g, ' ').trim();
-  return t.length > max ? `${t.slice(0, max)}…` : t;
-}
+import { resolveAthleteExternalId } from '../_shared/athleteLookup.ts';
+import { authenticateNotifyRequest, createServiceRoleClient, notifyCorsHeaders, notifyJson } from '../_shared/pushAuth.ts';
+import {
+  getOneSignalCredentials,
+  outcomeFromOneSignal,
+  sanitizePushText,
+  sendOneSignalPush,
+} from '../_shared/onesignalSend.ts';
 
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
@@ -24,16 +21,12 @@ serve(async (req) => {
     return notifyJson({ error: 'Unauthorized' }, 401);
   }
 
-  const supabaseUrl = Deno.env.get('SUPABASE_URL');
-  const serviceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
-  const appId = getOneSignalAppId();
-  const apiKey = getOneSignalApiKey();
-
-  if (!supabaseUrl || !serviceKey) {
-    console.error('[notify-league-invite] missing SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY');
+  const supabase = createServiceRoleClient();
+  if (!supabase) {
+    console.error('[notify-league-invite] missing service role key');
     return notifyJson({ error: 'Server misconfiguration' }, 500);
   }
-  if (!appId || !apiKey) {
+  if (!getOneSignalCredentials()) {
     console.error('[notify-league-invite] missing OneSignal credentials');
     return notifyJson({ error: 'Server misconfiguration' }, 500);
   }
@@ -58,51 +51,24 @@ serve(async (req) => {
     return notifyJson({ error: 'invited_user_id and league_name are required' }, 400);
   }
 
-  const supabase = createClient(supabaseUrl, serviceKey);
-
-  const { data: athleteRows, error: athErr } = await supabase
-    .from('athletes')
-    .select('id')
-    .or(`id.eq.${invitedUserId},user_id.eq.${invitedUserId}`)
-    .limit(1);
-
-  if (athErr) {
-    console.error('[notify-league-invite] athlete lookup', athErr);
-    return notifyJson({ success: false, error: athErr.message }, 500);
-  }
-  const athlete = (athleteRows ?? [])[0] as { id?: string } | undefined;
-  if (!athlete?.id) {
+  const externalUserId = await resolveAthleteExternalId(supabase, invitedUserId);
+  if (!externalUserId) {
     return notifyJson({ success: false, error: 'Athlete not found' }, 404);
   }
 
-  const externalUserId = String(athlete.id);
+  const safeInviter = sanitizePushText(inviterName, 80);
+  const safeLeague = sanitizePushText(leagueName, 80);
 
-  const safeInviter = sanitize(inviterName, 80);
-  const safeLeague = sanitize(leagueName, 80);
-  const contents = `${safeInviter} invited you to join ${safeLeague}`;
-
-  const osPayload = buildOneSignalPayload({
-    appId,
+  const osResult = await sendOneSignalPush({
+    appId: '',
     externalUserIds: [externalUserId],
     title: 'League Invitation',
-    message: contents,
+    message: `${safeInviter} invited you to join ${safeLeague}`,
     path: '/app/notifications',
   });
 
-  const osRes = await fetch(ONESIGNAL_API, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Key ${apiKey}`,
-    },
-    body: JSON.stringify(osPayload),
+  const { httpStatus, payload } = outcomeFromOneSignal('notify-league-invite', osResult, {
+    externalUserId,
   });
-
-  const osJson = (await osRes.json()) as Record<string, unknown>;
-  if (!osRes.ok) {
-    console.error('[notify-league-invite] OneSignal error', osRes.status, osJson);
-    return notifyJson({ success: false, error: osJson }, 502);
-  }
-
-  return notifyJson({ success: true });
+  return notifyJson(payload, httpStatus);
 });

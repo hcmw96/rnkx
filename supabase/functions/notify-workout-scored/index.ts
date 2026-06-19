@@ -1,15 +1,8 @@
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
-import { authenticateNotifyRequest, notifyCorsHeaders, notifyJson } from '../_shared/pushAuth.ts';
-import { getOneSignalApiKey, getOneSignalAppId } from '../_shared/onesignalEnv.ts';
-import { buildOneSignalPayload } from '../_shared/onesignalPush.ts';
-
-const ONESIGNAL_API = 'https://onesignal.com/api/v1/notifications';
-
-function sanitize(s: string, max: number): string {
-  const t = s.replace(/[\r\n\u0000]/g, ' ').trim();
-  return t.length > max ? `${t.slice(0, max)}…` : t;
-}
+import { resolveAthleteExternalId } from '../_shared/athleteLookup.ts';
+import { authenticateNotifyRequest, createServiceRoleClient, notifyCorsHeaders, notifyJson } from '../_shared/pushAuth.ts';
+import { getOneSignalCredentials } from '../_shared/onesignalSend.ts';
+import { outcomeFromOneSignal, sendOneSignalPush } from '../_shared/onesignalSend.ts';
 
 function formatLeagueType(t: string): string {
   const s = t.trim();
@@ -26,25 +19,24 @@ serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: notifyCorsHeaders });
   }
+  if (req.method !== 'POST') {
+    return notifyJson({ error: 'Method not allowed' }, 405);
+  }
 
   try {
-    if (req.method !== 'POST') {
-      return notifyJson({ success: true });
-    }
-
     const auth = await authenticateNotifyRequest(req);
     if (!auth) {
       return notifyJson({ success: false, error: 'Unauthorized' }, 401);
     }
 
-    const supabaseUrl = Deno.env.get('SUPABASE_URL');
-    const serviceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
-    const appId = getOneSignalAppId();
-    const apiKey = getOneSignalApiKey();
-
-    if (!supabaseUrl || !serviceKey || !appId || !apiKey) {
-      console.error('[notify-workout-scored] missing env');
-      return notifyJson({ success: true });
+    const supabase = createServiceRoleClient();
+    if (!supabase) {
+      console.error('[notify-workout-scored] missing service role key');
+      return notifyJson({ success: false, error: 'Server misconfiguration' }, 500);
+    }
+    if (!getOneSignalCredentials()) {
+      console.error('[notify-workout-scored] missing OneSignal credentials');
+      return notifyJson({ success: false, error: 'Server misconfiguration' }, 500);
     }
 
     let body: {
@@ -56,7 +48,7 @@ serve(async (req) => {
     try {
       body = await req.json();
     } catch {
-      return notifyJson({ success: true });
+      return notifyJson({ error: 'Invalid JSON' }, 400);
     }
 
     const athleteId = typeof body.athlete_id === 'string' ? body.athlete_id.trim() : '';
@@ -65,30 +57,17 @@ serve(async (req) => {
     let rank = typeof body.rank === 'number' && Number.isFinite(body.rank) ? body.rank : null;
 
     if (!athleteId || score === null) {
-      console.warn('[notify-workout-scored] missing athlete_id or score');
-      return notifyJson({ success: true });
+      return notifyJson({ error: 'athlete_id and score are required' }, 400);
     }
 
     if (auth.kind === 'user' && auth.athleteId !== athleteId) {
       return notifyJson({ success: false, error: 'Forbidden' }, 403);
     }
 
-    const supabase = createClient(supabaseUrl, serviceKey);
-    const { data: athlete, error: athErr } = await supabase
-      .from('athletes')
-      .select('id')
-      .eq('id', athleteId)
-      .maybeSingle();
-
-    if (athErr) {
-      console.error('[notify-workout-scored] athlete lookup', athErr);
-      return notifyJson({ success: true });
+    const externalUserId = await resolveAthleteExternalId(supabase, athleteId);
+    if (!externalUserId) {
+      return notifyJson({ success: false, error: 'Athlete not found' }, 404);
     }
-    if (!athlete?.id) {
-      console.warn('[notify-workout-scored] unknown athlete', athleteId);
-      return notifyJson({ success: true });
-    }
-    const externalUserId = String(athlete.id);
 
     if (rank === null) {
       const { data: season } = await supabase
@@ -98,7 +77,7 @@ serve(async (req) => {
         .maybeSingle();
       if (season?.id) {
         const { data: rankData, error: rankErr } = await supabase.rpc('category_leaderboard_rank', {
-          p_athlete_id: athleteId,
+          p_athlete_id: externalUserId,
           p_season_id: season.id,
           p_category: leagueCategory(leagueType),
         });
@@ -116,41 +95,21 @@ serve(async (req) => {
         ? `Your ${lt} workout scored ${score} pts — you're ranked #${rank}!`
         : `Your ${lt} workout scored ${score} pts!`;
 
-    const osRes = await fetch(ONESIGNAL_API, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Key ${apiKey}`,
-      },
-      body: JSON.stringify(
-        buildOneSignalPayload({
-          appId,
-          externalUserIds: [externalUserId],
-          title,
-          message,
-          path: '/app',
-        }),
-      ),
+    const osResult = await sendOneSignalPush({
+      externalUserIds: [externalUserId],
+      title,
+      message,
+      path: '/app',
+      appId: '',
     });
 
-    const osJson = await osRes.json().catch(() => ({}));
-    const errors = (osJson as { errors?: unknown }).errors ?? null;
-    console.log('[notify-workout-scored] onesignal result', {
+    const { httpStatus, payload } = outcomeFromOneSignal('notify-workout-scored', osResult, {
       athleteId,
       externalUserId,
-      status: osRes.status,
-      ok: osRes.ok,
-      oneSignalId: (osJson as { id?: unknown }).id ?? null,
-      errors,
     });
-    if (!osRes.ok) {
-      console.error('[notify-workout-scored] OneSignal', osRes.status, osJson);
-    } else if (errors) {
-      console.warn('[notify-workout-scored] OneSignal delivered with errors', { externalUserId, errors });
-    }
+    return notifyJson(payload, httpStatus);
   } catch (e) {
     console.error('[notify-workout-scored]', e);
+    return notifyJson({ success: false, error: 'Internal error' }, 500);
   }
-
-  return notifyJson({ success: true });
 });

@@ -1,47 +1,42 @@
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
-
-import { authenticateNotifyRequest, notifyCorsHeaders, notifyJson } from '../_shared/pushAuth.ts';
-import { getOneSignalApiKey, getOneSignalAppId } from '../_shared/onesignalEnv.ts';
-import { buildOneSignalPayload } from '../_shared/onesignalPush.ts';
-
-const ONESIGNAL_API = 'https://onesignal.com/api/v1/notifications';
-
-function sanitize(s: string, max: number): string {
-  const t = s.replace(/[\r\n\u0000]/g, ' ').trim();
-  return t.length > max ? `${t.slice(0, max)}…` : t;
-}
+import { resolveAthleteExternalId } from '../_shared/athleteLookup.ts';
+import { authenticateNotifyRequest, createServiceRoleClient, notifyCorsHeaders, notifyJson } from '../_shared/pushAuth.ts';
+import {
+  getOneSignalCredentials,
+  outcomeFromOneSignal,
+  sanitizePushText,
+  sendOneSignalPush,
+} from '../_shared/onesignalSend.ts';
 
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: notifyCorsHeaders });
   }
+  if (req.method !== 'POST') {
+    return notifyJson({ error: 'Method not allowed' }, 405);
+  }
 
   try {
-    if (req.method !== 'POST') {
-      return notifyJson({ success: true });
-    }
-
     const auth = await authenticateNotifyRequest(req);
     if (!auth) {
       return notifyJson({ success: false, error: 'Unauthorized' }, 401);
     }
 
-    const supabaseUrl = Deno.env.get('SUPABASE_URL');
-    const serviceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
-    const appId = getOneSignalAppId();
-    const apiKey = getOneSignalApiKey();
-
-    if (!supabaseUrl || !serviceKey || !appId || !apiKey) {
-      console.error('[notify-new-message] missing env');
-      return notifyJson({ success: true });
+    const supabase = createServiceRoleClient();
+    if (!supabase) {
+      console.error('[notify-new-message] missing service role key');
+      return notifyJson({ success: false, error: 'Server misconfiguration' }, 500);
+    }
+    if (!getOneSignalCredentials()) {
+      console.error('[notify-new-message] missing OneSignal credentials');
+      return notifyJson({ success: false, error: 'Server misconfiguration' }, 500);
     }
 
     let body: Record<string, unknown>;
     try {
       body = await req.json();
     } catch {
-      return notifyJson({ success: true });
+      return notifyJson({ error: 'Invalid JSON' }, 400);
     }
 
     const senderFromBody =
@@ -49,8 +44,6 @@ serve(async (req) => {
     if (auth.kind === 'user' && senderFromBody && auth.athleteId !== senderFromBody) {
       return notifyJson({ success: false, error: 'Forbidden' }, 403);
     }
-
-    const supabase = createClient(supabaseUrl, serviceKey);
 
     const requestId = crypto.randomUUID().slice(0, 8);
     console.log('[notify-new-message] start', { requestId });
@@ -60,72 +53,32 @@ serve(async (req) => {
       senderDisplay: string,
       previewRaw: string,
       path: string,
-    ): Promise<void> {
-      const trimmedReceiver = receiverAthleteId.trim();
-      if (!trimmedReceiver) return;
-
-      const { data: athlete, error: athErr } = await supabase
-        .from('athletes')
-        .select('id')
-        .eq('id', trimmedReceiver)
-        .maybeSingle();
-
-      if (athErr) {
-        console.error('[notify-new-message] athlete lookup', athErr);
-        return;
+    ): Promise<{ httpStatus: number; payload: Record<string, unknown> }> {
+      const externalUserId = await resolveAthleteExternalId(supabase, receiverAthleteId);
+      if (!externalUserId) {
+        console.warn('[notify-new-message] unknown receiver athlete', receiverAthleteId);
+        return { httpStatus: 404, payload: { success: false, error: 'Receiver athlete not found' } };
       }
 
-      if (!athlete?.id) {
-        console.warn('[notify-new-message] unknown receiver athlete', trimmedReceiver);
-        return;
-      }
-      const externalUserId = String(athlete.id);
+      const title = `${sanitizePushText(senderDisplay, 60)} 💬`;
+      const message = sanitizePushText(previewRaw || 'New message', 200);
 
-      const title = `${sanitize(senderDisplay, 60)} 💬`;
-      const message = sanitize(previewRaw || 'New message', 200);
-
-      const payload = buildOneSignalPayload({
-        appId,
+      const osResult = await sendOneSignalPush({
+        appId: '',
         externalUserIds: [externalUserId],
         title,
         message,
         path,
       });
 
-      const osRes = await fetch(ONESIGNAL_API, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Key ${apiKey}`,
-        },
-        body: JSON.stringify(payload),
-      });
-
-      const osJson = await osRes.json().catch(() => ({}));
-      const errors = (osJson as { errors?: unknown }).errors ?? null;
-      console.log('[notify-new-message] onesignal result', {
+      return outcomeFromOneSignal('notify-new-message', osResult, {
         requestId,
-        receiverAthleteId: trimmedReceiver,
+        receiverAthleteId,
         externalUserId,
-        status: osRes.status,
-        ok: osRes.ok,
-        oneSignalId: (osJson as { id?: unknown }).id ?? null,
-        errors,
       });
-      if (!osRes.ok) {
-        console.error('[notify-new-message] OneSignal', osRes.status, osJson);
-      } else if (errors) {
-        console.warn('[notify-new-message] OneSignal delivered with errors (device may be unsubscribed)', {
-          externalUserId,
-          errors,
-        });
-      }
     }
 
-    async function resolveGroupRecipientIds(
-      convId: string,
-      senderId: string,
-    ): Promise<string[]> {
+    async function resolveGroupRecipientIds(convId: string, senderId: string): Promise<string[]> {
       const { data: cmRows, error: cmErr } = await supabase
         .from('conversation_members')
         .select('athlete_id')
@@ -139,9 +92,7 @@ serve(async (req) => {
         (id) => id.length > 0 && id !== senderId,
       );
 
-      if (ids.length > 0) {
-        return ids;
-      }
+      if (ids.length > 0) return ids;
 
       const { data: leagueRow } = await supabase
         .from('private_leagues')
@@ -150,9 +101,7 @@ serve(async (req) => {
         .maybeSingle();
 
       const leagueId = (leagueRow as { id?: string } | null)?.id;
-      if (!leagueId) {
-        return ids;
-      }
+      if (!leagueId) return ids;
 
       const { data: plmRows, error: plmErr } = await supabase
         .from('private_league_members')
@@ -185,32 +134,14 @@ serve(async (req) => {
       return ids;
     }
 
-    /** League / group chat: fan out to all conversation members except the sender */
     const conversationId = typeof body.conversation_id === 'string' ? body.conversation_id.trim() : '';
     const senderAthleteId = typeof body.sender_athlete_id === 'string' ? body.sender_athlete_id.trim() : '';
     const messageBody = typeof body.message_body === 'string' ? body.message_body.trim() : '';
 
     if (conversationId && senderAthleteId && messageBody) {
-      console.log('[notify-new-message] group payload', {
-        requestId,
-        conversationId,
-        senderAthleteId,
-        previewLen: messageBody.length,
-      });
       const recipientIds = await resolveGroupRecipientIds(conversationId, senderAthleteId);
-      console.log('[notify-new-message] group recipients', {
-        requestId,
-        recipientCount: recipientIds.length,
-        recipientIds,
-      });
-
       if (recipientIds.length === 0) {
-        console.warn('[notify-new-message] no group recipients — push skipped', {
-          requestId,
-          conversationId,
-          senderAthleteId,
-        });
-        return notifyJson({ success: true });
+        return notifyJson({ success: true, skipped: true, reason: 'no group recipients' });
       }
 
       const { data: senderRow } = await supabase
@@ -223,13 +154,29 @@ serve(async (req) => {
       const u = sr?.username != null ? String(sr.username).trim() : '';
       const d = sr?.display_name != null ? String(sr.display_name).trim() : '';
       const senderDisplay = u || d || 'Someone';
-      const preview = sanitize(messageBody, 200);
+      const preview = sanitizePushText(messageBody, 200);
 
+      const outcomes: Record<string, unknown>[] = [];
       for (const rid of recipientIds) {
-        await notifyAthlete(rid, senderDisplay, preview, `/app/chat/group/${conversationId}`);
+        const { httpStatus, payload } = await notifyAthlete(
+          rid,
+          senderDisplay,
+          preview,
+          `/app/chat/group/${conversationId}`,
+        );
+        outcomes.push({ recipientId: rid, httpStatus, ...payload });
+        if (httpStatus === 502) {
+          return notifyJson({ success: false, error: payload.error, outcomes }, 502);
+        }
       }
 
-      return notifyJson({ success: true });
+      const anyPartial = outcomes.some((o) => o.partial === true);
+      return notifyJson({
+        success: true,
+        partial: anyPartial || undefined,
+        recipients: recipientIds.length,
+        outcomes,
+      });
     }
 
     const receiverAthleteId =
@@ -240,8 +187,7 @@ serve(async (req) => {
     const preview = typeof body.preview === 'string' ? body.preview.trim() : '';
 
     if (!receiverAthleteId) {
-      console.warn('[notify-new-message] missing receiver_athlete_id and not a group payload');
-      return notifyJson({ success: true });
+      return notifyJson({ error: 'receiver_athlete_id is required for direct messages' }, 400);
     }
 
     if (!senderName && senderAthleteIdForDm) {
@@ -256,21 +202,16 @@ serve(async (req) => {
       senderName = u || d || 'Someone';
     }
 
-    const dmPath = senderAthleteIdForDm
-      ? `/app/chat/${senderAthleteIdForDm}`
-      : '/app/chat';
-
-    console.log('[notify-new-message] direct payload', {
-      requestId,
+    const dmPath = senderAthleteIdForDm ? `/app/chat/${senderAthleteIdForDm}` : '/app/chat';
+    const { httpStatus, payload } = await notifyAthlete(
       receiverAthleteId,
-      senderAthleteId: senderAthleteIdForDm,
-      previewLen: preview.length,
-      path: dmPath,
-    });
-    await notifyAthlete(receiverAthleteId, senderName || 'Someone', preview || 'New message', dmPath);
+      senderName || 'Someone',
+      preview || 'New message',
+      dmPath,
+    );
+    return notifyJson(payload, httpStatus);
   } catch (e) {
     console.error('[notify-new-message]', e);
+    return notifyJson({ success: false, error: 'Internal error' }, 500);
   }
-
-  return notifyJson({ success: true });
 });

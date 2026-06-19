@@ -1,115 +1,90 @@
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
-import { authenticateNotifyRequest, notifyCorsHeaders, notifyJson } from '../_shared/pushAuth.ts';
-import { getOneSignalApiKey, getOneSignalAppId } from '../_shared/onesignalEnv.ts';
-import { buildOneSignalPayload } from '../_shared/onesignalPush.ts';
-
-const ONESIGNAL_API = 'https://onesignal.com/api/v1/notifications';
-
-function sanitize(s: string, max: number): string {
-  const t = s.replace(/[\r\n\u0000]/g, ' ').trim();
-  return t.length > max ? `${t.slice(0, max)}…` : t;
-}
-
-function formatLeagueType(t: string): string {
-  const s = t.trim();
-  if (!s) return 'workout';
-  return s.charAt(0).toUpperCase() + s.slice(1).toLowerCase();
-}
+import { resolveAthleteExternalId } from '../_shared/athleteLookup.ts';
+import { authenticateNotifyRequest, createServiceRoleClient, notifyCorsHeaders, notifyJson } from '../_shared/pushAuth.ts';
+import {
+  getOneSignalCredentials,
+  outcomeFromOneSignal,
+  sanitizePushText,
+  sendOneSignalPush,
+} from '../_shared/onesignalSend.ts';
 
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: notifyCorsHeaders });
   }
+  if (req.method !== 'POST') {
+    return notifyJson({ error: 'Method not allowed' }, 405);
+  }
 
   try {
-    if (req.method !== 'POST') {
-      return notifyJson({ success: true });
-    }
-
     const auth = await authenticateNotifyRequest(req);
     if (!auth) {
       return notifyJson({ success: false, error: 'Unauthorized' }, 401);
     }
 
-    const supabaseUrl = Deno.env.get('SUPABASE_URL');
-    const serviceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
-    const appId = getOneSignalAppId();
-    const apiKey = getOneSignalApiKey();
-
-    if (!supabaseUrl || !serviceKey || !appId || !apiKey) {
-      console.error('[notify-friend-request] missing env');
-      return notifyJson({ success: true });
+    const supabase = createServiceRoleClient();
+    if (!supabase) {
+      console.error('[notify-friend-request] missing service role key');
+      return notifyJson({ success: false, error: 'Server misconfiguration' }, 500);
+    }
+    if (!getOneSignalCredentials()) {
+      console.error('[notify-friend-request] missing OneSignal credentials');
+      return notifyJson({ success: false, error: 'Server misconfiguration' }, 500);
     }
 
     let body: { from_athlete_id?: string; to_athlete_id?: string };
     try {
       body = await req.json();
     } catch {
-      return notifyJson({ success: true });
+      return notifyJson({ error: 'Invalid JSON' }, 400);
     }
 
     const fromId = typeof body.from_athlete_id === 'string' ? body.from_athlete_id.trim() : '';
     const toId = typeof body.to_athlete_id === 'string' ? body.to_athlete_id.trim() : '';
 
     if (!fromId || !toId) {
-      console.warn('[notify-friend-request] missing from_athlete_id or to_athlete_id');
-      return notifyJson({ success: true });
+      return notifyJson({ error: 'from_athlete_id and to_athlete_id are required' }, 400);
     }
 
     if (auth.kind === 'user' && auth.athleteId !== fromId) {
-      console.warn('[notify-friend-request] sender mismatch', { caller: auth.athleteId, fromId });
       return notifyJson({ success: false, error: 'Forbidden' }, 403);
     }
 
-    const supabase = createClient(supabaseUrl, serviceKey);
-
-    const [fromRes, toRes] = await Promise.all([
-      supabase.from('athletes').select('id, username').eq('id', fromId).maybeSingle(),
-      supabase.from('athletes').select('id').eq('id', toId).maybeSingle(),
-    ]);
-
-    if (fromRes.error) console.error('[notify-friend-request] from athlete', fromRes.error);
-    if (toRes.error) console.error('[notify-friend-request] to athlete', toRes.error);
-
-    if (!toRes.data?.id) {
-      console.warn('[notify-friend-request] unknown recipient athlete', toId);
-      return notifyJson({ success: true });
+    const externalUserId = await resolveAthleteExternalId(supabase, toId);
+    if (!externalUserId) {
+      return notifyJson({ success: false, error: 'Recipient athlete not found' }, 404);
     }
-    const externalUserId = String(toRes.data.id);
 
-    const fromUsername = sanitize(
-      (fromRes.data?.username as string | undefined) || 'Someone',
+    const { data: fromRow } = await supabase
+      .from('athletes')
+      .select('username, display_name')
+      .or(`id.eq.${fromId},user_id.eq.${fromId}`)
+      .limit(1)
+      .maybeSingle();
+
+    const fr = fromRow as { username?: string | null; display_name?: string | null } | null;
+    const fromUsername = sanitizePushText(
+      (fr?.username && String(fr.username).trim()) ||
+        (fr?.display_name && String(fr.display_name).trim()) ||
+        'Someone',
       80,
     );
 
-    const title = 'New friend request 👋';
-    const message = `${fromUsername} wants to be your friend on RNKX`;
-
-    const osRes = await fetch(ONESIGNAL_API, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Key ${apiKey}`,
-      },
-      body: JSON.stringify(
-        buildOneSignalPayload({
-          appId,
-          externalUserIds: [externalUserId],
-          title,
-          message,
-          path: '/app/notifications',
-        }),
-      ),
+    const osResult = await sendOneSignalPush({
+      appId: '',
+      externalUserIds: [externalUserId],
+      title: 'New friend request 👋',
+      message: `${fromUsername} wants to be your friend on RNKX`,
+      path: '/app/notifications',
     });
 
-    const osJson = await osRes.json().catch(() => ({}));
-    if (!osRes.ok) {
-      console.error('[notify-friend-request] OneSignal', osRes.status, osJson);
-    }
+    const { httpStatus, payload } = outcomeFromOneSignal('notify-friend-request', osResult, {
+      fromId,
+      externalUserId,
+    });
+    return notifyJson(payload, httpStatus);
   } catch (e) {
     console.error('[notify-friend-request]', e);
+    return notifyJson({ success: false, error: 'Internal error' }, 500);
   }
-
-  return notifyJson({ success: true });
 });

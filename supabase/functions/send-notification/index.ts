@@ -1,10 +1,12 @@
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
-import { getOneSignalApiKey, getOneSignalAppId } from '../_shared/onesignalEnv.ts';
-import { buildOneSignalPayload, pathFromUrl } from '../_shared/onesignalPush.ts';
-import { authenticateNotifyRequest, notifyCorsHeaders, notifyJson } from '../_shared/pushAuth.ts';
-
-const ONESIGNAL_API = 'https://onesignal.com/api/v1/notifications';
+import { resolveAthleteExternalId } from '../_shared/athleteLookup.ts';
+import { pathFromUrl } from '../_shared/onesignalPush.ts';
+import { authenticateNotifyRequest, createServiceRoleClient, notifyCorsHeaders, notifyJson } from '../_shared/pushAuth.ts';
+import {
+  getOneSignalCredentials,
+  outcomeFromOneSignal,
+  sendOneSignalPush,
+} from '../_shared/onesignalSend.ts';
 
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
@@ -19,16 +21,12 @@ serve(async (req) => {
     return notifyJson({ error: 'Unauthorized' }, 401);
   }
 
-  const supabaseUrl = Deno.env.get('SUPABASE_URL');
-  const serviceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
-  const appId = getOneSignalAppId();
-  const restApiKey = getOneSignalApiKey();
-
-  if (!supabaseUrl || !serviceKey) {
-    console.error('[send-notification] missing Supabase env');
+  const supabase = createServiceRoleClient();
+  if (!supabase) {
+    console.error('[send-notification] missing service role key');
     return notifyJson({ error: 'Server misconfiguration' }, 500);
   }
-  if (!appId || !restApiKey) {
+  if (!getOneSignalCredentials()) {
     console.error('[send-notification] missing OneSignal credentials');
     return notifyJson({ error: 'Server misconfiguration' }, 500);
   }
@@ -41,8 +39,9 @@ serve(async (req) => {
   }
 
   const athleteId = typeof body.athlete_id === 'string' ? body.athlete_id.trim() : '';
-  const title = typeof body.title === 'string' ? body.title.trim() : '';
-  const message = typeof body.message === 'string' ? body.message.trim() : '';
+  const title = typeof body.title === 'string' ? body.title.replace(/[\r\n\u0000]/g, ' ').trim().slice(0, 120) : '';
+  const message =
+    typeof body.message === 'string' ? body.message.replace(/[\r\n\u0000]/g, ' ').trim().slice(0, 500) : '';
   const path =
     typeof body.path === 'string' && body.path.trim() !== ''
       ? body.path.trim()
@@ -54,35 +53,19 @@ serve(async (req) => {
     return notifyJson({ error: 'athlete_id, title, and message are required' }, 400);
   }
 
-  const supabase = createClient(supabaseUrl, serviceKey);
-  const { data: athlete, error: athErr } = await supabase.from('athletes').select('id').eq('id', athleteId).maybeSingle();
-  if (athErr || !athlete) {
+  const externalUserId = await resolveAthleteExternalId(supabase, athleteId);
+  if (!externalUserId) {
     return notifyJson({ error: 'Athlete not found' }, 404);
   }
 
-  // Target subscriptions linked via OneSignal.login(athlete_id) on the client.
-  const payload = buildOneSignalPayload({
-    appId,
-    externalUserIds: [athleteId],
+  const osResult = await sendOneSignalPush({
+    appId: '',
+    externalUserIds: [externalUserId],
     title,
     message,
     path,
   });
 
-  const osRes = await fetch(ONESIGNAL_API, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Key ${restApiKey}`,
-    },
-    body: JSON.stringify(payload),
-  });
-
-  const osJson = (await osRes.json()) as Record<string, unknown>;
-  if (!osRes.ok) {
-    console.error('[send-notification] OneSignal error', osRes.status, osJson);
-    return notifyJson({ success: false, error: osJson }, 502);
-  }
-
-  return notifyJson({ success: true, id: osJson.id ?? null });
+  const { httpStatus, payload } = outcomeFromOneSignal('send-notification', osResult, { externalUserId });
+  return notifyJson(payload, httpStatus);
 });

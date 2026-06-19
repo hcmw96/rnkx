@@ -30,7 +30,9 @@ type ChatNotificationItem = {
 
 type FriendRequestItem = {
   id: string;
+  athleteId: string;
   username: string;
+  displayName: string;
   avatarUrl: string | null;
 };
 
@@ -45,6 +47,7 @@ export default function NotificationsPage() {
   const [loading, setLoading] = useState(true);
   const [athleteId, setAthleteId] = useState<string | null>(null);
   const [acceptingLeagueId, setAcceptingLeagueId] = useState<string | null>(null);
+  const [respondingFriendId, setRespondingFriendId] = useState<string | null>(null);
   const [friendRequests, setFriendRequests] = useState<FriendRequestItem[]>([]);
   const [clubInvites, setClubInvites] = useState<ClubInviteItem[]>([]);
   const [chatNotifications, setChatNotifications] = useState<ChatNotificationItem[]>([]);
@@ -92,16 +95,20 @@ export default function NotificationsPage() {
     ]);
 
     const requesterIds = [...new Set((incRows ?? []).map((r) => r.athlete_id as string))];
-    let requesterMap = new Map<string, { username: string | null; avatar_url: string | null }>();
+    let requesterMap = new Map<string, { username: string | null; display_name: string | null; avatar_url: string | null }>();
     if (requesterIds.length) {
       const { data: athletes } = await supabase
         .from('athletes')
-        .select('id, username, avatar_url')
+        .select('id, username, display_name, avatar_url')
         .in('id', requesterIds);
       requesterMap = new Map(
         (athletes ?? []).map((a) => [
           a.id as string,
-          { username: a.username as string | null, avatar_url: a.avatar_url as string | null },
+          {
+            username: a.username as string | null,
+            display_name: a.display_name as string | null,
+            avatar_url: a.avatar_url as string | null,
+          },
         ]),
       );
     }
@@ -109,9 +116,13 @@ export default function NotificationsPage() {
     setFriendRequests(
       (incRows ?? []).map((r) => {
         const a = requesterMap.get(r.athlete_id as string);
+        const username = a?.username?.trim() || 'Athlete';
+        const displayName = a?.display_name?.trim() || username;
         return {
           id: r.id as string,
-          username: a?.username?.trim() || 'Athlete',
+          athleteId: r.athlete_id as string,
+          username,
+          displayName,
           avatarUrl: a?.avatar_url ?? null,
         };
       }),
@@ -154,6 +165,40 @@ export default function NotificationsPage() {
     window.addEventListener(UNREAD_CHANGED_EVENT, refresh);
     return () => window.removeEventListener(UNREAD_CHANGED_EVENT, refresh);
   }, [load]);
+
+  const respondFriendRequest = async (rowId: string, accept: boolean) => {
+    if (!athleteId || respondingFriendId) return;
+    const row = friendRequests.find((r) => r.id === rowId);
+    setRespondingFriendId(rowId);
+    try {
+      const { error } = await supabase
+        .from('friendships')
+        .update({ status: accept ? 'accepted' : 'declined' })
+        .eq('id', rowId)
+        .eq('friend_id', athleteId)
+        .eq('status', 'pending');
+
+      if (error) {
+        toast.error(error.message);
+        return;
+      }
+
+      setFriendRequests((prev) => prev.filter((r) => r.id !== rowId));
+      toast.success(accept ? 'Friend added.' : 'Request declined.');
+
+      if (accept && row?.athleteId) {
+        invokePushNotify('send-notification', {
+          athlete_id: row.athleteId,
+          title: 'Friend request accepted',
+          message: `${row.displayName} accepted your friend request.`,
+          path: '/app/social/friends',
+        });
+      }
+    } finally {
+      setRespondingFriendId(null);
+      void load();
+    }
+  };
 
   const acceptClubInvite = async (leagueId: string) => {
     if (!athleteId || acceptingLeagueId) return;
@@ -315,19 +360,45 @@ export default function NotificationsPage() {
                 <h2 className="type-section-label">Friend requests</h2>
                 <ul className="space-y-2">
                   {friendRequests.map((req) => (
-                    <li key={req.id}>
-                      <Link
-                        to="/app/social/friends"
-                        className="flex items-center gap-3 rounded-lg border border-border bg-card p-3 transition-colors hover:border-muted-foreground/50"
-                      >
-                        <div className="flex h-10 w-10 items-center justify-center rounded-full bg-muted">
+                    <li
+                      key={req.id}
+                      className="flex items-center gap-3 rounded-lg border border-border bg-card p-3"
+                    >
+                      <div className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-full bg-muted">
+                        {req.avatarUrl ? (
+                          <img src={req.avatarUrl} alt={req.displayName} className="h-full w-full object-cover" />
+                        ) : (
                           <UserPlus className="h-5 w-5 text-primary" aria-hidden />
-                        </div>
-                        <div className="min-w-0 flex-1">
-                          <p className="type-heading truncate">{req.username}</p>
-                          <p className="type-meta">Wants to be friends</p>
-                        </div>
-                      </Link>
+                        )}
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <p className="type-heading truncate">{req.displayName}</p>
+                        <p className="type-meta">Wants to be friends</p>
+                      </div>
+                      <div className="flex items-center gap-1.5">
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="outline"
+                          className="h-8 px-2"
+                          disabled={respondingFriendId === req.id}
+                          onClick={() => void respondFriendRequest(req.id, false)}
+                          aria-label={`Decline friend request from ${req.displayName}`}
+                        >
+                          <X className="h-3.5 w-3.5" />
+                        </Button>
+                        <Button
+                          type="button"
+                          size="sm"
+                          className="h-8 gap-1.5"
+                          disabled={respondingFriendId === req.id}
+                          onClick={() => void respondFriendRequest(req.id, true)}
+                          aria-label={`Accept friend request from ${req.displayName}`}
+                        >
+                          <Check className="h-3.5 w-3.5" />
+                          {respondingFriendId === req.id ? 'Adding…' : 'Accept'}
+                        </Button>
+                      </div>
                     </li>
                   ))}
                 </ul>
