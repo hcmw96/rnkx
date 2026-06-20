@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { invokePushNotify } from '@/lib/pushNotify';
 import { supabase } from '@/services/supabase';
 import { toast } from 'sonner';
 import { clubImageDisplayUrl } from '@/lib/clubImageUpload';
@@ -134,15 +133,6 @@ export default function DiscoverClubsPage() {
       if (memErr) {
         toast.error(memErr.message);
         return;
-      }
-
-      if (club.created_by !== athleteId) {
-        invokePushNotify('send-notification', {
-          athlete_id: club.created_by,
-          title: 'New club member',
-          message: `Someone joined ${club.name}.`,
-          path: `/app/leagues/${club.id}`,
-        });
       }
 
       toast.success(`Joined ${club.name}`);

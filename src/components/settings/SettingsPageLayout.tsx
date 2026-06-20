@@ -449,7 +449,7 @@ export function SettingsPageLayout(props: SettingsPageLayoutProps) {
                     {!athlete.is_premium ? (
                       <>
                         <p className="text-sm text-muted-foreground">
-                          Unlock friends, clubs, recovery insights, and more.
+                          Unlock friends leaderboards, clubs and the social side of RNKX
                         </p>
                         <Button
                           type="button"

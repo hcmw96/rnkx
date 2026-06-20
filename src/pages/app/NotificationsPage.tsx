@@ -211,15 +211,6 @@ export default function NotificationsPage() {
       if (error) {
         throw error;
       }
-      const acceptedInvite = clubInvites.find((c) => c.leagueId === leagueId);
-      if (acceptedInvite?.createdBy && acceptedInvite.createdBy !== athleteId) {
-        invokePushNotify('send-notification', {
-          athlete_id: acceptedInvite.createdBy,
-          title: 'Club invite accepted',
-          message: `Someone accepted your invite to ${acceptedInvite.leagueName}.`,
-          path: `/app/leagues/${acceptedInvite.leagueId}`,
-        });
-      }
       setClubInvites((prev) => prev.filter((c) => c.leagueId !== leagueId));
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Could not join club';
@@ -243,16 +234,6 @@ export default function NotificationsPage() {
 
       if (error) {
         throw error;
-      }
-
-      const declinedInvite = clubInvites.find((c) => c.leagueId === leagueId);
-      if (declinedInvite?.createdBy && declinedInvite.createdBy !== athleteId) {
-        invokePushNotify('send-notification', {
-          athlete_id: declinedInvite.createdBy,
-          title: 'Club invite declined',
-          message: `An invite to ${declinedInvite.leagueName} was declined.`,
-          path: `/app/leagues/${declinedInvite.leagueId}`,
-        });
       }
 
       setClubInvites((prev) => prev.filter((c) => c.leagueId !== leagueId));

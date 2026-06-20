@@ -5,7 +5,6 @@ import RNKXLogo from '@/components/RNKXLogo';
 import { Button } from '@/components/ui/button';
 import { PremiumGate } from '@/components/PremiumGate';
 import { JoinClubPreview } from '@/components/premium/PreviewMocks';
-import { invokePushNotify } from '@/lib/pushNotify';
 import { supabase } from '@/services/supabase';
 import { toast } from 'sonner';
 import { PENDING_LEAGUE_INVITE_SESSION_KEY } from '@/lib/shareLeagueInvite';
@@ -133,22 +132,6 @@ export default function JoinLeaguePage() {
       if (memErr) {
         toast.error(memErr.message);
         return;
-      }
-
-      const { data: leagueMeta } = await supabase
-        .from('private_leagues')
-        .select('created_by')
-        .eq('id', preview.id)
-        .maybeSingle();
-
-      const creatorId = (leagueMeta?.created_by as string | undefined) ?? null;
-      if (creatorId && creatorId !== athleteId) {
-        invokePushNotify('send-notification', {
-          athlete_id: creatorId,
-          title: 'Club invite accepted',
-          message: `Someone accepted your invite to ${preview.name}.`,
-          path: `/app/leagues/${preview.id}`,
-        });
       }
 
       try {

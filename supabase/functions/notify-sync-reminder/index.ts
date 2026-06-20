@@ -1,102 +1,43 @@
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
-import { getOneSignalApiKey, getOneSignalAppId } from '../_shared/onesignalEnv.ts';
-import { buildOneSignalPayload, pathFromUrl } from '../_shared/onesignalPush.ts';
-import { authenticateNotifyRequest, notifyCorsHeaders, notifyJson } from '../_shared/pushAuth.ts';
+import { authenticateNotifyRequest, createServiceRoleClient, notifyCorsHeaders, notifyJson } from '../_shared/pushAuth.ts';
+import { outcomeFromOneSignal, sendOneSignalPush } from '../_shared/onesignalSend.ts';
+import { pathFromUrl } from '../_shared/onesignalPush.ts';
+import { getOneSignalCredentials } from '../_shared/onesignalSend.ts';
 
-const SYNC_REMINDER_URL = 'https://rnkx.netlify.app/app/profile';
-const SYNC_REMINDER_PATH = pathFromUrl(SYNC_REMINDER_URL, '/app/profile');
+const SYNC_REMINDER_PATH = pathFromUrl('https://rnkx.netlify.app/app/profile', '/app/profile');
 
 type AthleteRow = {
   id: string;
   wearables: unknown;
-  last_synced: string | null;
 };
-
-function json(data: unknown, status = 200) {
-  return notifyJson(data, status);
-}
-
-const ONESIGNAL_API = 'https://onesignal.com/api/v1/notifications';
-
-function startOfTodayUtcIso(): string {
-  const d = new Date();
-  d.setUTCHours(0, 0, 0, 0);
-  return d.toISOString();
-}
 
 function hasAppleWatch(wearables: unknown): boolean {
   if (!Array.isArray(wearables)) return false;
-  return wearables.some((w) => {
-    const v = String(w).toLowerCase();
-    return v === 'apple_watch' || v === 'apple';
-  });
-}
-
-function isEligible(row: AthleteRow, todayStartIso: string): boolean {
-  if (!hasAppleWatch(row.wearables)) return false;
-  if (row.last_synced == null || row.last_synced === '') return true;
-  return row.last_synced < todayStartIso;
-}
-
-async function sendSyncReminderPush(
-  appId: string,
-  apiKey: string,
-  athleteId: string,
-): Promise<boolean> {
-  const osRes = await fetch(ONESIGNAL_API, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Key ${apiKey}`,
-    },
-    body: JSON.stringify(
-      buildOneSignalPayload({
-        appId,
-        externalUserIds: [athleteId],
-        title: 'Time to sync! ⚡',
-        message: 'Log your workouts to stay on the leaderboard',
-        path: SYNC_REMINDER_PATH,
-      }),
-    ),
-  });
-
-  if (!osRes.ok) {
-    const osJson = await osRes.json().catch(() => ({}));
-    console.error('[notify-sync-reminder] OneSignal', athleteId, osRes.status, osJson);
-    return false;
-  }
-
-  return true;
+  return wearables.some((w) => String(w).trim().toLowerCase() === 'apple_watch');
 }
 
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: notifyCorsHeaders });
   }
-
   if (req.method !== 'POST') {
-    return json({ error: 'Method not allowed' }, 405);
+    return notifyJson({ error: 'Method not allowed' }, 405);
   }
 
   const auth = await authenticateNotifyRequest(req);
   if (!auth || auth.kind !== 'service') {
-    return json({ error: 'Unauthorized' }, 401);
+    return notifyJson({ error: 'Unauthorized' }, 401);
   }
 
-  const supabaseUrl = Deno.env.get('SUPABASE_URL');
-  const serviceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
-  const appId = getOneSignalAppId();
-  const apiKey = getOneSignalApiKey();
-
-  if (!supabaseUrl || !serviceKey) {
-    console.error('[notify-sync-reminder] missing SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY');
-    return json({ error: 'Server misconfiguration' }, 500);
+  const supabase = createServiceRoleClient();
+  if (!supabase) {
+    console.error('[notify-sync-reminder] missing service role key');
+    return notifyJson({ error: 'Server misconfiguration' }, 500);
   }
-
-  if (!appId || !apiKey) {
+  if (!getOneSignalCredentials()) {
     console.error('[notify-sync-reminder] missing OneSignal credentials');
-    return json({ error: 'Server misconfiguration' }, 500);
+    return notifyJson({ error: 'Server misconfiguration' }, 500);
   }
 
   let body: { athlete_id?: string } = {};
@@ -106,39 +47,31 @@ serve(async (req) => {
       body = JSON.parse(raw) as { athlete_id?: string };
     }
   } catch {
-    return json({ error: 'Invalid JSON' }, 400);
+    return notifyJson({ error: 'Invalid JSON' }, 400);
   }
 
   const targetAthleteId = typeof body.athlete_id === 'string' ? body.athlete_id.trim() : '';
-  const todayStartIso = startOfTodayUtcIso();
-  const supabase = createClient(supabaseUrl, serviceKey);
 
   let candidates: AthleteRow[] = [];
 
   if (targetAthleteId) {
     const { data, error } = await supabase
       .from('athletes')
-      .select('id, wearables, last_synced')
+      .select('id, wearables')
       .eq('id', targetAthleteId)
       .maybeSingle();
 
     if (error) {
       console.error('[notify-sync-reminder] athlete lookup', error);
-      return json({ error: error.message }, 500);
+      return notifyJson({ error: error.message }, 500);
     }
-
-    if (data) {
-      candidates = [data as AthleteRow];
-    }
+    if (data) candidates = [data as AthleteRow];
   } else {
-    const { data, error } = await supabase
-      .from('athletes')
-      .select('id, wearables, last_synced')
-      .or(`last_synced.is.null,last_synced.lt.${todayStartIso}`);
+    const { data, error } = await supabase.from('athletes').select('id, wearables');
 
     if (error) {
       console.error('[notify-sync-reminder] list athletes', error);
-      return json({ error: error.message }, 500);
+      return notifyJson({ error: error.message }, 500);
     }
 
     candidates = (data ?? []) as AthleteRow[];
@@ -148,21 +81,29 @@ serve(async (req) => {
   let skipped = 0;
 
   for (const row of candidates) {
-    if (!isEligible(row, todayStartIso)) {
+    if (!hasAppleWatch(row.wearables)) {
       skipped += 1;
       continue;
     }
 
-    const ok = await sendSyncReminderPush(appId, apiKey, row.id);
-    if (ok) {
+    const osResult = await sendOneSignalPush({
+      appId: '',
+      externalUserIds: [String(row.id)],
+      title: 'Sync your workouts ⌚',
+      message: 'Sync before Sunday midnight GMT to make sure your workouts count this week.',
+      path: SYNC_REMINDER_PATH,
+    });
+
+    if (osResult.httpOk && !osResult.errors) {
       sent += 1;
       console.log('[notify-sync-reminder] sent', { athlete_id: row.id });
     } else {
       skipped += 1;
+      console.warn('[notify-sync-reminder] skip', { athlete_id: row.id, status: osResult.status, errors: osResult.errors });
     }
   }
 
   const summary = { sent, skipped };
   console.log('[notify-sync-reminder] summary', summary);
-  return json(summary);
+  return notifyJson(summary);
 });

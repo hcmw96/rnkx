@@ -1,5 +1,6 @@
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import { scheduleActivityScoringPushes } from '../_shared/pushAfterActivityScored.ts';
 
 const WHOOP_TOKEN_URL = 'https://api.prod.whoop.com/oauth/oauth2/token';
 const DEFAULT_CLIENT_ID = '35885b30-f053-4b61-813b-e63702f1c83a';
@@ -216,18 +217,22 @@ serve(async (req) => {
 
     const activityDate = startIso.split('T')[0] ?? startIso.slice(0, 10);
 
-    const { error: insErr } = await supabase.from('activities').insert({
-      athlete_id: conn.athlete_id,
-      season_id: season?.id ?? null,
-      league_type: 'engine',
-      activity_type: 'engine',
-      duration_minutes: durationMinutes,
-      avg_pace_seconds: null,
-      avg_hr_percent: avgHrPercent,
-      activity_date: activityDate,
-      source: 'whoop',
-      source_id: wid.toString(),
-    });
+    const { data: insertedRow, error: insErr } = await supabase
+      .from('activities')
+      .insert({
+        athlete_id: conn.athlete_id,
+        season_id: season?.id ?? null,
+        league_type: 'engine',
+        activity_type: 'engine',
+        duration_minutes: durationMinutes,
+        avg_pace_seconds: null,
+        avg_hr_percent: avgHrPercent,
+        activity_date: activityDate,
+        source: 'whoop',
+        source_id: wid.toString(),
+      })
+      .select('id')
+      .maybeSingle();
 
     if (insErr) {
       if (insErr.code === '23505') {
@@ -262,6 +267,17 @@ serve(async (req) => {
       }
     } catch (e) {
       console.warn('[whoop-webhook] max_hr live update skipped', e);
+    }
+
+    // After on_activity_inserted scoring — fire-and-forget; never block webhook response.
+    const activityId = insertedRow?.id != null ? String(insertedRow.id) : '';
+    if (activityId) {
+      scheduleActivityScoringPushes(
+        supabase,
+        String(conn.athlete_id),
+        [activityId],
+        'whoop-webhook',
+      );
     }
 
     return new Response(JSON.stringify({ status: 'inserted', workout_id: wid }), {
