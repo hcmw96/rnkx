@@ -29,10 +29,16 @@ function parseMaxHr(v: number | string | null | undefined): number | null {
   return Number.isFinite(n) && n > 0 ? Math.round(n) : null;
 }
 
+export type RunAppleWorkoutSyncOptions = {
+  /** Skip HealthKit read when workouts were already fetched (e.g. Settings sync toasts). */
+  workouts?: WorkoutObject[];
+};
+
 /** Read HealthKit on Despia iPhone and upload workouts via sync_apple_workouts RPC. */
 export async function runAppleWorkoutSync(
   athleteId: string,
   profile?: AppleWorkoutSyncProfile,
+  options?: RunAppleWorkoutSyncOptions,
 ): Promise<AppleWorkoutSyncResult> {
   const empty = (error: string): AppleWorkoutSyncResult => ({
     ok: false,
@@ -42,23 +48,28 @@ export async function runAppleWorkoutSync(
     error,
   });
 
-  const idle = await waitForHealthKitIdle(15_000);
-  if (!idle) {
-    return empty('HealthKit is busy — wait a moment and try again');
-  }
+  let workouts: WorkoutObject[];
+  if (options?.workouts) {
+    workouts = options.workouts;
+  } else {
+    const idle = await waitForHealthKitIdle(15_000);
+    if (!idle) {
+      return empty('HealthKit is busy — wait a moment and try again');
+    }
 
-  let syncData: Awaited<ReturnType<typeof fetchRecentWorkouts>>;
-  try {
-    syncData = await fetchRecentWorkouts();
-  } catch (err) {
-    return empty(String(err));
-  }
+    let syncData: Awaited<ReturnType<typeof fetchRecentWorkouts>>;
+    try {
+      syncData = await fetchRecentWorkouts();
+    } catch (err) {
+      return empty(String(err));
+    }
 
-  if (syncData.error) {
-    return empty(syncData.error);
-  }
+    if (syncData.error) {
+      return empty(syncData.error);
+    }
 
-  const workouts = syncData.workouts;
+    workouts = syncData.workouts;
+  }
   const { processed, results, error } = await syncAppleWorkoutsToDatabase(athleteId, workouts);
   if (error) {
     return empty(error);

@@ -44,14 +44,9 @@ import {
   tryAcquireHealthKit,
   waitForHealthKitIdle,
 } from '@/lib/healthKitSync';
-import {
-  inferMaxHrFromAppleWorkouts,
-  nextProfileMaxHrFromApple,
-  shouldApplyAppleMaxHrToProfile,
-} from '@/lib/appleMaxHr';
 import { useAchievementUnlock } from '@/context/AchievementUnlockContext';
 import { useScoreSharePrompt } from '@/context/ScoreSharePromptContext';
-import { syncAppleWorkoutsToDatabase } from '@/lib/syncActivitiesApple';
+import { runAppleWorkoutSync } from '@/lib/runAppleWorkoutSync';
 import { fetchRecentWorkouts } from '@/services/despia';
 import { presentPaywall, restoreInAppPurchasesAndApplyPremium } from '@/services/revenuecat';
 import { supabase } from '@/services/supabase';
@@ -380,48 +375,19 @@ export default function SettingsPage() {
         toast.message('Sync: uploading ' + workouts.length + ' workouts...');
 
         let processed = 0;
-        let syncResults: Awaited<ReturnType<typeof syncAppleWorkoutsToDatabase>>['results'] = [];
+        let syncResults: Awaited<ReturnType<typeof runAppleWorkoutSync>>['results'] = [];
         try {
-          const rpcResult = await supabase.rpc('sync_apple_workouts', {
-            p_athlete_id: athlete.id,
-            p_workouts: workouts,
-          });
-          toast.message('RPC response', {
-            description: JSON.stringify(rpcResult?.data ?? rpcResult?.error ?? 'no data').slice(0, 150),
-          });
-          if (rpcResult.error) {
-            toast.error('Step 2 failed: ' + rpcResult.error.message);
+          const syncOutcome = await runAppleWorkoutSync(
+            athlete.id,
+            { max_hr: athlete.max_hr, max_hr_source: athlete.max_hr_source },
+            { workouts },
+          );
+          if (!syncOutcome.ok) {
+            toast.error('Step 2 failed: ' + (syncOutcome.error ?? 'Sync failed'));
             return;
           }
-          const payload =
-            rpcResult.data && typeof rpcResult.data === 'object'
-              ? (rpcResult.data as Record<string, unknown>)
-              : null;
-          processed = payload && 'processed' in payload ? Number(payload.processed) || 0 : 0;
-          const rawResults = payload?.results;
-          syncResults = Array.isArray(rawResults)
-            ? (rawResults as Awaited<ReturnType<typeof syncAppleWorkoutsToDatabase>>['results'])
-            : [];
-
-          if (shouldApplyAppleMaxHrToProfile(athlete.max_hr_source)) {
-            const inferred = inferMaxHrFromAppleWorkouts(workouts);
-            const curMax = parseMaxHrDisplay(athlete.max_hr);
-            const nextMax = nextProfileMaxHrFromApple(curMax, inferred);
-            const needsMaxHrWrite =
-              nextMax !== null &&
-              (curMax !== nextMax || athlete.max_hr_source !== 'apple_watch');
-            if (needsMaxHrWrite) {
-              const { error: maxHrErr } = await supabase
-                .from('athletes')
-                .update({ max_hr: nextMax, max_hr_source: 'apple_watch' })
-                .eq('id', athlete.id);
-              if (!maxHrErr) {
-                setAthlete((prev) =>
-                  prev ? { ...prev, max_hr: nextMax, max_hr_source: 'apple_watch' } : prev,
-                );
-              }
-            }
-          }
+          processed = syncOutcome.processed;
+          syncResults = syncOutcome.results;
         } catch (err) {
           toast.error('Step 2 failed: ' + String(err));
           return;
