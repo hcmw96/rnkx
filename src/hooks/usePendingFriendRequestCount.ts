@@ -50,11 +50,14 @@ export function usePendingFriendRequestCount(): number {
       })
       .subscribe();
 
-    window.addEventListener(UNREAD_CHANGED_EVENT, fetchCount);
+    const onRefresh = () => void fetchCount();
+    window.addEventListener(UNREAD_CHANGED_EVENT, onRefresh);
+    document.addEventListener('visibilitychange', onRefresh);
 
     return () => {
       subscription.unsubscribe();
-      window.removeEventListener(UNREAD_CHANGED_EVENT, fetchCount);
+      window.removeEventListener(UNREAD_CHANGED_EVENT, onRefresh);
+      document.removeEventListener('visibilitychange', onRefresh);
       void supabase.removeChannel(channel);
     };
   }, [fetchCount]);

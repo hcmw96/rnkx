@@ -11,8 +11,9 @@ import {
 } from '@/lib/adminScoringOutcome';
 import {
   ADMIN_PASSWORD,
-  hasAdminUiAccess,
+  clearAdminPasswordSession,
   isAllowlistedAdminUsername,
+  prepareAdminAccess,
   resolveCurrentUsername,
   setAdminPasswordSession,
 } from '@/lib/adminAccess';
@@ -151,8 +152,15 @@ export default function AdminPage() {
 
   useEffect(() => {
     void (async () => {
-      const allowed = await hasAdminUiAccess();
-      setAuthed(allowed);
+      const { ok, username } = await prepareAdminAccess();
+      setAuthed(ok);
+      if (!ok && username && isAllowlistedAdminUsername(username)) {
+        setAuthError(
+          'Signed in as @' +
+            username +
+            ' but admin could not verify your account. Sign out and back in, or contact support.',
+        );
+      }
     })();
   }, []);
 
@@ -167,8 +175,14 @@ export default function AdminPage() {
       if (dashboardErr) {
         const msg = dashboardErr.message;
         if (/forbidden/i.test(msg)) {
+          clearAdminPasswordSession();
           setAuthed(false);
-          setAuthError('Your account is not authorized for admin. Contact support if this is unexpected.');
+          const username = await resolveCurrentUsername();
+          setAuthError(
+            username && isAllowlistedAdminUsername(username)
+              ? `Signed in as @${username} but the server rejected admin access. Apply the latest Supabase migration (admin link), sign out and back in, or contact support.`
+              : 'Your account is not authorized for admin. Contact support if this is unexpected.',
+          );
           setAthletes([]);
           setLeaderboardRows([]);
           setLoading(false);
@@ -354,14 +368,31 @@ export default function AdminPage() {
 
   async function handlePasswordSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
-    const username = await resolveCurrentUsername();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    if (!user) {
+      setAuthError('Sign in to your RNKX account first.');
+      return;
+    }
+
+    const { ok, username } = await prepareAdminAccess();
     const allowlisted = isAllowlistedAdminUsername(username);
 
-    if (password === ADMIN_PASSWORD && allowlisted) {
-      setAdminPasswordSession();
+    if (password === ADMIN_PASSWORD && ok) {
+      setAdminPasswordSession(user.id);
       setAuthed(true);
       setAuthError(null);
       setPassword('');
+      return;
+    }
+
+    if (password === ADMIN_PASSWORD && allowlisted && !ok) {
+      setAuthError(
+        username
+          ? `Signed in as @${username} but admin could not link your profile. Sign out and back in, or contact support.`
+          : 'Could not find your @sds8 athlete profile. Complete onboarding or contact support.',
+      );
       return;
     }
 
@@ -379,8 +410,8 @@ export default function AdminPage() {
         <section className="mx-auto mt-16 max-w-md rounded-lg border border-border bg-card p-5">
           <h1 className="type-section-label">Admin Access</h1>
           <p className="mt-2 text-sm text-muted-foreground">
-            Allowlisted accounts (e.g. sds8) can open admin automatically when signed in. Others need the admin
-            password.
+            Allowlisted accounts (e.g. @sds8) can open admin automatically when signed in. You may also enter the
+            admin password.
           </p>
           <form className="mt-4 space-y-3" onSubmit={handlePasswordSubmit}>
             <Input

@@ -15,7 +15,7 @@ import {
 } from '@/services/onesignal';
 import { supabase } from '@/services/supabase';
 import { resolveAthleteId } from '@/lib/resolveAthleteId';
-import { UNREAD_CHANGED_EVENT } from '@/lib/unreadMessages';
+import { notifyUnreadStateChanged, UNREAD_CHANGED_EVENT } from '@/lib/unreadMessages';
 import { formatDistanceToNow } from 'date-fns';
 import { toast } from 'sonner';
 
@@ -64,6 +64,7 @@ export default function NotificationsPage() {
       setFriendRequests([]);
       setChatNotifications([]);
       setLoading(false);
+      notifyUnreadStateChanged();
       return;
     }
 
@@ -74,6 +75,7 @@ export default function NotificationsPage() {
       setClubInvites([]);
       setChatNotifications([]);
       setLoading(false);
+      notifyUnreadStateChanged();
       return;
     }
     setAthleteId(aid);
@@ -154,6 +156,7 @@ export default function NotificationsPage() {
 
     setChatNotifications(chatItems);
     setLoading(false);
+    notifyUnreadStateChanged();
   }, []);
 
   useEffect(() => {
@@ -184,6 +187,7 @@ export default function NotificationsPage() {
       }
 
       setFriendRequests((prev) => prev.filter((r) => r.id !== rowId));
+      notifyUnreadStateChanged();
       toast.success(accept ? 'Friend added.' : 'Request declined.');
 
       if (accept && row?.athleteId) {
@@ -212,6 +216,7 @@ export default function NotificationsPage() {
         throw error;
       }
       setClubInvites((prev) => prev.filter((c) => c.leagueId !== leagueId));
+      notifyUnreadStateChanged();
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Could not join club';
       toast.error(msg);
@@ -237,6 +242,7 @@ export default function NotificationsPage() {
       }
 
       setClubInvites((prev) => prev.filter((c) => c.leagueId !== leagueId));
+      notifyUnreadStateChanged();
     } catch (err) {
       console.warn('[notifications] decline club invite failed', err);
     } finally {
