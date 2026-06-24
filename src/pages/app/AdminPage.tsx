@@ -10,12 +10,11 @@ import {
   type ScoringOutcome,
 } from '@/lib/adminScoringOutcome';
 import {
-  ADMIN_PASSWORD,
   clearAdminPasswordSession,
   isAllowlistedAdminUsername,
   prepareAdminAccess,
   resolveCurrentUsername,
-  setAdminPasswordSession,
+  signInForAdminAccess,
 } from '@/lib/adminAccess';
 import { supabase } from '@/services/supabase';
 
@@ -133,8 +132,11 @@ function buildWearableDisplay(athlete: AthleteRow, summary: ConnectionSummary | 
 
 export default function AdminPage() {
   const [authed, setAuthed] = useState(false);
+  const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [authError, setAuthError] = useState<string | null>(null);
+  const [authLoading, setAuthLoading] = useState(false);
+  const [signedInEmail, setSignedInEmail] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -152,14 +154,22 @@ export default function AdminPage() {
 
   useEffect(() => {
     void (async () => {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      setSignedInEmail(user?.email ?? null);
+      if (user?.email) setEmail(user.email);
+
       const { ok, username } = await prepareAdminAccess();
       setAuthed(ok);
       if (!ok && username && isAllowlistedAdminUsername(username)) {
         setAuthError(
           'Signed in as @' +
             username +
-            ' but admin could not verify your account. Sign out and back in, or contact support.',
+            ' but admin could not verify your account. Try signing in again below, or contact support.',
         );
+      } else if (!ok && user && !username) {
+        setAuthError('Signed in, but your account is not linked to an admin profile. Sign in again with your @sds8 email.');
       }
     })();
   }, []);
@@ -366,42 +376,38 @@ export default function AdminPage() {
     return [...workoutsRows, ...activitiesRows].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
   }, [detailActivities, detailTab, detailWorkouts, selectedAthlete]);
 
-  async function handlePasswordSubmit(e: FormEvent<HTMLFormElement>) {
+  async function handleSignInSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
+    setAuthLoading(true);
+    setAuthError(null);
+
+    const result = await signInForAdminAccess(email, password);
+    setAuthLoading(false);
+
+    if (!result.ok) {
+      setAuthError(result.error);
+      return;
+    }
+
     const {
       data: { user },
     } = await supabase.auth.getUser();
-    if (!user) {
-      setAuthError('Sign in to your RNKX account first.');
-      return;
-    }
+    setSignedInEmail(user?.email ?? null);
+    setAuthed(true);
+    setAuthError(null);
+    setPassword('');
+  }
 
-    const { ok, username } = await prepareAdminAccess();
-    const allowlisted = isAllowlistedAdminUsername(username);
-
-    if (password === ADMIN_PASSWORD && ok) {
-      setAdminPasswordSession(user.id);
-      setAuthed(true);
-      setAuthError(null);
-      setPassword('');
-      return;
-    }
-
-    if (password === ADMIN_PASSWORD && allowlisted && !ok) {
-      setAuthError(
-        username
-          ? `Signed in as @${username} but admin could not link your profile. Sign out and back in, or contact support.`
-          : 'Could not find your @sds8 athlete profile. Complete onboarding or contact support.',
-      );
-      return;
-    }
-
-    if (password === ADMIN_PASSWORD && !allowlisted) {
-      setAuthError('Correct password, but your RNKX username is not on the admin allowlist.');
-      return;
-    }
-
-    setAuthError('Incorrect password');
+  async function handleSignOut() {
+    setAuthLoading(true);
+    clearAdminPasswordSession();
+    await supabase.auth.signOut();
+    setAuthed(false);
+    setSignedInEmail(null);
+    setEmail('');
+    setPassword('');
+    setAuthError(null);
+    setAuthLoading(false);
   }
 
   if (!authed) {
@@ -410,21 +416,40 @@ export default function AdminPage() {
         <section className="mx-auto mt-16 max-w-md rounded-lg border border-border bg-card p-5">
           <h1 className="type-section-label">Admin Access</h1>
           <p className="mt-2 text-sm text-muted-foreground">
-            Allowlisted accounts (e.g. @sds8) can open admin automatically when signed in. You may also enter the
-            admin password.
+            Sign in with your RNKX email and password. Allowlisted accounts (e.g. @sds8) can open the admin dashboard
+            after sign-in.
           </p>
-          <form className="mt-4 space-y-3" onSubmit={handlePasswordSubmit}>
+          {signedInEmail ? (
+            <p className="mt-3 text-sm text-muted-foreground">
+              Currently signed in as <span className="text-foreground">{signedInEmail}</span>
+            </p>
+          ) : null}
+          <form className="mt-4 space-y-3" onSubmit={handleSignInSubmit}>
+            <Input
+              type="email"
+              value={email}
+              onChange={(event) => setEmail(event.target.value)}
+              placeholder="Email"
+              autoComplete="email"
+              disabled={authLoading}
+            />
             <Input
               type="password"
               value={password}
               onChange={(event) => setPassword(event.target.value)}
-              placeholder="Admin password"
+              placeholder="Password"
               autoComplete="current-password"
+              disabled={authLoading}
             />
             {authError ? <p className="text-sm text-destructive">{authError}</p> : null}
-            <Button type="submit" className="w-full">
-              Unlock dashboard
+            <Button type="submit" className="w-full" disabled={authLoading}>
+              {authLoading ? 'Signing in…' : 'Sign in to admin'}
             </Button>
+            {signedInEmail ? (
+              <Button type="button" variant="outline" className="w-full" disabled={authLoading} onClick={handleSignOut}>
+                Sign out
+              </Button>
+            ) : null}
           </form>
         </section>
       </AppShell>

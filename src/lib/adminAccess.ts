@@ -1,4 +1,4 @@
-import { clearAthleteIdCache, resolveAthleteId } from '@/lib/resolveAthleteId';
+import { clearAthleteIdCache } from '@/lib/resolveAthleteId';
 import { supabase } from '@/services/supabase';
 
 export const ADMIN_STORAGE_KEY = 'rnkx_admin_auth';
@@ -41,18 +41,31 @@ export function clearAdminPasswordSession(): void {
   }
 }
 
+async function resolveAthleteForCaller(
+  authUserId: string,
+): Promise<{ athleteId: string | null; username: string | null }> {
+  const { data: rows } = await supabase
+    .from('athletes')
+    .select('id, username')
+    .or(`user_id.eq.${authUserId},id.eq.${authUserId}`);
+
+  if (!rows?.length) return { athleteId: null, username: null };
+
+  const allowlisted = rows.find((row) => isAllowlistedAdminUsername(row.username));
+  const pick = allowlisted ?? rows[0];
+  const username =
+    typeof pick.username === 'string' && pick.username.trim() ? pick.username.trim().toLowerCase() : null;
+  return { athleteId: pick.id, username };
+}
+
 export async function resolveCurrentUsername(): Promise<string | null> {
   const {
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) return null;
 
-  const athleteId = await resolveAthleteId(user.id);
-  if (!athleteId) return null;
-
-  const { data } = await supabase.from('athletes').select('username').eq('id', athleteId).maybeSingle();
-  const username = data?.username;
-  return typeof username === 'string' && username.trim() ? username.trim().toLowerCase() : null;
+  const { username } = await resolveAthleteForCaller(user.id);
+  return username;
 }
 
 export function isAllowlistedAdminUsername(username: string | null | undefined): boolean {
@@ -61,13 +74,18 @@ export function isAllowlistedAdminUsername(username: string | null | undefined):
 }
 
 /** Link auth user to athlete row and verify server-side allowlist will accept them. */
-export async function prepareAdminAccess(): Promise<{ ok: boolean; username: string | null }> {
+export async function prepareAdminAccess(): Promise<{
+  ok: boolean;
+  username: string | null;
+  email: string | null;
+}> {
   const {
     data: { user },
   } = await supabase.auth.getUser();
-  if (!user) return { ok: false, username: null };
+  if (!user) return { ok: false, username: null, email: null };
 
-  let athleteId = await resolveAthleteId(user.id);
+  let { athleteId, username } = await resolveAthleteForCaller(user.id);
+
   if (athleteId) {
     await supabase.rpc('ensure_athlete_user_id', { p_athlete_id: athleteId });
   } else {
@@ -76,15 +94,57 @@ export async function prepareAdminAccess(): Promise<{ ok: boolean; username: str
       console.warn('[admin] link_allowlisted_athlete_for_caller', linkErr.message);
     }
     clearAthleteIdCache();
-    athleteId = await resolveAthleteId(user.id);
+    ({ athleteId, username } = await resolveAthleteForCaller(user.id));
     if (athleteId) {
       await supabase.rpc('ensure_athlete_user_id', { p_athlete_id: athleteId });
+      const refreshed = await resolveAthleteForCaller(user.id);
+      athleteId = refreshed.athleteId;
+      username = refreshed.username;
     }
   }
 
-  const username = await resolveCurrentUsername();
   const ok = isAllowlistedAdminUsername(username) && athleteId != null;
-  return { ok, username };
+  return { ok, username, email: user.email ?? null };
+}
+
+/** Sign in with RNKX credentials, then link allowlisted athlete profile if needed. */
+export async function signInForAdminAccess(
+  email: string,
+  password: string,
+): Promise<{ ok: boolean; username: string | null; error: string | null }> {
+  const trimmedEmail = email.trim();
+  if (!trimmedEmail || !password) {
+    return { ok: false, username: null, error: 'Enter your RNKX email and password.' };
+  }
+
+  clearAthleteIdCache();
+  clearAdminPasswordSession();
+
+  const { error: signInErr } = await supabase.auth.signInWithPassword({
+    email: trimmedEmail,
+    password,
+  });
+  if (signInErr) {
+    return { ok: false, username: null, error: signInErr.message };
+  }
+
+  const { ok, username } = await prepareAdminAccess();
+  if (!ok) {
+    return {
+      ok: false,
+      username,
+      error: username
+        ? `Signed in as @${username}, but that account is not on the admin allowlist.`
+        : 'Signed in, but no @sds8 athlete profile is linked to this account. Contact support to link your profile.',
+    };
+  }
+
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (user) setAdminPasswordSession(user.id);
+
+  return { ok: true, username, error: null };
 }
 
 export async function hasAdminUiAccess(): Promise<boolean> {
