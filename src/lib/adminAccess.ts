@@ -106,7 +106,7 @@ function resolveAuthEmail(user: {
   return null;
 }
 
-function formatAdminAccessDeniedMessage(username: string | null, email: string | null): string {
+export function formatAdminAccessDeniedMessage(username: string | null, email: string | null): string {
   const parts: string[] = [];
   if (email) parts.push(email);
   if (username) parts.push(`@${username}`);
@@ -121,16 +121,29 @@ export function isAllowlistedAdminCaller(
   return isAllowlistedAdminUsername(username) || isAllowlistedAdminEmail(email);
 }
 
+/** Server-side allowlist (Postgres). Preferred over client Sets — avoids deploy drift. */
+async function checkServerAdminAllowed(): Promise<boolean | null> {
+  const { data, error } = await supabase.rpc('admin_is_caller_allowed');
+  if (error) {
+    console.warn('[admin] admin_is_caller_allowed', error.message);
+    return null;
+  }
+  return data === true;
+}
+
 /** Link auth user to athlete row and verify server-side allowlist will accept them. */
-export async function prepareAdminAccess(): Promise<{
+export async function prepareAdminAccess(options?: {
+  fallbackEmail?: string | null;
+}): Promise<{
   ok: boolean;
   username: string | null;
   email: string | null;
+  serverAllowed: boolean | null;
 }> {
   const {
     data: { user },
   } = await supabase.auth.getUser();
-  if (!user) return { ok: false, username: null, email: null };
+  if (!user) return { ok: false, username: null, email: null, serverAllowed: null };
 
   let { athleteId, username } = await resolveAthleteForCaller(user.id);
 
@@ -151,9 +164,13 @@ export async function prepareAdminAccess(): Promise<{
     }
   }
 
-  const email = resolveAuthEmail(user);
-  const ok = isAllowlistedAdminCaller(username, email);
-  return { ok, username, email };
+  const email =
+    resolveAuthEmail(user) ?? options?.fallbackEmail?.trim().toLowerCase() ?? null;
+  const serverAllowed = await checkServerAdminAllowed();
+  const ok =
+    serverAllowed === true ||
+    (serverAllowed === null && isAllowlistedAdminCaller(username, email));
+  return { ok, username, email, serverAllowed };
 }
 
 /** Sign in with RNKX credentials, then link allowlisted athlete profile if needed. */
@@ -177,7 +194,9 @@ export async function signInForAdminAccess(
     return { ok: false, username: null, error: signInErr.message };
   }
 
-  const { ok, username, email } = await prepareAdminAccess();
+  const { ok, username, email, serverAllowed } = await prepareAdminAccess({
+    fallbackEmail: trimmedEmail,
+  });
   if (!ok) {
     return {
       ok: false,

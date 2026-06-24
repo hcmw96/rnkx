@@ -11,8 +11,8 @@ import {
 } from '@/lib/adminScoringOutcome';
 import {
   clearAdminPasswordSession,
+  formatAdminAccessDeniedMessage,
   isAllowlistedAdminCaller,
-  isAllowlistedAdminUsername,
   prepareAdminAccess,
   resolveCurrentUsername,
   signInForAdminAccess,
@@ -161,17 +161,15 @@ export default function AdminPage() {
       setSignedInEmail(user?.email ?? null);
       if (user?.email) setEmail(user.email);
 
-      const { ok, username } = await prepareAdminAccess();
+      const { ok, username, email, serverAllowed } = await prepareAdminAccess({
+        fallbackEmail: user?.email ?? email,
+      });
       setAuthed(ok);
-      if (!ok && username && isAllowlistedAdminUsername(username)) {
+      if (!ok && serverAllowed === false) {
+        setAuthError(formatAdminAccessDeniedMessage(username, email));
+      } else if (!ok && user) {
         setAuthError(
-          'Signed in as @' +
-            username +
-            ' but admin could not verify your account. Try signing in again below, or contact support.',
-        );
-      } else if (!ok && user && !isAllowlistedAdminCaller(username, user.email)) {
-        setAuthError(
-          `Signed in as ${user.email ?? 'unknown'}${username ? ` / @${username}` : ''}, but that account is not on the admin allowlist.`,
+          `Could not verify admin access for ${email || user.email || 'your account'}. Try signing in again.`,
         );
       }
     })();
