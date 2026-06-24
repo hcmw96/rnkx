@@ -175,10 +175,10 @@ export async function prepareAdminAccess(options?: {
 
 /** Sign in with RNKX credentials, then link allowlisted athlete profile if needed. */
 export async function signInForAdminAccess(
-  email: string,
+  signInEmail: string,
   password: string,
 ): Promise<{ ok: boolean; username: string | null; error: string | null }> {
-  const trimmedEmail = email.trim();
+  const trimmedEmail = signInEmail.trim();
   if (!trimmedEmail || !password) {
     return { ok: false, username: null, error: 'Enter your RNKX email and password.' };
   }
@@ -194,14 +194,14 @@ export async function signInForAdminAccess(
     return { ok: false, username: null, error: signInErr.message };
   }
 
-  const { ok, username, email, serverAllowed } = await prepareAdminAccess({
+  const { ok, username, email: resolvedEmail } = await prepareAdminAccess({
     fallbackEmail: trimmedEmail,
   });
   if (!ok) {
     return {
       ok: false,
       username,
-      error: formatAdminAccessDeniedMessage(username, email),
+      error: formatAdminAccessDeniedMessage(username, resolvedEmail),
     };
   }
 

@@ -161,15 +161,15 @@ export default function AdminPage() {
       setSignedInEmail(user?.email ?? null);
       if (user?.email) setEmail(user.email);
 
-      const { ok, username, email, serverAllowed } = await prepareAdminAccess({
-        fallbackEmail: user?.email ?? email,
+      const { ok, username, email: resolvedEmail, serverAllowed } = await prepareAdminAccess({
+        fallbackEmail: user?.email,
       });
       setAuthed(ok);
       if (!ok && serverAllowed === false) {
-        setAuthError(formatAdminAccessDeniedMessage(username, email));
+        setAuthError(formatAdminAccessDeniedMessage(username, resolvedEmail));
       } else if (!ok && user) {
         setAuthError(
-          `Could not verify admin access for ${email || user.email || 'your account'}. Try signing in again.`,
+          `Could not verify admin access for ${resolvedEmail || user.email || 'your account'}. Try signing in again.`,
         );
       }
     })();
