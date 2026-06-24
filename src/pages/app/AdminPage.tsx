@@ -170,7 +170,9 @@ export default function AdminPage() {
             ' but admin could not verify your account. Try signing in again below, or contact support.',
         );
       } else if (!ok && user && !isAllowlistedAdminCaller(username, user.email)) {
-        setAuthError('Signed in, but your account is not on the admin allowlist.');
+        setAuthError(
+          `Signed in as ${user.email ?? 'unknown'}${username ? ` / @${username}` : ''}, but that account is not on the admin allowlist.`,
+        );
       }
     })();
   }, []);

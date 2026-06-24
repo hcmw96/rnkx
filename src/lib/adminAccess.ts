@@ -8,7 +8,11 @@ export const ADMIN_PASSWORD = 'rnkx_admin_2026';
 export const ADMIN_USERNAMES = new Set(['sds8', 'shaunsmith', 'henry', 'henryw']);
 
 /** Auth emails that may use admin (must match Postgres admin_is_caller_allowed). */
-export const ADMIN_EMAILS = new Set(['shaun@hsmithplc.com']);
+export const ADMIN_EMAILS = new Set([
+  'shaun@hsmithplc.com',
+  'shaunsmith1031@icloud.com',
+  'shaunsmith1031@gmail.com',
+]);
 
 function adminSessionKey(authUserId: string): string {
   return `${ADMIN_PASSWORD}:${authUserId}`;
@@ -81,6 +85,35 @@ export function isAllowlistedAdminEmail(email: string | null | undefined): boole
   return ADMIN_EMAILS.has(email.trim().toLowerCase());
 }
 
+function resolveAuthEmail(user: {
+  email?: string | null;
+  user_metadata?: Record<string, unknown>;
+  identities?: { identity_data?: Record<string, unknown> }[];
+}): string | null {
+  const direct = user.email?.trim().toLowerCase();
+  if (direct) return direct;
+
+  const meta = user.user_metadata?.email;
+  if (typeof meta === 'string' && meta.trim()) return meta.trim().toLowerCase();
+
+  for (const identity of user.identities ?? []) {
+    const identityEmail = identity.identity_data?.email;
+    if (typeof identityEmail === 'string' && identityEmail.trim()) {
+      return identityEmail.trim().toLowerCase();
+    }
+  }
+
+  return null;
+}
+
+function formatAdminAccessDeniedMessage(username: string | null, email: string | null): string {
+  const parts: string[] = [];
+  if (email) parts.push(email);
+  if (username) parts.push(`@${username}`);
+  const who = parts.length > 0 ? parts.join(' / ') : 'this account';
+  return `Signed in as ${who}, but that account is not on the admin allowlist. Try shaun@hsmithplc.com if you used a different email.`;
+}
+
 export function isAllowlistedAdminCaller(
   username: string | null | undefined,
   email: string | null | undefined,
@@ -118,10 +151,8 @@ export async function prepareAdminAccess(): Promise<{
     }
   }
 
-  const email = user.email?.trim().toLowerCase() ?? null;
-  const ok =
-    isAllowlistedAdminEmail(email) ||
-    (isAllowlistedAdminUsername(username) && athleteId != null);
+  const email = resolveAuthEmail(user);
+  const ok = isAllowlistedAdminCaller(username, email);
   return { ok, username, email };
 }
 
@@ -151,10 +182,7 @@ export async function signInForAdminAccess(
     return {
       ok: false,
       username,
-      error:
-        username && !isAllowlistedAdminCaller(username, email)
-          ? `Signed in as @${username}, but that account is not on the admin allowlist.`
-          : 'Signed in, but your account is not on the admin allowlist. Contact support if this is unexpected.',
+      error: formatAdminAccessDeniedMessage(username, email),
     };
   }
 
