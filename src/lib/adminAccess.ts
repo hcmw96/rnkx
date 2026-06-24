@@ -7,6 +7,9 @@ export const ADMIN_PASSWORD = 'rnkx_admin_2026';
 /** Usernames that may use admin (must match Postgres admin_is_caller_allowed). */
 export const ADMIN_USERNAMES = new Set(['sds8', 'henry', 'henryw']);
 
+/** Auth emails that may use admin (must match Postgres admin_is_caller_allowed). */
+export const ADMIN_EMAILS = new Set(['shaun@hsmithplc.com']);
+
 function adminSessionKey(authUserId: string): string {
   return `${ADMIN_PASSWORD}:${authUserId}`;
 }
@@ -73,6 +76,18 @@ export function isAllowlistedAdminUsername(username: string | null | undefined):
   return ADMIN_USERNAMES.has(username.trim().toLowerCase());
 }
 
+export function isAllowlistedAdminEmail(email: string | null | undefined): boolean {
+  if (!email) return false;
+  return ADMIN_EMAILS.has(email.trim().toLowerCase());
+}
+
+export function isAllowlistedAdminCaller(
+  username: string | null | undefined,
+  email: string | null | undefined,
+): boolean {
+  return isAllowlistedAdminUsername(username) || isAllowlistedAdminEmail(email);
+}
+
 /** Link auth user to athlete row and verify server-side allowlist will accept them. */
 export async function prepareAdminAccess(): Promise<{
   ok: boolean;
@@ -103,8 +118,11 @@ export async function prepareAdminAccess(): Promise<{
     }
   }
 
-  const ok = isAllowlistedAdminUsername(username) && athleteId != null;
-  return { ok, username, email: user.email ?? null };
+  const email = user.email?.trim().toLowerCase() ?? null;
+  const ok =
+    isAllowlistedAdminEmail(email) ||
+    (isAllowlistedAdminUsername(username) && athleteId != null);
+  return { ok, username, email };
 }
 
 /** Sign in with RNKX credentials, then link allowlisted athlete profile if needed. */
@@ -128,14 +146,15 @@ export async function signInForAdminAccess(
     return { ok: false, username: null, error: signInErr.message };
   }
 
-  const { ok, username } = await prepareAdminAccess();
+  const { ok, username, email } = await prepareAdminAccess();
   if (!ok) {
     return {
       ok: false,
       username,
-      error: username
-        ? `Signed in as @${username}, but that account is not on the admin allowlist.`
-        : 'Signed in, but no @sds8 athlete profile is linked to this account. Contact support to link your profile.',
+      error:
+        username && !isAllowlistedAdminCaller(username, email)
+          ? `Signed in as @${username}, but that account is not on the admin allowlist.`
+          : 'Signed in, but your account is not on the admin allowlist. Contact support if this is unexpected.',
     };
   }
 

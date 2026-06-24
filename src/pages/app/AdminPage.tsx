@@ -11,6 +11,7 @@ import {
 } from '@/lib/adminScoringOutcome';
 import {
   clearAdminPasswordSession,
+  isAllowlistedAdminCaller,
   isAllowlistedAdminUsername,
   prepareAdminAccess,
   resolveCurrentUsername,
@@ -168,8 +169,8 @@ export default function AdminPage() {
             username +
             ' but admin could not verify your account. Try signing in again below, or contact support.',
         );
-      } else if (!ok && user && !username) {
-        setAuthError('Signed in, but your account is not linked to an admin profile. Sign in again with your @sds8 email.');
+      } else if (!ok && user && !isAllowlistedAdminCaller(username, user.email)) {
+        setAuthError('Signed in, but your account is not on the admin allowlist.');
       }
     })();
   }, []);
@@ -188,9 +189,12 @@ export default function AdminPage() {
           clearAdminPasswordSession();
           setAuthed(false);
           const username = await resolveCurrentUsername();
+          const {
+            data: { user: authUser },
+          } = await supabase.auth.getUser();
           setAuthError(
-            username && isAllowlistedAdminUsername(username)
-              ? `Signed in as @${username} but the server rejected admin access. Apply the latest Supabase migration (admin link), sign out and back in, or contact support.`
+            isAllowlistedAdminCaller(username, authUser?.email ?? null)
+              ? `Signed in but the server rejected admin access. Apply the latest Supabase migration (admin allowlist), sign out and back in, or contact support.`
               : 'Your account is not authorized for admin. Contact support if this is unexpected.',
           );
           setAthletes([]);
