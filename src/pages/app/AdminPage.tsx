@@ -420,7 +420,7 @@ export default function AdminPage() {
         <section className="mx-auto mt-16 max-w-md rounded-lg border border-border bg-card p-5">
           <h1 className="type-section-label">Admin Access</h1>
           <p className="mt-2 text-sm text-muted-foreground">
-            Sign in with your RNKX email and password. Allowlisted accounts (e.g. @sds8) can open the admin dashboard
+            Sign in with your RNKX email and password. Allowlisted accounts (e.g. @shaunsmith) can open the admin dashboard
             after sign-in.
           </p>
           {signedInEmail ? (

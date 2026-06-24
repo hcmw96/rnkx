@@ -5,7 +5,7 @@ export const ADMIN_STORAGE_KEY = 'rnkx_admin_auth';
 export const ADMIN_PASSWORD = 'rnkx_admin_2026';
 
 /** Usernames that may use admin (must match Postgres admin_is_caller_allowed). */
-export const ADMIN_USERNAMES = new Set(['sds8', 'henry', 'henryw']);
+export const ADMIN_USERNAMES = new Set(['sds8', 'shaunsmith', 'henry', 'henryw']);
 
 /** Auth emails that may use admin (must match Postgres admin_is_caller_allowed). */
 export const ADMIN_EMAILS = new Set(['shaun@hsmithplc.com']);
