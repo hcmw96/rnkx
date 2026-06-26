@@ -158,8 +158,9 @@ export function WeeklyStackedAreaChart({
   const showRun = !singleLeague || singleLeague === 'run';
   const allowDecimals = valueSuffix === ' ppm';
   const stackId = singleLeague ? undefined : 'week';
-  // Stacked Run stroke traces the combined stack top, so engine-only days read as Run (cyan).
+  // Stacked Run stroke/fill use monotone curves — Run bleeds onto engine-only days (cyan on strength).
   const isStacked = stackId != null;
+  const areaCurve = isStacked ? 'linear' : 'monotone';
 
   const yAxis = useMemo(() => {
     const maxValue = chartMaxValue(data, stack.engineKey, stack.runKey, singleLeague);
@@ -219,20 +220,24 @@ export function WeeklyStackedAreaChart({
           ) : null}
           {showEngine ? (
             <Area
-              type="monotone"
+              type={areaCurve}
               dataKey={stack.engineKey}
               name="Engine"
               stackId={stackId}
               stroke={ENGINE_CHART_COLOR}
-              strokeWidth={2}
+              strokeWidth={isStacked ? 0 : 2}
               fill={`url(#${engineFillId})`}
               dot={false}
-              activeDot={{ r: 3, fill: ENGINE_CHART_COLOR, stroke: '#0a0a0a', strokeWidth: 1.5 }}
+              activeDot={
+                isStacked
+                  ? false
+                  : { r: 3, fill: ENGINE_CHART_COLOR, stroke: '#0a0a0a', strokeWidth: 1.5 }
+              }
             />
           ) : null}
           {showRun ? (
             <Area
-              type="monotone"
+              type={areaCurve}
               dataKey={stack.runKey}
               name="Run"
               stackId={stackId}
