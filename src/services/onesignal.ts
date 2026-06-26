@@ -55,6 +55,9 @@ export async function registerPushForAthlete(athleteId: string): Promise<PushReg
   }
 
   await despia(`setonesignalplayerid://?user_id=${encodeURIComponent(userId)}`);
+  await new Promise((resolve) => window.setTimeout(resolve, LINK_SETTLE_MS));
+  // Repeat link — the native SDK occasionally misses the first write during HealthKit sync.
+  await despia(`setonesignalplayerid://?user_id=${encodeURIComponent(userId)}`);
 
   let nativePushEnabled = await checkNativePushEnabled();
 
@@ -68,7 +71,7 @@ export async function registerPushForAthlete(athleteId: string): Promise<PushReg
   }
 
   // Give the native OneSignal SDK time to persist external_id after linking.
-  await new Promise((resolve) => window.setTimeout(resolve, LINK_SETTLE_MS));
+  await new Promise((resolve) => window.setTimeout(resolve, 800));
 
   console.log('[OneSignal] linked', { athleteId: userId, nativePushEnabled });
   return { permission: nativePushEnabled, linkedAttempted: true };

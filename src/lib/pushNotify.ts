@@ -17,7 +17,19 @@ export function invokePushNotify(functionName: string, body: Record<string, unkn
       console.warn(`[Push] ${functionName} invoke error:`, error.message);
       return;
     }
-    const payload = data as { success?: boolean; error?: unknown } | null;
+    const payload = data as {
+      success?: boolean;
+      partial?: boolean;
+      error?: unknown;
+      errors?: unknown;
+    } | null;
+    if (payload?.partial === true) {
+      console.warn(
+        `[Push] ${functionName} partial (device not subscribed):`,
+        payload.errors ?? payload.error ?? payload,
+      );
+      return;
+    }
     if (payload && payload.success === false) {
       console.warn(`[Push] ${functionName} rejected:`, payload.error ?? payload);
     }

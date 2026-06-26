@@ -119,12 +119,14 @@ function ChartTooltip({
 }) {
   if (!active || !payload?.length) return null;
   const fmt = formatValue ?? ((v: number) => defaultFormat(v, valueSuffix));
+  const visible = payload.filter((entry) => Number(entry.value) > 0);
+  if (!visible.length) return null;
 
   return (
     <div className="rounded-lg border border-border/80 bg-[hsla(0,0%,8%,0.95)] px-3 py-2 shadow-xl backdrop-blur-sm">
       <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{label}</p>
       <ul className="mt-1 space-y-0.5">
-        {payload.map((entry) => (
+        {visible.map((entry) => (
           <li key={entry.dataKey} className="flex items-center gap-2 text-xs">
             <span className="h-2 w-2 rounded-full" style={{ backgroundColor: entry.color }} />
             <span className="text-muted-foreground">{entry.name}</span>
@@ -156,6 +158,8 @@ export function WeeklyStackedAreaChart({
   const showRun = !singleLeague || singleLeague === 'run';
   const allowDecimals = valueSuffix === ' ppm';
   const stackId = singleLeague ? undefined : 'week';
+  // Stacked Run stroke traces the combined stack top, so engine-only days read as Run (cyan).
+  const isStacked = stackId != null;
 
   const yAxis = useMemo(() => {
     const maxValue = chartMaxValue(data, stack.engineKey, stack.runKey, singleLeague);
@@ -232,11 +236,15 @@ export function WeeklyStackedAreaChart({
               dataKey={stack.runKey}
               name="Run"
               stackId={stackId}
-              stroke={RUN_CHART_COLOR}
-              strokeWidth={2}
+              stroke={isStacked ? 'none' : RUN_CHART_COLOR}
+              strokeWidth={isStacked ? 0 : 2}
               fill={`url(#${runFillId})`}
               dot={false}
-              activeDot={{ r: 3, fill: RUN_CHART_COLOR, stroke: '#0a0a0a', strokeWidth: 1.5 }}
+              activeDot={
+                isStacked
+                  ? false
+                  : { r: 3, fill: RUN_CHART_COLOR, stroke: '#0a0a0a', strokeWidth: 1.5 }
+              }
             />
           ) : null}
         </AreaChart>

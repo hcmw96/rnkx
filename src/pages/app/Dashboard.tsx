@@ -36,6 +36,7 @@ import { runAppleWorkoutSync } from '@/lib/runAppleWorkoutSync';
 import { PREVIEW_COACH_SUMMARY, PREVIEW_RECENT_WORKOUTS, PREVIEW_WEEKLY_INSIGHTS } from '@/lib/dashboardPreviewData';
 import { getDashboardCache, setDashboardCache } from '@/lib/routeCaches';
 import { getAuthUserId } from '@/lib/authSession';
+import { resolveAthleteId } from '@/lib/resolveAthleteId';
 import { supabase } from '@/services/supabase';
 
 const SYNC_STALE_MS = 24 * 60 * 60 * 1000;
@@ -448,10 +449,16 @@ export default function Dashboard() {
       return;
     }
 
+    const syncAthleteId = athleteId ?? (await resolveAthleteId(userId));
+    if (!syncAthleteId) {
+      toast.error('Could not find your athlete profile.');
+      return;
+    }
+
     setSyncing(true);
     try {
       toast.message('Syncing workouts…');
-      const result = await runAppleWorkoutSync(userId, {
+      const result = await runAppleWorkoutSync(syncAthleteId, {
         max_hr: athleteMaxHr,
         max_hr_source: athleteMaxHrSource,
       });
@@ -464,7 +471,7 @@ export default function Dashboard() {
       toast.success(`Synced ${result.processed} workout${result.processed === 1 ? '' : 's'}.`);
       await loadDashboard({ silent: true });
       await refreshAchievements();
-      await promptFromAppleSync(userId, result.workouts, result.results);
+      await promptFromAppleSync(syncAthleteId, result.workouts, result.results);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Sync failed');
     } finally {
@@ -472,6 +479,7 @@ export default function Dashboard() {
     }
   }, [
     syncing,
+    athleteId,
     athleteMaxHr,
     athleteMaxHrSource,
     loadDashboard,

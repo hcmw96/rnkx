@@ -1,8 +1,13 @@
 import type { WorkoutObject } from '@/services/despia';
+import { isDespiaNative, registerPushForAthlete } from '@/services/onesignal';
 import { supabase } from '@/services/supabase';
 import type { ProcessActivityRpcResult } from '@/types/shareCards';
 
 import { notifyWorkoutScoredPushes } from './pushAfterWorkoutScored';
+
+function newlyScoredResults(results: ProcessActivityRpcResult[]): ProcessActivityRpcResult[] {
+  return results.filter((r) => r.status === 'scored');
+}
 
 export type SyncAppleWorkoutsResult = {
   processed: number;
@@ -31,8 +36,17 @@ export async function syncAppleWorkoutsToDatabase(
     ? (rawResults as ProcessActivityRpcResult[])
     : [];
 
-  if (processed > 0 && results.length > 0) {
-    notifyWorkoutScoredPushes(athleteId, results);
+  const scored = newlyScoredResults(results);
+  if (scored.length > 0) {
+    // DB push may fire during RPC before the device is linked; re-link then notify from the client.
+    if (isDespiaNative()) {
+      try {
+        await registerPushForAthlete(athleteId);
+      } catch (err) {
+        console.warn('[Push] re-link before workout notify failed:', err);
+      }
+    }
+    notifyWorkoutScoredPushes(athleteId, scored);
   }
 
   return { processed, results, error: null };
