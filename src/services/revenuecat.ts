@@ -8,6 +8,9 @@ import {
 } from '@/lib/premiumCache';
 import { supabase } from '@/services/supabase';
 
+/** RevenueCat offering identifier — must match dashboard exactly. */
+export const REVENUECAT_OFFERING_ID = 'RNKXPREMIUM_MONTHLY';
+
 export async function checkPremium(): Promise<boolean> {
   const userId = await getAuthUserId();
   if (!userId) {
@@ -49,7 +52,9 @@ export async function applyPremiumIfStoreHasEntitlement(): Promise<boolean> {
 export function presentPaywall(userId: string): void {
   const isDespiaApp = navigator.userAgent.toLowerCase().includes('despia');
   if (isDespiaApp) {
-    void despia(`revenuecat://launchPaywall?external_id=${userId}&offering=RNKXPremium`);
+    void despia(
+      `revenuecat://launchPaywall?external_id=${encodeURIComponent(userId)}&offering=${encodeURIComponent(REVENUECAT_OFFERING_ID)}`,
+    );
   } else {
     window.location.href = `/premium`;
   }
