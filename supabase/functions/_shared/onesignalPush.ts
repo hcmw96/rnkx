@@ -12,9 +12,11 @@ export type OneSignalPushInput = {
 
 export function buildOneSignalPayload(input: OneSignalPushInput): Record<string, unknown> {
   const path = input.path.startsWith('/') ? input.path : `/${input.path}`;
+  const externalIds = input.externalUserIds.map((id) => String(id).trim()).filter(Boolean);
   const payload: Record<string, unknown> = {
     app_id: input.appId,
-    include_external_user_ids: input.externalUserIds,
+    target_channel: 'push',
+    include_aliases: { external_id: externalIds },
     headings: { en: input.title },
     contents: { en: input.message },
     data: { path },

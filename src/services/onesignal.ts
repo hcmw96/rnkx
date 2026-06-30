@@ -3,7 +3,7 @@ import despia from 'despia-native';
 /**
  * Despia native push — https://setup.despia.com/native-features/onesignal
  * Link the device with setonesignalplayerid on every authenticated load.
- * Backend targets the same id via include_external_user_ids (athletes.id).
+ * Backend targets the same id via OneSignal external_id aliases (athletes.id).
  */
 
 const LINK_SETTLE_MS = 1500;
