@@ -55,109 +55,129 @@ export default function NotificationsPage() {
   const [pushLinked, setPushLinked] = useState<boolean | null>(null);
   const [pushRegistering, setPushRegistering] = useState(false);
 
+  const refreshPushStatus = useCallback(async (aid: string) => {
+    try {
+      const [permissionEnabled, linkStatus] = await Promise.all([
+        isPushRegistered(),
+        fetchPushSubscriptionStatus(aid),
+      ]);
+      setPushRegistered(permissionEnabled);
+      setPushLinked(linkStatus?.linked ?? null);
+    } catch (err) {
+      console.warn('[notifications] push status check failed', err);
+      setPushRegistered(null);
+      setPushLinked(null);
+    }
+  }, []);
+
   const load = useCallback(async () => {
     setLoading(true);
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-    if (!user) {
-      setFriendRequests([]);
-      setChatNotifications([]);
-      setLoading(false);
-      notifyUnreadStateChanged();
-      return;
-    }
+    try {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      if (!user) {
+        setAthleteId(null);
+        setFriendRequests([]);
+        setClubInvites([]);
+        setChatNotifications([]);
+        setPushRegistered(null);
+        setPushLinked(null);
+        notifyUnreadStateChanged();
+        return;
+      }
 
-    const aid = await resolveAthleteId(user.id);
-    if (!aid) {
-      setAthleteId(null);
-      setFriendRequests([]);
-      setClubInvites([]);
-      setChatNotifications([]);
-      setLoading(false);
-      notifyUnreadStateChanged();
-      return;
-    }
-    setAthleteId(aid);
-    const [permissionEnabled, linkStatus] = await Promise.all([
-      isPushRegistered(),
-      fetchPushSubscriptionStatus(aid),
-    ]);
-    setPushRegistered(permissionEnabled);
-    setPushLinked(linkStatus?.linked ?? null);
+      const aid = await resolveAthleteId(user.id);
+      if (!aid) {
+        setAthleteId(null);
+        setFriendRequests([]);
+        setClubInvites([]);
+        setChatNotifications([]);
+        setPushRegistered(null);
+        setPushLinked(null);
+        notifyUnreadStateChanged();
+        return;
+      }
+      setAthleteId(aid);
+      void refreshPushStatus(aid);
 
-    const [{ data: incRows }, { data: pendingClubRows }, chatItems] = await Promise.all([
-      supabase
-        .from('friendships')
-        .select('id, athlete_id')
-        .eq('friend_id', aid)
-        .eq('status', 'pending'),
-      supabase.from('private_league_members').select('league_id').eq('athlete_id', aid).eq('status', 'pending'),
-      fetchChatNotifications(aid),
-    ]);
+      const [{ data: incRows }, { data: pendingClubRows }, chatItems] = await Promise.all([
+        supabase
+          .from('friendships')
+          .select('id, athlete_id')
+          .eq('friend_id', aid)
+          .eq('status', 'pending'),
+        supabase.from('private_league_members').select('league_id').eq('athlete_id', aid).eq('status', 'pending'),
+        fetchChatNotifications(aid),
+      ]);
 
-    const requesterIds = [...new Set((incRows ?? []).map((r) => r.athlete_id as string))];
-    let requesterMap = new Map<string, { username: string | null; display_name: string | null; avatar_url: string | null }>();
-    if (requesterIds.length) {
-      const { data: athletes } = await supabase
-        .from('athletes')
-        .select('id, username, display_name, avatar_url')
-        .in('id', requesterIds);
-      requesterMap = new Map(
-        (athletes ?? []).map((a) => [
-          a.id as string,
-          {
-            username: a.username as string | null,
-            display_name: a.display_name as string | null,
-            avatar_url: a.avatar_url as string | null,
-          },
-        ]),
-      );
-    }
+      const requesterIds = [...new Set((incRows ?? []).map((r) => r.athlete_id as string))];
+      let requesterMap = new Map<string, { username: string | null; display_name: string | null; avatar_url: string | null }>();
+      if (requesterIds.length) {
+        const { data: athletes } = await supabase
+          .from('athletes')
+          .select('id, username, display_name, avatar_url')
+          .in('id', requesterIds);
+        requesterMap = new Map(
+          (athletes ?? []).map((a) => [
+            a.id as string,
+            {
+              username: a.username as string | null,
+              display_name: a.display_name as string | null,
+              avatar_url: a.avatar_url as string | null,
+            },
+          ]),
+        );
+      }
 
-    setFriendRequests(
-      (incRows ?? []).map((r) => {
-        const a = requesterMap.get(r.athlete_id as string);
-        const username = a?.username?.trim() || 'Athlete';
-        const displayName = a?.display_name?.trim() || username;
-        return {
-          id: r.id as string,
-          athleteId: r.athlete_id as string,
-          username,
-          displayName,
-          avatarUrl: a?.avatar_url ?? null,
-        };
-      }),
-    );
-
-    const pendingLeagueIds = [...new Set((pendingClubRows ?? []).map((r) => r.league_id as string))];
-    if (pendingLeagueIds.length) {
-      const { data: leagues } = await supabase
-        .from('private_leagues')
-        .select('id, name, image_url, created_by')
-        .in('id', pendingLeagueIds);
-      const leagueMap = new Map((leagues ?? []).map((l) => [String(l.id), l]));
-      setClubInvites(
-        pendingLeagueIds.map((leagueId) => {
-          const l = leagueMap.get(leagueId) as
-            | { id?: string; name?: string; image_url?: string | null; created_by?: string | null }
-            | undefined;
+      setFriendRequests(
+        (incRows ?? []).map((r) => {
+          const a = requesterMap.get(r.athlete_id as string);
+          const username = a?.username?.trim() || 'Athlete';
+          const displayName = a?.display_name?.trim() || username;
           return {
-            leagueId,
-            leagueName: (l?.name as string) || 'Club invitation',
-            imageUrl: (l?.image_url as string | null) ?? null,
-            createdBy: (l?.created_by as string | null) ?? null,
+            id: r.id as string,
+            athleteId: r.athlete_id as string,
+            username,
+            displayName,
+            avatarUrl: a?.avatar_url ?? null,
           };
         }),
       );
-    } else {
-      setClubInvites([]);
-    }
 
-    setChatNotifications(chatItems);
-    setLoading(false);
-    notifyUnreadStateChanged();
-  }, []);
+      const pendingLeagueIds = [...new Set((pendingClubRows ?? []).map((r) => r.league_id as string))];
+      if (pendingLeagueIds.length) {
+        const { data: leagues } = await supabase
+          .from('private_leagues')
+          .select('id, name, image_url, created_by')
+          .in('id', pendingLeagueIds);
+        const leagueMap = new Map((leagues ?? []).map((l) => [String(l.id), l]));
+        setClubInvites(
+          pendingLeagueIds.map((leagueId) => {
+            const l = leagueMap.get(leagueId) as
+              | { id?: string; name?: string; image_url?: string | null; created_by?: string | null }
+              | undefined;
+            return {
+              leagueId,
+              leagueName: (l?.name as string) || 'Club invitation',
+              imageUrl: (l?.image_url as string | null) ?? null,
+              createdBy: (l?.created_by as string | null) ?? null,
+            };
+          }),
+        );
+      } else {
+        setClubInvites([]);
+      }
+
+      setChatNotifications(chatItems);
+      notifyUnreadStateChanged();
+    } catch (err) {
+      console.warn('[notifications] load failed', err);
+      toast.error('Could not load notifications. Pull to refresh or try again.');
+    } finally {
+      setLoading(false);
+    }
+  }, [refreshPushStatus]);
 
   useEffect(() => {
     void load();
@@ -295,7 +315,8 @@ export default function NotificationsPage() {
         <div className="space-y-1">
           <h1 className="type-page-title">Notifications</h1>
           <p className="text-sm text-muted-foreground">
-            Messages and friend requests. Workout and rank alerts are sent to your device when push is enabled.
+            Friend requests, club invites, and unread messages appear here. Workout and rank alerts only go to your
+            phone&apos;s lock screen — they are not saved in this list.
           </p>
         </div>
 
@@ -333,7 +354,10 @@ export default function NotificationsPage() {
             <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-muted/50">
               <Bell className="h-8 w-8 text-neon-lime" aria-hidden />
             </div>
-            <p className="text-sm text-muted-foreground">You&apos;re all caught up.</p>
+            <p className="text-sm text-muted-foreground">No pending requests or unread messages.</p>
+            <p className="text-xs text-muted-foreground">
+              Workout scored and rank alerts show on your lock screen when push is enabled.
+            </p>
             {showPushBanner ? (
               <Button type="button" variant="outline" className="border-border" disabled={pushRegistering} onClick={() => void enablePush(true)}>
                 Enable notifications
