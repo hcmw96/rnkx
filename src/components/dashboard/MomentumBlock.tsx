@@ -25,10 +25,8 @@ function MomentumRow({
     ? 'bg-gradient-to-r from-[hsla(0,0%,4%,1)] via-zinc-800/90 to-neon-lime/85'
     : 'bg-gradient-to-r from-[hsla(0,0%,4%,1)] via-zinc-800/90 to-secondary/85';
   const trackOutlineClass = isEngine
-    ? 'shadow-[0_0_6px_hsl(var(--neon-lime)/0.12)]'
-    : 'shadow-[0_0_6px_hsl(var(--secondary)/0.12)]';
-
-  const trackHeightClass = 'h-2';
+    ? 'border border-neon-lime/35 shadow-[0_0_6px_hsl(var(--neon-lime)/0.12)]'
+    : 'border border-secondary/35 shadow-[0_0_6px_hsl(var(--secondary)/0.12)]';
 
   const inPromotionZone = isInPromotionZone(resolvedDivision, placesToPromotion);
   const promotionPct = momentumPromotionTickPct();
@@ -49,7 +47,7 @@ function MomentumRow({
   );
 
   const promotionTickClass = cn(
-    'absolute top-0 h-2 w-px -translate-x-1/2',
+    'absolute top-0 h-1.5 w-px -translate-x-1/2',
     inPromotionZone
       ? isEngine
         ? 'bg-neon-lime shadow-[0_0_8px_hsl(var(--neon-lime)/0.95)]'
@@ -74,8 +72,8 @@ function MomentumRow({
 
       <div className="space-y-0.5">
         <div className="relative">
-          <div className={cn(trackHeightClass, 'overflow-hidden rounded-full', gradientClass, trackOutlineClass)} />
-          <div className={cn('pointer-events-none absolute inset-x-0 top-0', trackHeightClass)} aria-hidden>
+          <div className={cn('h-1.5 overflow-hidden rounded-full', gradientClass, trackOutlineClass)} />
+          <div className="pointer-events-none absolute inset-x-0 top-0 h-1.5" aria-hidden>
             <div
               className={cn(
                 'absolute top-0 h-full w-px -translate-x-1/2',
@@ -95,7 +93,7 @@ function MomentumRow({
           />
         </div>
 
-        <div className="relative h-2" aria-hidden>
+        <div className="relative h-1.5" aria-hidden>
           <div className={promotionTickClass} style={{ left: `${promotionPct}%` }} />
         </div>
       </div>
