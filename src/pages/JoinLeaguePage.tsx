@@ -22,7 +22,6 @@ export default function JoinLeaguePage() {
   const [sessionChecked, setSessionChecked] = useState(false);
   const [loggedIn, setLoggedIn] = useState(false);
   const [athleteId, setAthleteId] = useState<string | undefined>();
-  const [authUserId, setAuthUserId] = useState<string | undefined>();
   const [preview, setPreview] = useState<LeaguePreview | null>(null);
   const [leagueNotFound, setLeagueNotFound] = useState(false);
   const [lookupLoading, setLookupLoading] = useState(false);
@@ -52,11 +51,9 @@ export default function JoinLeaguePage() {
         }
         setLoggedIn(false);
         setAthleteId(undefined);
-        setAuthUserId(undefined);
       } else {
         setLoggedIn(true);
         const uid = user.id;
-        setAuthUserId(uid);
         const [byUserId, byId] = await Promise.all([
           supabase.from('athletes').select('id').eq('user_id', uid).not('username', 'is', null).maybeSingle(),
           supabase.from('athletes').select('id').eq('id', uid).not('username', 'is', null).maybeSingle(),
@@ -235,8 +232,6 @@ export default function JoinLeaguePage() {
           </p>
         </div>
         <PremiumGate
-          athleteId={athleteId}
-          userId={authUserId}
           compact
           description="Join private clubs and compete with friends on club leaderboards."
           previewContent={<JoinClubPreview />}

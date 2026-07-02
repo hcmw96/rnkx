@@ -58,8 +58,6 @@ function readinessFromSummary(summary: ReturnType<typeof buildInsightsSummary>):
 }
 
 export default function RecoveryPage({ embedded = false }: RecoveryPageProps) {
-  const [athleteId, setAthleteId] = useState<string | undefined>();
-  const [authUserId, setAuthUserId] = useState<string | undefined>();
   const [loadRange, setLoadRange] = useState<'today' | 'week'>('week');
   const [activities, setActivities] = useState<InsightActivity[]>([]);
   const [loading, setLoading] = useState(true);
@@ -69,19 +67,10 @@ export default function RecoveryPage({ embedded = false }: RecoveryPageProps) {
     const { data: auth } = await supabase.auth.getUser();
     const uid = auth.user?.id;
     if (!uid) {
-      setAthleteId(undefined);
-      setAuthUserId(undefined);
       setActivities([]);
       setLoading(false);
       return;
     }
-    setAuthUserId(uid);
-    const [byUserId, byId] = await Promise.all([
-      supabase.from('athletes').select('id').eq('user_id', uid).not('username', 'is', null).maybeSingle(),
-      supabase.from('athletes').select('id').eq('id', uid).not('username', 'is', null).maybeSingle(),
-    ]);
-    const aid = (byUserId.data?.id ?? byId.data?.id) as string | undefined;
-    setAthleteId(aid);
 
     const since = new Date();
     since.setDate(since.getDate() - 14);
@@ -382,8 +371,6 @@ export default function RecoveryPage({ embedded = false }: RecoveryPageProps) {
   return (
     <AppShell headerActions={<AppHeaderActions />}>
       <PremiumGate
-        athleteId={athleteId}
-        userId={authUserId}
         badge="PREMIUM"
         title="Recovery insights"
         description="Trend charts, load guidance, and readiness — included with RNKX Premium"

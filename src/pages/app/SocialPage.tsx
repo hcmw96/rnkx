@@ -2,7 +2,6 @@ import type { LucideIcon } from 'lucide-react';
 import { Compass, Shield, UserRound } from 'lucide-react';
 import { Link, NavLink, Outlet } from 'react-router-dom';
 import { PremiumGate } from '@/components/PremiumGate';
-import { useAthleteSession } from '@/context/AthleteSessionContext';
 import { cn } from '@/lib/utils';
 
 const TABS: readonly { to: string; label: string; Icon: LucideIcon }[] = [
@@ -12,12 +11,8 @@ const TABS: readonly { to: string; label: string; Icon: LucideIcon }[] = [
 ];
 
 export default function SocialPage() {
-  const { authUserId, athleteId } = useAthleteSession();
-
   return (
     <PremiumGate
-      athleteId={athleteId}
-      userId={authUserId}
       title="Friends and Clubs"
       description="Unlock friends, messaging, public and private clubs with RNKX premium."
     >

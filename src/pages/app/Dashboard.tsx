@@ -609,8 +609,6 @@ export default function Dashboard() {
         <MomentumSection engine={momentumData.engine} run={momentumData.run} />
 
         <PremiumGate
-          athleteId={athleteId}
-          userId={authUserId}
           title="Training insights"
           description="Unlock weekly charts, coach notes, and workout history with RNKX Premium."
           previewContent={

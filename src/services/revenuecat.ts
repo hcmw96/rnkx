@@ -5,6 +5,7 @@ import {
   fetchPremiumStatus,
   getCachedPremium,
   setCachedPremium,
+  subscribePremiumCache,
 } from '@/lib/premiumCache';
 import { supabase } from '@/services/supabase';
 
@@ -73,45 +74,63 @@ export async function restoreInAppPurchasesAndApplyPremium(): Promise<'premium' 
 }
 
 export function usePremium(
-  athleteId: string | undefined,
+  _athleteId: string | undefined,
   userId: string | undefined,
+  options?: { sessionReady?: boolean },
 ): {
   isPremium: boolean;
   loading: boolean;
   presentPaywall: () => void;
 } {
-  const initialPremium = userId ? getCachedPremium(userId) : null;
-  const [isPremium, setIsPremium] = useState(initialPremium ?? false);
-  const [loading, setLoading] = useState(initialPremium === null);
+  const sessionReady = options?.sessionReady ?? true;
+
+  const resolveStatus = (uid: string | undefined): boolean | null => {
+    if (!uid) return null;
+    return getCachedPremium(uid);
+  };
+
+  const [premiumStatus, setPremiumStatus] = useState<boolean | null>(() => resolveStatus(userId));
+
+  useEffect(() => {
+    setPremiumStatus(resolveStatus(userId));
+  }, [userId]);
+
+  useEffect(() => {
+    return subscribePremiumCache(() => {
+      setPremiumStatus(resolveStatus(userId));
+    });
+  }, [userId]);
 
   useEffect(() => {
     let cancelled = false;
 
-    if (!userId) {
-      setIsPremium(false);
-      setLoading(false);
-      return;
+    if (!sessionReady || !userId) {
+      return () => {
+        cancelled = true;
+      };
     }
 
     const cached = getCachedPremium(userId);
     if (cached !== null) {
-      setIsPremium(cached);
-      setLoading(false);
-    } else {
-      setLoading(true);
+      setPremiumStatus(cached);
+      return () => {
+        cancelled = true;
+      };
     }
 
     void (async () => {
       const ok = await fetchPremiumStatus(userId);
       if (cancelled) return;
-      setIsPremium(ok);
-      setLoading(false);
+      setPremiumStatus(ok);
     })();
 
     return () => {
       cancelled = true;
     };
-  }, [athleteId, userId]);
+  }, [sessionReady, userId]);
+
+  const loading = !sessionReady || !userId || premiumStatus === null;
+  const isPremium = premiumStatus === true;
 
   const onPresentPaywall = useCallback(() => {
     if (userId) {

@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react';
 import { Lock } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { useAthleteSession } from '@/context/AthleteSessionContext';
 import { cn } from '@/lib/utils';
 import { usePremium } from '@/services/revenuecat';
 
@@ -12,15 +13,17 @@ const FULL_PAGE_MIN_HEIGHT =
   'min-h-[calc(100dvh-var(--safe-area-top)-var(--safe-area-bottom)-9.5rem)]';
 
 type PremiumGateProps = {
-  athleteId: string | undefined;
+  athleteId?: string | undefined;
   /** Supabase auth user id — used as RevenueCat `external_id` when opening the paywall. */
-  userId: string | undefined;
+  userId?: string | undefined;
   children: ReactNode;
   /** Optional mock UI when the real children would be empty or minimal. */
   previewContent?: ReactNode;
   title?: string;
   description?: string;
   badge?: string;
+  /** When false, gate stays in loading until athlete session + premium cache are ready. */
+  sessionReady?: boolean;
   className?: string;
   /** Tighter overlay for inline gates (e.g. a single button). */
   compact?: boolean;
@@ -36,19 +39,23 @@ export function PremiumGate({
   badge,
   className,
   compact,
+  sessionReady: sessionReadyProp,
 }: PremiumGateProps) {
-  const { isPremium, loading, presentPaywall } = usePremium(athleteId, userId);
+  const session = useAthleteSession();
+  const resolvedUserId = userId ?? session.authUserId;
+  const resolvedAthleteId = athleteId ?? session.athleteId;
+  const sessionReady = sessionReadyProp ?? session.ready;
+  const { isPremium, loading, presentPaywall } = usePremium(resolvedAthleteId, resolvedUserId, {
+    sessionReady,
+  });
 
   if (loading) {
     return (
-      <div className={cn('relative', !compact && FULL_PAGE_MIN_HEIGHT, className)}>
-        {children}
-        <div
-          className="pointer-events-none absolute inset-0 bg-background/40"
-          aria-busy="true"
-          aria-label="Checking premium access"
-        />
-      </div>
+      <div
+        className={cn('relative', !compact && FULL_PAGE_MIN_HEIGHT, className)}
+        aria-busy="true"
+        aria-label="Checking premium access"
+      />
     );
   }
 

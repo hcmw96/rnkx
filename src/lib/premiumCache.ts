@@ -2,9 +2,22 @@ import { supabase } from '@/services/supabase';
 import { getAuthUserId } from '@/lib/authSession';
 
 let cached: { userId: string; isPremium: boolean } | null = null;
+const listeners = new Set<() => void>();
+
+function notifyPremiumCacheListeners(): void {
+  listeners.forEach((listener) => listener());
+}
+
+export function subscribePremiumCache(listener: () => void): () => void {
+  listeners.add(listener);
+  return () => {
+    listeners.delete(listener);
+  };
+}
 
 export function clearPremiumCache(): void {
   cached = null;
+  notifyPremiumCacheListeners();
 }
 
 export function getCachedPremium(userId: string | undefined): boolean | null {
@@ -13,7 +26,9 @@ export function getCachedPremium(userId: string | undefined): boolean | null {
 }
 
 export function setCachedPremium(userId: string, isPremium: boolean): void {
+  const changed = cached?.userId !== userId || cached?.isPremium !== isPremium;
   cached = { userId, isPremium };
+  if (changed) notifyPremiumCacheListeners();
 }
 
 export async function fetchPremiumStatus(userId: string): Promise<boolean> {

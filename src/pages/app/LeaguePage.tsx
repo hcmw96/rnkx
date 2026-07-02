@@ -10,6 +10,7 @@ import { ClubGenderChip } from '@/components/leagues/ClubGenderChip';
 import { fetchPrivateLeague } from '@/lib/clubContext';
 import { haptic } from '@/lib/haptics';
 import { cn } from '@/lib/utils';
+import { useAthleteSession } from '@/context/AthleteSessionContext';
 import { resolveAthleteId } from '@/lib/resolveAthleteId';
 import { supabase } from '@/services/supabase';
 import { toast } from 'sonner';
@@ -60,8 +61,7 @@ function buildScoreMap(
 
 export default function LeaguePage() {
   const { leagueId } = useParams<{ leagueId: string }>();
-  const [athleteId, setAthleteId] = useState<string | undefined>();
-  const [authUserId, setAuthUserId] = useState<string | undefined>();
+  const { athleteId, ready: sessionReady } = useAthleteSession();
   const [league, setLeague] = useState<League | null>(null);
   const [members, setMembers] = useState<MemberRow[]>([]);
   const [seasonScores, setSeasonScores] = useState<Record<string, number>>({});
@@ -76,18 +76,24 @@ export default function LeaguePage() {
   const loadLeague = useCallback(async () => {
     if (!leagueId) return;
     setLoading(true);
-    const { data: auth } = await supabase.auth.getUser();
-    const uid = auth.user?.id;
-    if (!uid) {
-      setAthleteId(undefined);
-      setAuthUserId(undefined);
+
+    let aid = athleteId;
+    if (!aid) {
+      const { data: auth } = await supabase.auth.getUser();
+      const uid = auth.user?.id;
+      if (!uid) {
+        setLeague(null);
+        setLoading(false);
+        return;
+      }
+      aid = await resolveAthleteId(uid);
+    }
+
+    if (!aid) {
       setLeague(null);
       setLoading(false);
       return;
     }
-    setAuthUserId(uid);
-    const aid = await resolveAthleteId(uid);
-    setAthleteId(aid);
 
     const { league: leagueRow, error: leagueErr } = await fetchPrivateLeague(leagueId);
 
@@ -162,7 +168,7 @@ export default function LeaguePage() {
     }
 
     setLoading(false);
-  }, [leagueId]);
+  }, [athleteId, leagueId]);
 
   useEffect(() => {
     void loadLeague();
@@ -211,11 +217,7 @@ export default function LeaguePage() {
   );
 
   return (
-    <PremiumGate
-        athleteId={athleteId}
-        userId={authUserId}
-        description="View club leaderboards, season scores, and member rankings."
-      >
+    <PremiumGate sessionReady={sessionReady} description="View club leaderboards, season scores, and member rankings.">
         <section className="mx-auto max-w-lg space-y-4" {...pullHandlers}>
           {(isRefreshing || pullDistance > 0) && (
             <p className="text-center text-xs text-muted-foreground">

@@ -680,8 +680,6 @@ export default function LeaderboardPage() {
           <LeaderboardSkeleton />
         ) : scopeTab === 'friends' ? (
           <PremiumGate
-            athleteId={myAthleteId ?? undefined}
-            userId={currentUserId ?? undefined}
             title="Friends leaderboard"
             description="Compare scores with athletes you've added as friends."
             previewContent={friendIds.size === 0 ? <FriendsPreview /> : undefined}

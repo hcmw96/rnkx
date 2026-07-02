@@ -445,8 +445,6 @@ export default function FriendsPage({ embedded = false }: FriendsPageProps) {
   return (
     <AppShell>
       <PremiumGate
-        athleteId={athleteId}
-        userId={authUserId}
         description="Add friends, compare scores, and message athletes you train with."
         previewContent={
           !loading && friends.length === 0 && incoming.length === 0 ? <FriendsPreview /> : undefined

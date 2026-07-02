@@ -767,8 +767,6 @@ export function SettingsPageLayout(props: SettingsPageLayoutProps) {
                 <SettingsSectionHeader icon={Heart} label="Recovery" />
                 <SettingsGroup className="p-4">
                   <PremiumGate
-                    athleteId={athlete.id}
-                    userId={athlete.user_id ?? undefined}
                     badge="PREMIUM"
                     title="Recovery insights"
                     description="Trend charts, load guidance, and readiness — included with RNKX Premium"

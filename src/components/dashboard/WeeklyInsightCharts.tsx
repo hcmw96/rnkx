@@ -158,26 +158,14 @@ export function WeeklyStackedAreaChart({
   const showRun = !singleLeague || singleLeague === 'run';
   const allowDecimals = valueSuffix === ' ppm';
   const stackId = singleLeague ? undefined : 'week';
-  // Monotone Run fill can bleed cyan onto engine-only days when run=0; omit those points instead of linear curves.
   const isStacked = stackId != null;
-  const areaCurve = 'monotone';
-
-  const chartData = useMemo(() => {
-    if (!isStacked) return data;
-    return data.map((row) => {
-      const next = { ...row };
-      const runVal = Number(row[stack.runKey]);
-      if (!Number.isFinite(runVal) || runVal <= 0) {
-        next[stack.runKey] = null as unknown as string | number;
-      }
-      return next;
-    });
-  }, [data, isStacked, stack.runKey]);
+  // Step curves avoid monotone bleed between leagues on zero days while still rendering isolated run/engine days.
+  const areaCurve = isStacked ? 'stepAfter' : 'monotone';
 
   const yAxis = useMemo(() => {
-    const maxValue = chartMaxValue(chartData, stack.engineKey, stack.runKey, singleLeague);
+    const maxValue = chartMaxValue(data, stack.engineKey, stack.runKey, singleLeague);
     return buildYAxisScale(maxValue, allowDecimals);
-  }, [allowDecimals, chartData, singleLeague, stack.engineKey, stack.runKey]);
+  }, [allowDecimals, data, singleLeague, stack.engineKey, stack.runKey]);
 
   const yAxisWidth = useMemo(() => {
     const widest = yAxis.ticks.reduce((max, tick) => {
@@ -191,7 +179,7 @@ export function WeeklyStackedAreaChart({
     <div className={cn('w-full', className)} style={{ height }}>
       <ResponsiveContainer width="100%" height="100%">
         <AreaChart
-          data={chartData}
+          data={data}
           margin={{ top: 6, right: 4, left: 0, bottom: showAllTicks ? 4 : 0 }}
         >
           <defs>
@@ -253,10 +241,9 @@ export function WeeklyStackedAreaChart({
               dataKey={stack.runKey}
               name="Run"
               stackId={stackId}
-              stroke={isStacked ? 'none' : RUN_CHART_COLOR}
-              strokeWidth={isStacked ? 0 : 2}
+              stroke={RUN_CHART_COLOR}
+              strokeWidth={isStacked ? 1.5 : 2}
               fill={`url(#${runFillId})`}
-              connectNulls={false}
               dot={false}
               activeDot={
                 isStacked
