@@ -344,19 +344,30 @@ export function WeeklyInsightsSection({ data }: WeeklyInsightsSectionProps) {
         {hasChartData ? (
           <>
             <div className="mt-3 -mx-1">
-              <WeeklyStackedAreaChart
-                key={activeTab}
-                data={chartData}
-                stack={{ engineKey: config.engineKey as string, runKey: config.runKey as string }}
-                height={140}
-                valueSuffix={config.valueSuffix}
-                showTooltip={false}
-                formatValue={
-                  config.kind === 'volume'
-                    ? (v) => String(Math.round(v))
-                    : (v) => formatScore(v)
-                }
-              />
+              {config.kind === 'efficiency' ? (
+                <WeeklyDualTrendLineChart
+                  key={activeTab}
+                  data={chartData}
+                  engineKey="engine_efficiency"
+                  runKey="run_efficiency"
+                  height={140}
+                  valueSuffix=" ppm"
+                />
+              ) : (
+                <WeeklyStackedAreaChart
+                  key={activeTab}
+                  data={chartData}
+                  stack={{ engineKey: config.engineKey as string, runKey: config.runKey as string }}
+                  height={140}
+                  valueSuffix={config.valueSuffix}
+                  showTooltip={false}
+                  formatValue={
+                    config.kind === 'volume'
+                      ? (v) => String(Math.round(v))
+                      : (v) => formatScore(v)
+                  }
+                />
+              )}
             </div>
             <div className="mt-2 flex items-center gap-3 text-[10px] text-muted-foreground">
               <span className="inline-flex items-center gap-1">
