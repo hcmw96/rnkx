@@ -1,3 +1,4 @@
+import { format } from 'date-fns';
 import { useMemo, useState } from 'react';
 import { TrendingDown, TrendingUp } from 'lucide-react';
 import {
@@ -10,7 +11,7 @@ import {
   ENGINE_CHART_COLOR,
   RUN_CHART_COLOR,
   WeeklyDualTrendLineChart,
-  WeeklyStackedAreaChart,
+  WeeklyStackedBarChart,
 } from '@/components/dashboard/WeeklyInsightCharts';
 import type { DailyWeekAggregate, WeeklyInsightsData } from '@/lib/dashboardWeeklyInsights';
 import { formatInsightDateLabel, weekDeltaPercent } from '@/lib/dashboardWeeklyInsights';
@@ -45,8 +46,10 @@ const INSIGHT_TABS: { id: InsightTab; label: string }[] = [
 ];
 
 function chartRows(days: DailyWeekAggregate[]) {
+  const todayKey = format(new Date(), 'yyyy-MM-dd');
   return days.map((d) => ({
     ...d,
+    isToday: d.date === todayKey,
     total_minutes: d.engine_minutes + d.run_minutes,
     total_points: d.engine_points + d.run_points,
     total_efficiency:
@@ -154,10 +157,10 @@ function InsightDetailDialog({
                 valueSuffix=" ppm"
               />
             ) : (
-              <WeeklyStackedAreaChart
+              <WeeklyStackedBarChart
                 data={rows}
                 stack={{ engineKey: config.engineKey as string, runKey: config.runKey as string }}
-                height={220}
+                height={240}
                 valueSuffix={config.valueSuffix}
                 formatValue={
                   config.kind === 'volume'
@@ -343,22 +346,22 @@ export function WeeklyInsightsSection({ data }: WeeklyInsightsSectionProps) {
 
         {hasChartData ? (
           <>
-            <div className="mt-3 -mx-1">
+            <div className="mt-3">
               {config.kind === 'efficiency' ? (
                 <WeeklyDualTrendLineChart
                   key={activeTab}
                   data={chartData}
                   engineKey="engine_efficiency"
                   runKey="run_efficiency"
-                  height={140}
+                  height={156}
                   valueSuffix=" ppm"
                 />
               ) : (
-                <WeeklyStackedAreaChart
+                <WeeklyStackedBarChart
                   key={activeTab}
                   data={chartData}
                   stack={{ engineKey: config.engineKey as string, runKey: config.runKey as string }}
-                  height={140}
+                  height={156}
                   valueSuffix={config.valueSuffix}
                   showTooltip={false}
                   formatValue={
@@ -369,13 +372,19 @@ export function WeeklyInsightsSection({ data }: WeeklyInsightsSectionProps) {
                 />
               )}
             </div>
-            <div className="mt-2 flex items-center gap-3 text-[10px] text-muted-foreground">
-              <span className="inline-flex items-center gap-1">
-                <span className="h-2 w-2 rounded-sm" style={{ background: ENGINE_CHART_COLOR }} />
+            <div className="mt-3 flex items-center gap-2">
+              <span className="inline-flex items-center gap-1.5 rounded-full border border-white/8 bg-white/[0.03] px-2 py-1 text-[10px] font-medium text-muted-foreground">
+                <span
+                  className="h-2 w-2 rounded-full shadow-[0_0_8px_hsl(72_100%_50%/0.55)]"
+                  style={{ background: ENGINE_CHART_COLOR }}
+                />
                 Engine
               </span>
-              <span className="inline-flex items-center gap-1">
-                <span className="h-2 w-2 rounded-sm" style={{ background: RUN_CHART_COLOR }} />
+              <span className="inline-flex items-center gap-1.5 rounded-full border border-white/8 bg-white/[0.03] px-2 py-1 text-[10px] font-medium text-muted-foreground">
+                <span
+                  className="h-2 w-2 rounded-full shadow-[0_0_8px_hsl(187_85%_53%/0.55)]"
+                  style={{ background: RUN_CHART_COLOR }}
+                />
                 Run
               </span>
             </div>

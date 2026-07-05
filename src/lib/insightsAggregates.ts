@@ -171,6 +171,15 @@ export function mergeActivitiesAndWorkoutsForInsights(
   return merged;
 }
 
+function trailingRestDays(daily: DailyInsightPoint[]): number {
+  let streak = 0;
+  for (let i = daily.length - 1; i >= 0; i -= 1) {
+    if (daily[i].sessions === 0) streak += 1;
+    else break;
+  }
+  return streak;
+}
+
 /** Last N calendar days (oldest → newest), including today. */
 export function buildInsightsSummary(
   activities: InsightActivity[],
@@ -247,11 +256,14 @@ export function buildInsightsSummary(
   const bestSession = topSessions[0] ?? null;
 
   const last7Keys = dayKeys.slice(-7);
-  const prev7Keys = dayKeys.slice(0, 7);
+  const canCompareWeeks = dayCount >= 14;
+  const prev7Keys = canCompareWeeks ? dayKeys.slice(0, 7) : [];
   const weekPts = last7Keys.reduce((s, k) => s + (byDay.get(k)?.totalPts ?? 0), 0);
   const prevWeekPts = prev7Keys.reduce((s, k) => s + (byDay.get(k)?.totalPts ?? 0), 0);
-  const weekDelta = Math.round((weekPts - prevWeekPts) * 10) / 10;
+  const weekDelta = canCompareWeeks ? Math.round((weekPts - prevWeekPts) * 10) / 10 : 0;
   const weekSessions = last7Keys.reduce((s, k) => s + (byDay.get(k)?.sessions ?? 0), 0);
+  const recentDaily = daily.slice(-7);
+  const restStreak = trailingRestDays(recentDaily);
 
   const allHr = hrSamples.map((h) => h.pct);
   const avgIntensity = allHr.length
@@ -261,18 +273,30 @@ export function buildInsightsSummary(
   const insightLines: string[] = [];
   if (weekSessions === 0) {
     insightLines.push('Log a scored workout to unlock trend lines and session highlights.');
+  } else if (restStreak >= 3) {
+    insightLines.push(
+      `${restStreak} rest day${restStreak === 1 ? '' : 's'} in a row — log a session to keep your week on track.`,
+    );
+    insightLines.push(
+      `This week so far: ${formatScorePts(weekPts)} across ${weekSessions} session${weekSessions === 1 ? '' : 's'}.`,
+    );
+  } else if (!canCompareWeeks) {
+    insightLines.push(
+      `${formatScorePts(weekPts)} across ${weekSessions} session${weekSessions === 1 ? '' : 's'} this week.`,
+    );
+  } else if (weekDelta > 0) {
+    insightLines.push(
+      `You earned ${formatScorePts(weekPts)} this week — up ${formatScore(weekDelta)} vs the prior week.`,
+    );
+  } else if (weekDelta < 0) {
+    insightLines.push(
+      `This week: ${formatScorePts(weekPts)} (${formatScore(Math.abs(weekDelta))} fewer than last week). A solid session can flip momentum.`,
+    );
   } else {
-    if (weekDelta > 0) {
-      insightLines.push(
-        `You earned ${formatScorePts(weekPts)} this week — up ${formatScore(weekDelta)} vs the prior week.`,
-      );
-    } else if (weekDelta < 0) {
-      insightLines.push(
-        `This week: ${formatScorePts(weekPts)} (${formatScore(Math.abs(weekDelta))} fewer than last week). A solid session can flip momentum.`,
-      );
-    } else {
-      insightLines.push(`Steady week — ${formatScorePts(weekPts)} across ${weekSessions} session${weekSessions === 1 ? '' : 's'}.`);
-    }
+    insightLines.push(`Steady week — ${formatScorePts(weekPts)} across ${weekSessions} session${weekSessions === 1 ? '' : 's'}.`);
+  }
+
+  if (weekSessions > 0) {
     if (bestSession) {
       insightLines.push(
         `Peak session: ${bestSession.label} on ${format(parseISO(`${bestSession.date}T12:00:00`), 'MMM d')} (${formatScorePts(bestSession.score)}).`,
