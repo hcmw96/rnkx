@@ -1,7 +1,9 @@
-import { useId, useMemo } from 'react';
+import { useId, useMemo, type ReactNode } from 'react';
 import {
   Area,
   AreaChart,
+  Bar,
+  BarChart,
   CartesianGrid,
   ResponsiveContainer,
   Tooltip,
@@ -13,29 +15,31 @@ import { formatScore } from '@/lib/formatScore';
 
 export const ENGINE_CHART_COLOR = 'hsl(72 100% 50%)';
 export const RUN_CHART_COLOR = 'hsl(187 85% 53%)';
+const ENGINE_CHART_COLOR_SOFT = 'hsl(72 100% 50% / 0.88)';
+const RUN_CHART_COLOR_SOFT = 'hsl(187 85% 53% / 0.88)';
+const AXIS_MUTED = 'hsl(0 0% 55%)';
+const GRID_STROKE = 'hsla(0,0%,100%,0.05)';
 
 type StackKeys = {
   engineKey: string;
   runKey: string;
 };
 
-type WeeklyStackedAreaChartProps = {
-  data: Record<string, string | number>[];
+type WeeklyStackedBarChartProps = {
+  data: Record<string, string | number | boolean | null | undefined>[];
   stack: StackKeys;
   height?: number;
   valueSuffix?: string;
   formatValue?: (value: number) => string;
   className?: string;
-  /** Hover tooltip on chart (off for dashboard preview card). */
   showTooltip?: boolean;
-  /** Show only one league's series (Engine/Run toggle on dashboard preview). */
   singleLeague?: 'engine' | 'run';
 };
 
-/** @deprecated Use {@link WeeklyStackedAreaChart}. */
-export type WeeklyStackedBarChartProps = WeeklyStackedAreaChartProps;
+type WeeklyStackedAreaChartProps = WeeklyStackedBarChartProps;
 
 const Y_AXIS_TICK_COUNT = 4;
+const BAR_RADIUS = 5;
 
 function niceStep(rawStep: number): number {
   if (!Number.isFinite(rawStep) || rawStep <= 0) return 1;
@@ -47,7 +51,6 @@ function niceStep(rawStep: number): number {
   return niceFraction * magnitude;
 }
 
-/** Evenly spaced ticks from 0 with a padded ceiling aligned to the step. */
 function buildYAxisScale(
   maxValue: number,
   allowDecimals: boolean,
@@ -62,7 +65,7 @@ function buildYAxisScale(
   }
 
   const intervals = Y_AXIS_TICK_COUNT - 1;
-  const step = niceStep((maxValue * 1.08) / intervals);
+  const step = niceStep((maxValue * 1.12) / intervals);
   const niceMax = step * intervals;
   const ticks = Array.from({ length: Y_AXIS_TICK_COUNT }, (_, i) => {
     const value = i * step;
@@ -73,7 +76,7 @@ function buildYAxisScale(
 }
 
 function chartMaxValue(
-  data: Record<string, string | number>[],
+  data: Record<string, string | number | boolean | null | undefined>[],
   engineKey: string,
   runKey: string,
   singleLeague?: 'engine' | 'run',
@@ -89,7 +92,6 @@ function chartMaxValue(
   return max;
 }
 
-/** Compact axis ticks — numbers only; units live in the card subtitle. */
 function formatYAxisTick(value: number, allowDecimals: boolean): string {
   if (!Number.isFinite(value)) return '';
   if (allowDecimals) {
@@ -102,6 +104,67 @@ function formatYAxisTick(value: number, allowDecimals: boolean): string {
 function defaultFormat(value: number, suffix: string): string {
   if (suffix === ' min') return `${Math.round(value)}`;
   return formatScore(value);
+}
+
+type BarShapeProps = {
+  x?: number;
+  y?: number;
+  width?: number;
+  height?: number;
+  fill?: string;
+  payload?: Record<string, unknown>;
+  dataKey?: string | number;
+};
+
+function makeStackedBarShape(engineKey: string, runKey: string) {
+  return function StackedBarShape(props: BarShapeProps) {
+    const { x = 0, y = 0, width = 0, height = 0, fill, payload, dataKey } = props;
+    if (height <= 0 || width <= 0) return null;
+
+    const engine = Number(payload?.[engineKey]) || 0;
+    const run = Number(payload?.[runKey]) || 0;
+    const isTopSegment =
+      dataKey === runKey ? run > 0 : dataKey === engineKey && engine > 0 && run <= 0;
+    const radius = Math.min(BAR_RADIUS, width / 2, height / 2);
+
+    if (!isTopSegment) {
+      return <rect x={x} y={y} width={width} height={height} fill={fill} />;
+    }
+
+    return (
+      <path
+        d={`M ${x} ${y + radius} Q ${x} ${y} ${x + radius} ${y} L ${x + width - radius} ${y} Q ${x + width} ${y} ${x + width} ${y + radius} L ${x + width} ${y + height} L ${x} ${y + height} Z`}
+        fill={fill}
+      />
+    );
+  };
+}
+
+function renderDayAxisTick(
+  data: Record<string, string | number | boolean | null | undefined>[],
+) {
+  return function DayAxisTick(props: Record<string, unknown>) {
+    const x = Number(props.x) || 0;
+    const y = Number(props.y) || 0;
+    const index = Number(props.index) || 0;
+    const payload = props.payload as { value?: string | number } | undefined;
+    const row = data[index];
+    const isToday = Boolean(row?.isToday);
+    const label = payload?.value ?? '';
+
+    return (
+      <text
+        x={x}
+        y={y + 12}
+        textAnchor="middle"
+        fill={isToday ? ENGINE_CHART_COLOR : AXIS_MUTED}
+        fontSize={10}
+        fontWeight={isToday ? 600 : 400}
+      >
+        {label}
+      </text>
+    );
+  };
 }
 
 function ChartTooltip({
@@ -122,15 +185,24 @@ function ChartTooltip({
   const visible = payload.filter((entry) => Number(entry.value) > 0);
   if (!visible.length) return null;
 
+  const total = visible.reduce((sum, entry) => sum + Number(entry.value), 0);
+
   return (
-    <div className="rounded-lg border border-border/80 bg-[hsla(0,0%,8%,0.95)] px-3 py-2 shadow-xl backdrop-blur-sm">
-      <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{label}</p>
-      <ul className="mt-1 space-y-0.5">
+    <div className="rounded-xl border border-border/70 bg-[hsla(0,0%,6%,0.96)] px-3.5 py-2.5 shadow-2xl backdrop-blur-md">
+      <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">{label}</p>
+      <p className="mt-1 text-sm font-bold tabular-nums text-foreground">
+        {fmt(total)}
+        {valueSuffix}
+      </p>
+      <ul className="mt-2 space-y-1 border-t border-border/50 pt-2">
         {visible.map((entry) => (
           <li key={entry.dataKey} className="flex items-center gap-2 text-xs">
-            <span className="h-2 w-2 rounded-full" style={{ backgroundColor: entry.color }} />
+            <span
+              className="h-2 w-2 shrink-0 rounded-full shadow-[0_0_6px_currentColor]"
+              style={{ backgroundColor: entry.color, color: entry.color }}
+            />
             <span className="text-muted-foreground">{entry.name}</span>
-            <span className="font-semibold text-foreground tabular-nums">
+            <span className="ml-auto font-semibold text-foreground tabular-nums">
               {fmt(entry.value)}
               {valueSuffix}
             </span>
@@ -138,6 +210,144 @@ function ChartTooltip({
         ))}
       </ul>
     </div>
+  );
+}
+
+function ChartSurface({
+  children,
+  className,
+  height,
+}: {
+  children: ReactNode;
+  className?: string;
+  height: number;
+}) {
+  return (
+    <div
+      className={cn(
+        'relative w-full overflow-hidden rounded-lg bg-gradient-to-b from-white/[0.035] to-transparent',
+        className,
+      )}
+      style={{ height }}
+    >
+      <div
+        className="pointer-events-none absolute inset-x-3 bottom-6 top-8 rounded-md border border-white/[0.04] bg-white/[0.015]"
+        aria-hidden
+      />
+      {children}
+    </div>
+  );
+}
+
+export function WeeklyStackedBarChart({
+  data,
+  stack,
+  height = 120,
+  valueSuffix = '',
+  formatValue,
+  className,
+  showTooltip = true,
+  singleLeague,
+}: WeeklyStackedBarChartProps) {
+  const engineFillId = useId();
+  const runFillId = useId();
+  const showAllTicks = data.length <= 7;
+  const showEngine = !singleLeague || singleLeague === 'engine';
+  const showRun = !singleLeague || singleLeague === 'run';
+  const allowDecimals = valueSuffix === ' ppm';
+  const stackId = singleLeague ? undefined : 'week';
+  const engineShape = useMemo(
+    () => makeStackedBarShape(stack.engineKey, stack.runKey),
+    [stack.engineKey, stack.runKey],
+  );
+  const runShape = engineShape;
+
+  const yAxis = useMemo(() => {
+    const maxValue = chartMaxValue(data, stack.engineKey, stack.runKey, singleLeague);
+    return buildYAxisScale(maxValue, allowDecimals);
+  }, [allowDecimals, data, singleLeague, stack.engineKey, stack.runKey]);
+
+  const yAxisWidth = useMemo(() => {
+    const widest = yAxis.ticks.reduce((max, tick) => {
+      const label = formatYAxisTick(tick, allowDecimals);
+      return Math.max(max, label.length);
+    }, 1);
+    return Math.max(24, widest * 7 + 6);
+  }, [allowDecimals, yAxis.ticks]);
+
+  const dayTick = useMemo(() => renderDayAxisTick(data), [data]);
+
+  return (
+    <ChartSurface className={className} height={height}>
+      <ResponsiveContainer width="100%" height="100%">
+        <BarChart
+          data={data}
+          barCategoryGap="22%"
+          margin={{ top: 10, right: 6, left: 0, bottom: showAllTicks ? 2 : 0 }}
+        >
+          <defs>
+            <linearGradient id={engineFillId} x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor={ENGINE_CHART_COLOR} stopOpacity={1} />
+              <stop offset="100%" stopColor={ENGINE_CHART_COLOR} stopOpacity={0.72} />
+            </linearGradient>
+            <linearGradient id={runFillId} x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor={RUN_CHART_COLOR} stopOpacity={1} />
+              <stop offset="100%" stopColor={RUN_CHART_COLOR} stopOpacity={0.72} />
+            </linearGradient>
+          </defs>
+          <CartesianGrid strokeDasharray="4 8" vertical={false} stroke={GRID_STROKE} />
+          <XAxis
+            dataKey="dayLabel"
+            axisLine={false}
+            tickLine={false}
+            interval={showAllTicks ? 0 : 'preserveStartEnd'}
+            minTickGap={showAllTicks ? 0 : 12}
+            tick={dayTick}
+          />
+          <YAxis
+            tick={{ fill: AXIS_MUTED, fontSize: 10 }}
+            axisLine={false}
+            tickLine={false}
+            width={yAxisWidth}
+            allowDecimals={allowDecimals}
+            domain={yAxis.domain}
+            ticks={yAxis.ticks}
+            tickMargin={2}
+            tickFormatter={(value) => formatYAxisTick(Number(value), allowDecimals)}
+          />
+          {showTooltip ? (
+            <Tooltip
+              content={<ChartTooltip valueSuffix={valueSuffix} formatValue={formatValue} />}
+              cursor={{ fill: 'hsla(0,0%,100%,0.04)', radius: 6 }}
+            />
+          ) : null}
+          {showEngine ? (
+            <Bar
+              dataKey={stack.engineKey}
+              name="Engine"
+              stackId={stackId}
+              fill={`url(#${engineFillId})`}
+              shape={engineShape}
+              animationDuration={650}
+              animationEasing="ease-out"
+              maxBarSize={28}
+            />
+          ) : null}
+          {showRun ? (
+            <Bar
+              dataKey={stack.runKey}
+              name="Run"
+              stackId={stackId}
+              fill={`url(#${runFillId})`}
+              shape={runShape}
+              animationDuration={650}
+              animationEasing="ease-out"
+              maxBarSize={28}
+            />
+          ) : null}
+        </BarChart>
+      </ResponsiveContainer>
+    </ChartSurface>
   );
 }
 
@@ -159,7 +369,6 @@ export function WeeklyStackedAreaChart({
   const allowDecimals = valueSuffix === ' ppm';
   const stackId = singleLeague ? undefined : 'week';
   const isStacked = stackId != null;
-  // Step curves render isolated run/engine days; omit zero values so rest days stay blank.
   const areaCurve = isStacked ? 'stepAfter' : 'monotone';
 
   const chartData = useMemo(() => {
@@ -191,34 +400,36 @@ export function WeeklyStackedAreaChart({
     return Math.max(24, widest * 7 + 6);
   }, [allowDecimals, yAxis.ticks]);
 
+  const dayTick = useMemo(() => renderDayAxisTick(data), [data]);
+
   return (
-    <div className={cn('w-full', className)} style={{ height }}>
+    <ChartSurface className={className} height={height}>
       <ResponsiveContainer width="100%" height="100%">
         <AreaChart
           data={chartData}
-          margin={{ top: 6, right: 4, left: 0, bottom: showAllTicks ? 4 : 0 }}
+          margin={{ top: 10, right: 6, left: 0, bottom: showAllTicks ? 2 : 0 }}
         >
           <defs>
             <linearGradient id={engineFillId} x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor={ENGINE_CHART_COLOR} stopOpacity={0.45} />
-              <stop offset="95%" stopColor={ENGINE_CHART_COLOR} stopOpacity={0.05} />
+              <stop offset="0%" stopColor={ENGINE_CHART_COLOR} stopOpacity={0.55} />
+              <stop offset="100%" stopColor={ENGINE_CHART_COLOR} stopOpacity={0.04} />
             </linearGradient>
             <linearGradient id={runFillId} x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor={RUN_CHART_COLOR} stopOpacity={0.45} />
-              <stop offset="95%" stopColor={RUN_CHART_COLOR} stopOpacity={0.05} />
+              <stop offset="0%" stopColor={RUN_CHART_COLOR} stopOpacity={0.55} />
+              <stop offset="100%" stopColor={RUN_CHART_COLOR} stopOpacity={0.04} />
             </linearGradient>
           </defs>
-          <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="hsla(0,0%,100%,0.06)" />
+          <CartesianGrid strokeDasharray="4 8" vertical={false} stroke={GRID_STROKE} />
           <XAxis
             dataKey="dayLabel"
-            tick={{ fill: 'hsl(0 0% 55%)', fontSize: 10 }}
             axisLine={false}
             tickLine={false}
             interval={showAllTicks ? 0 : 'preserveStartEnd'}
             minTickGap={showAllTicks ? 0 : 12}
+            tick={dayTick}
           />
           <YAxis
-            tick={{ fill: 'hsl(0 0% 55%)', fontSize: 10 }}
+            tick={{ fill: AXIS_MUTED, fontSize: 10 }}
             axisLine={false}
             tickLine={false}
             width={yAxisWidth}
@@ -231,7 +442,7 @@ export function WeeklyStackedAreaChart({
           {showTooltip ? (
             <Tooltip
               content={<ChartTooltip valueSuffix={valueSuffix} formatValue={formatValue} />}
-              cursor={{ stroke: 'hsla(0,0%,100%,0.12)', strokeWidth: 1 }}
+              cursor={{ stroke: 'hsla(0,0%,100%,0.1)', strokeWidth: 1 }}
             />
           ) : null}
           {showEngine ? (
@@ -240,7 +451,7 @@ export function WeeklyStackedAreaChart({
               dataKey={stack.engineKey}
               name="Engine"
               stackId={stackId}
-              stroke={ENGINE_CHART_COLOR}
+              stroke={ENGINE_CHART_COLOR_SOFT}
               strokeWidth={isStacked ? 1.5 : 2}
               fill={`url(#${engineFillId})`}
               connectNulls={!isStacked}
@@ -248,7 +459,7 @@ export function WeeklyStackedAreaChart({
               activeDot={
                 isStacked
                   ? false
-                  : { r: 3, fill: ENGINE_CHART_COLOR, stroke: '#0a0a0a', strokeWidth: 1.5 }
+                  : { r: 4, fill: ENGINE_CHART_COLOR, stroke: '#0a0a0a', strokeWidth: 1.5 }
               }
             />
           ) : null}
@@ -258,7 +469,7 @@ export function WeeklyStackedAreaChart({
               dataKey={stack.runKey}
               name="Run"
               stackId={stackId}
-              stroke={isStacked ? 'none' : RUN_CHART_COLOR}
+              stroke={isStacked ? 'none' : RUN_CHART_COLOR_SOFT}
               strokeWidth={isStacked ? 0 : 2}
               fill={`url(#${runFillId})`}
               connectNulls={!isStacked}
@@ -266,21 +477,18 @@ export function WeeklyStackedAreaChart({
               activeDot={
                 isStacked
                   ? false
-                  : { r: 3, fill: RUN_CHART_COLOR, stroke: '#0a0a0a', strokeWidth: 1.5 }
+                  : { r: 4, fill: RUN_CHART_COLOR, stroke: '#0a0a0a', strokeWidth: 1.5 }
               }
             />
           ) : null}
         </AreaChart>
       </ResponsiveContainer>
-    </div>
+    </ChartSurface>
   );
 }
 
-/** @deprecated Use {@link WeeklyStackedAreaChart}. */
-export const WeeklyStackedBarChart = WeeklyStackedAreaChart;
-
 type WeeklyTrendLineChartProps = {
-  data: Record<string, string | number>[];
+  data: Record<string, string | number | boolean | null | undefined>[];
   dataKey: string;
   color?: string;
   height?: number;
@@ -297,26 +505,26 @@ export function WeeklyTrendLineChart({
   const fillId = useId();
 
   return (
-    <div className="w-full" style={{ height }}>
+    <ChartSurface height={height}>
       <ResponsiveContainer width="100%" height="100%">
-        <AreaChart data={data} margin={{ top: 8, right: 8, left: -16, bottom: 0 }}>
+        <AreaChart data={data} margin={{ top: 10, right: 8, left: -12, bottom: 0 }}>
           <defs>
             <linearGradient id={fillId} x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor={color} stopOpacity={0.45} />
-              <stop offset="95%" stopColor={color} stopOpacity={0.05} />
+              <stop offset="0%" stopColor={color} stopOpacity={0.5} />
+              <stop offset="100%" stopColor={color} stopOpacity={0.03} />
             </linearGradient>
           </defs>
-          <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="hsla(0,0%,100%,0.06)" />
+          <CartesianGrid strokeDasharray="4 8" vertical={false} stroke={GRID_STROKE} />
           <XAxis
             dataKey="dayLabel"
-            tick={{ fill: 'hsl(0 0% 55%)', fontSize: 11 }}
+            tick={{ fill: AXIS_MUTED, fontSize: 10 }}
             axisLine={false}
             tickLine={false}
             interval="preserveStartEnd"
             minTickGap={12}
           />
           <YAxis
-            tick={{ fill: 'hsl(0 0% 45%)', fontSize: 11 }}
+            tick={{ fill: AXIS_MUTED, fontSize: 10 }}
             axisLine={false}
             tickLine={false}
             width={36}
@@ -330,20 +538,20 @@ export function WeeklyTrendLineChart({
                 formatValue={(v) => (valueSuffix === ' min' ? String(Math.round(v)) : formatScore(v))}
               />
             }
-            cursor={{ stroke: 'hsla(0,0%,100%,0.12)', strokeWidth: 1 }}
+            cursor={{ stroke: 'hsla(0,0%,100%,0.1)', strokeWidth: 1 }}
           />
           <Area
             type="monotone"
             dataKey={dataKey}
             stroke={color}
-            strokeWidth={2}
+            strokeWidth={2.5}
             fill={`url(#${fillId})`}
             dot={false}
             activeDot={{ r: 4, fill: color, stroke: '#0a0a0a', strokeWidth: 2 }}
           />
         </AreaChart>
       </ResponsiveContainer>
-    </div>
+    </ChartSurface>
   );
 }
 
@@ -354,7 +562,7 @@ export function WeeklyDualTrendLineChart({
   height = 200,
   valueSuffix = '',
 }: {
-  data: Record<string, string | number>[];
+  data: Record<string, string | number | boolean | null | undefined>[];
   engineKey: string;
   runKey: string;
   height?: number;
@@ -362,32 +570,33 @@ export function WeeklyDualTrendLineChart({
 }) {
   const engineFillId = useId();
   const runFillId = useId();
+  const dayTick = useMemo(() => renderDayAxisTick(data), [data]);
 
   return (
-    <div className="w-full" style={{ height }}>
+    <ChartSurface height={height}>
       <ResponsiveContainer width="100%" height="100%">
-        <AreaChart data={data} margin={{ top: 8, right: 8, left: -16, bottom: 0 }}>
+        <AreaChart data={data} margin={{ top: 10, right: 8, left: -12, bottom: 0 }}>
           <defs>
             <linearGradient id={engineFillId} x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor={ENGINE_CHART_COLOR} stopOpacity={0.4} />
-              <stop offset="95%" stopColor={ENGINE_CHART_COLOR} stopOpacity={0.05} />
+              <stop offset="0%" stopColor={ENGINE_CHART_COLOR} stopOpacity={0.45} />
+              <stop offset="100%" stopColor={ENGINE_CHART_COLOR} stopOpacity={0.03} />
             </linearGradient>
             <linearGradient id={runFillId} x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor={RUN_CHART_COLOR} stopOpacity={0.4} />
-              <stop offset="95%" stopColor={RUN_CHART_COLOR} stopOpacity={0.05} />
+              <stop offset="0%" stopColor={RUN_CHART_COLOR} stopOpacity={0.45} />
+              <stop offset="100%" stopColor={RUN_CHART_COLOR} stopOpacity={0.03} />
             </linearGradient>
           </defs>
-          <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="hsla(0,0%,100%,0.06)" />
+          <CartesianGrid strokeDasharray="4 8" vertical={false} stroke={GRID_STROKE} />
           <XAxis
             dataKey="dayLabel"
-            tick={{ fill: 'hsl(0 0% 55%)', fontSize: 11 }}
             axisLine={false}
             tickLine={false}
             interval="preserveStartEnd"
             minTickGap={12}
+            tick={dayTick}
           />
           <YAxis
-            tick={{ fill: 'hsl(0 0% 45%)', fontSize: 11 }}
+            tick={{ fill: AXIS_MUTED, fontSize: 10 }}
             axisLine={false}
             tickLine={false}
             width={36}
@@ -396,14 +605,14 @@ export function WeeklyDualTrendLineChart({
           />
           <Tooltip
             content={<ChartTooltip valueSuffix={valueSuffix} />}
-            cursor={{ stroke: 'hsla(0,0%,100%,0.12)', strokeWidth: 1 }}
+            cursor={{ stroke: 'hsla(0,0%,100%,0.1)', strokeWidth: 1 }}
           />
           <Area
             type="monotone"
             dataKey={engineKey}
             name="Engine"
-            stroke={ENGINE_CHART_COLOR}
-            strokeWidth={2}
+            stroke={ENGINE_CHART_COLOR_SOFT}
+            strokeWidth={2.5}
             fill={`url(#${engineFillId})`}
             dot={false}
             activeDot={{ r: 4, fill: ENGINE_CHART_COLOR, stroke: '#0a0a0a', strokeWidth: 2 }}
@@ -412,14 +621,14 @@ export function WeeklyDualTrendLineChart({
             type="monotone"
             dataKey={runKey}
             name="Run"
-            stroke={RUN_CHART_COLOR}
-            strokeWidth={2}
+            stroke={RUN_CHART_COLOR_SOFT}
+            strokeWidth={2.5}
             fill={`url(#${runFillId})`}
             dot={false}
             activeDot={{ r: 4, fill: RUN_CHART_COLOR, stroke: '#0a0a0a', strokeWidth: 2 }}
           />
         </AreaChart>
       </ResponsiveContainer>
-    </div>
+    </ChartSurface>
   );
 }
