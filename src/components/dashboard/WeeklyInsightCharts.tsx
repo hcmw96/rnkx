@@ -159,13 +159,29 @@ export function WeeklyStackedAreaChart({
   const allowDecimals = valueSuffix === ' ppm';
   const stackId = singleLeague ? undefined : 'week';
   const isStacked = stackId != null;
-  // Step curves avoid monotone bleed between leagues on zero days while still rendering isolated run/engine days.
+  // Step curves render isolated run/engine days; omit zero values so rest days stay blank.
   const areaCurve = isStacked ? 'stepAfter' : 'monotone';
 
+  const chartData = useMemo(() => {
+    if (!isStacked) return data;
+    return data.map((row) => {
+      const next = { ...row };
+      const engineVal = Number(row[stack.engineKey]);
+      const runVal = Number(row[stack.runKey]);
+      if (!Number.isFinite(engineVal) || engineVal <= 0) {
+        next[stack.engineKey] = null as unknown as string | number;
+      }
+      if (!Number.isFinite(runVal) || runVal <= 0) {
+        next[stack.runKey] = null as unknown as string | number;
+      }
+      return next;
+    });
+  }, [data, isStacked, stack.engineKey, stack.runKey]);
+
   const yAxis = useMemo(() => {
-    const maxValue = chartMaxValue(data, stack.engineKey, stack.runKey, singleLeague);
+    const maxValue = chartMaxValue(chartData, stack.engineKey, stack.runKey, singleLeague);
     return buildYAxisScale(maxValue, allowDecimals);
-  }, [allowDecimals, data, singleLeague, stack.engineKey, stack.runKey]);
+  }, [allowDecimals, chartData, singleLeague, stack.engineKey, stack.runKey]);
 
   const yAxisWidth = useMemo(() => {
     const widest = yAxis.ticks.reduce((max, tick) => {
@@ -179,7 +195,7 @@ export function WeeklyStackedAreaChart({
     <div className={cn('w-full', className)} style={{ height }}>
       <ResponsiveContainer width="100%" height="100%">
         <AreaChart
-          data={data}
+          data={chartData}
           margin={{ top: 6, right: 4, left: 0, bottom: showAllTicks ? 4 : 0 }}
         >
           <defs>
@@ -227,6 +243,7 @@ export function WeeklyStackedAreaChart({
               stroke={ENGINE_CHART_COLOR}
               strokeWidth={isStacked ? 1.5 : 2}
               fill={`url(#${engineFillId})`}
+              connectNulls={!isStacked}
               dot={false}
               activeDot={
                 isStacked
@@ -241,9 +258,10 @@ export function WeeklyStackedAreaChart({
               dataKey={stack.runKey}
               name="Run"
               stackId={stackId}
-              stroke={RUN_CHART_COLOR}
-              strokeWidth={isStacked ? 1.5 : 2}
+              stroke={isStacked ? 'none' : RUN_CHART_COLOR}
+              strokeWidth={isStacked ? 0 : 2}
               fill={`url(#${runFillId})`}
+              connectNulls={!isStacked}
               dot={false}
               activeDot={
                 isStacked

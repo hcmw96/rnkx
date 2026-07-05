@@ -1,8 +1,11 @@
 import { addDays, format, parseISO, startOfDay, subDays } from 'date-fns';
 import { activitySessionScore } from '@/lib/activitySessionScore';
 
-/** Rolling window for dashboard insight charts (current period + prior period for deltas). */
+/** Rolling window shown in dashboard insight charts. */
 export const INSIGHTS_WINDOW_DAYS = 7;
+
+/** Fetch window for coach notes and period-over-period deltas (current + prior week). */
+export const INSIGHTS_FETCH_DAYS = INSIGHTS_WINDOW_DAYS * 2;
 
 export type DailyWeekAggregate = {
   date: string;
