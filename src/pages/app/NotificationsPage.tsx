@@ -311,62 +311,51 @@ export default function NotificationsPage() {
   }
 
   return (
-    <section className="mx-auto max-w-lg space-y-6">
-        <div className="space-y-1">
-          <h1 className="type-page-title">Notifications</h1>
-          <p className="text-sm text-muted-foreground">
-            Friend requests, club invites, and unread messages appear here. Workout and rank alerts only go to your
-            phone&apos;s lock screen — they are not saved in this list.
+    <section className="mx-auto max-w-lg space-y-5 pb-8 font-sans">
+      <header className="px-0.5">
+        <h1 className="type-section-label text-foreground">Notifications</h1>
+      </header>
+
+      {showPushBanner ? (
+        <div className="rounded-lg border border-amber-500/40 bg-amber-500/10 p-4 space-y-2">
+          <p className="text-sm font-medium">
+            {pushBannerNeedsLink ? 'Push is on, but this device is not linked' : 'Push notifications are off'}
+          </p>
+          <p className="text-xs text-muted-foreground">
+            {pushBannerNeedsLink
+              ? 'Tap below to re-link this phone to your RNKX account so workout, message, and rank alerts can reach you.'
+              : 'Enable alerts for messages, friend requests, workout scores, and club invites on this device.'}
+          </p>
+          <div className="flex flex-wrap gap-2">
+            <Button type="button" size="sm" disabled={pushRegistering} onClick={() => void enablePush(true)}>
+              {pushRegistering ? 'Enabling…' : pushBannerNeedsLink ? 'Link this device' : 'Enable notifications'}
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              disabled={pushRegistering}
+              onClick={() => openNotificationSettings()}
+            >
+              Open Settings
+            </Button>
+          </div>
+        </div>
+      ) : null}
+
+      {loading ? (
+        <p className="px-0.5 text-sm text-muted-foreground">Loading…</p>
+      ) : empty ? (
+        <div className="flex flex-col items-center px-4 py-20 text-center">
+          <Bell className="h-10 w-10 text-muted-foreground/40" strokeWidth={1.5} aria-hidden />
+          <p className="mt-4 text-sm font-medium text-foreground">No notifications yet</p>
+          <p className="mt-1 max-w-[16rem] text-xs leading-relaxed text-muted-foreground">
+            Friend requests, club invites &amp; messaging will appear here
           </p>
         </div>
-
-        {showPushBanner ? (
-          <div className="rounded-lg border border-amber-500/40 bg-amber-500/10 p-4 space-y-2">
-            <p className="text-sm font-medium">
-              {pushBannerNeedsLink ? 'Push is on, but this device is not linked' : 'Push notifications are off'}
-            </p>
-            <p className="text-xs text-muted-foreground">
-              {pushBannerNeedsLink
-                ? 'Tap below to re-link this phone to your RNKX account so workout, message, and rank alerts can reach you.'
-                : 'Enable alerts for messages, friend requests, workout scores, and club invites on this device.'}
-            </p>
-            <div className="flex flex-wrap gap-2">
-              <Button type="button" size="sm" disabled={pushRegistering} onClick={() => void enablePush(true)}>
-                {pushRegistering ? 'Enabling…' : pushBannerNeedsLink ? 'Link this device' : 'Enable notifications'}
-              </Button>
-              <Button
-                type="button"
-                size="sm"
-                variant="outline"
-                disabled={pushRegistering}
-                onClick={() => openNotificationSettings()}
-              >
-                Open Settings
-              </Button>
-            </div>
-          </div>
-        ) : null}
-
-        {loading ? (
-          <p className="text-sm text-muted-foreground">Loading…</p>
-        ) : empty ? (
-          <div className="space-y-4 py-6 text-center">
-            <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-muted/50">
-              <Bell className="h-8 w-8 text-neon-lime" aria-hidden />
-            </div>
-            <p className="text-sm text-muted-foreground">No pending requests or unread messages.</p>
-            <p className="text-xs text-muted-foreground">
-              Workout scored and rank alerts show on your lock screen when push is enabled.
-            </p>
-            {showPushBanner ? (
-              <Button type="button" variant="outline" className="border-border" disabled={pushRegistering} onClick={() => void enablePush(true)}>
-                Enable notifications
-              </Button>
-            ) : null}
-          </div>
-        ) : (
-          <div className="space-y-6">
-            {friendRequests.length > 0 ? (
+      ) : (
+        <div className="space-y-6">
+          {friendRequests.length > 0 ? (
               <div className="space-y-2">
                 <h2 className="type-section-label">Friend requests</h2>
                 <ul className="space-y-2">
@@ -414,9 +403,9 @@ export default function NotificationsPage() {
                   ))}
                 </ul>
               </div>
-            ) : null}
+          ) : null}
 
-            {clubInvites.length > 0 ? (
+          {clubInvites.length > 0 ? (
               <div className="space-y-2">
                 <h2 className="type-section-label">Club invites</h2>
                 <ul className="space-y-2">
@@ -460,9 +449,9 @@ export default function NotificationsPage() {
                   ))}
                 </ul>
               </div>
-            ) : null}
+          ) : null}
 
-            {unreadChatCount > 0 ? (
+          {unreadChatCount > 0 ? (
               <div className="space-y-2">
                 <h2 className="type-section-label">Messages ({unreadChatCount} unread)</h2>
                 <ul className="space-y-2">
@@ -491,9 +480,9 @@ export default function NotificationsPage() {
                   ))}
                 </ul>
               </div>
-            ) : null}
-          </div>
-        )}
-      </section>
+          ) : null}
+        </div>
+      )}
+    </section>
   );
 }
