@@ -8,10 +8,11 @@ import {
 } from '@/components/ui/dialog';
 import {
   ENGINE_CHART_COLOR,
+  MomentumChart,
   RUN_CHART_COLOR,
-  WeeklyDualTrendLineChart,
-  WeeklyStackedAreaChart,
-} from '@/components/dashboard/WeeklyInsightCharts';
+  type MomentumChartUnit,
+  type MomentumSeries,
+} from '@/components/dashboard/MomentumChart';
 import type { DailyWeekAggregate, WeeklyInsightsData } from '@/lib/dashboardWeeklyInsights';
 import { formatInsightDateLabel, weekDeltaPercent } from '@/lib/dashboardWeeklyInsights';
 import { formatScore, formatScorePts } from '@/lib/formatScore';
@@ -43,6 +44,23 @@ const INSIGHT_TABS: { id: InsightTab; label: string }[] = [
   { id: 'volume', label: 'Volume' },
   { id: 'efficiency', label: 'Efficiency' },
 ];
+
+const MOMENTUM_TAB_CHART: Record<
+  InsightTab,
+  { unit: MomentumChartUnit; engineKey: keyof DailyWeekAggregate; runKey: keyof DailyWeekAggregate }
+> = {
+  score: { unit: 'pts', engineKey: 'engine_points', runKey: 'run_points' },
+  volume: { unit: 'min', engineKey: 'engine_minutes', runKey: 'run_minutes' },
+  efficiency: { unit: 'ppm', engineKey: 'engine_efficiency', runKey: 'run_efficiency' },
+};
+
+function momentumSeriesForTab(tab: InsightTab): MomentumSeries[] {
+  const { engineKey, runKey } = MOMENTUM_TAB_CHART[tab];
+  return [
+    { key: engineKey, name: 'Engine', color: ENGINE_CHART_COLOR },
+    { key: runKey, name: 'Run', color: RUN_CHART_COLOR },
+  ];
+}
 
 function chartRows(days: DailyWeekAggregate[]) {
   return days.map((d) => ({
@@ -145,27 +163,12 @@ function InsightDetailDialog({
 
           <div className="rounded-xl border border-border/70 bg-card p-4">
             <p className="type-section-label mb-3">{data.days.length}-day trend</p>
-            {config.kind === 'efficiency' ? (
-              <WeeklyDualTrendLineChart
-                data={rows}
-                engineKey="engine_efficiency"
-                runKey="run_efficiency"
-                height={220}
-                valueSuffix=" ppm"
-              />
-            ) : (
-              <WeeklyStackedAreaChart
-                data={rows}
-                stack={{ engineKey: config.engineKey as string, runKey: config.runKey as string }}
-                height={220}
-                valueSuffix={config.valueSuffix}
-                formatValue={
-                  config.kind === 'volume'
-                    ? (v) => String(Math.round(v))
-                    : (v) => formatScore(v)
-                }
-              />
-            )}
+            <MomentumChart
+              data={rows}
+              series={momentumSeriesForTab(config.tab)}
+              unit={MOMENTUM_TAB_CHART[config.tab].unit}
+              height={220}
+            />
           </div>
 
           <div className="rounded-xl border border-border/70 bg-card space-y-3 p-4">
@@ -304,9 +307,11 @@ export function WeeklyInsightsSection({ data }: WeeklyInsightsSectionProps) {
   );
 
   const config = cards.find((c) => c.tab === activeTab) ?? cards[0];
+  const chartSeries = momentumSeriesForTab(activeTab);
+  const chartUnit = MOMENTUM_TAB_CHART[activeTab].unit;
 
-  const hasChartData = chartData.some(
-    (row) => Number(row[config.engineKey]) > 0 || Number(row[config.runKey]) > 0,
+  const hasChartData = chartData.some((row) =>
+    chartSeries.some((s) => Number(row[s.key]) > 0),
   );
 
   return (
@@ -344,30 +349,14 @@ export function WeeklyInsightsSection({ data }: WeeklyInsightsSectionProps) {
         {hasChartData ? (
           <>
             <div className="mt-3 -mx-1">
-              {config.kind === 'efficiency' ? (
-                <WeeklyDualTrendLineChart
-                  key={activeTab}
-                  data={chartData}
-                  engineKey="engine_efficiency"
-                  runKey="run_efficiency"
-                  height={140}
-                  valueSuffix=" ppm"
-                />
-              ) : (
-                <WeeklyStackedAreaChart
-                  key={activeTab}
-                  data={chartData}
-                  stack={{ engineKey: config.engineKey as string, runKey: config.runKey as string }}
-                  height={140}
-                  valueSuffix={config.valueSuffix}
-                  showTooltip={false}
-                  formatValue={
-                    config.kind === 'volume'
-                      ? (v) => String(Math.round(v))
-                      : (v) => formatScore(v)
-                  }
-                />
-              )}
+              <MomentumChart
+                key={activeTab}
+                data={chartData}
+                series={chartSeries}
+                unit={chartUnit}
+                height={140}
+                showTooltip={false}
+              />
             </div>
             <div className="mt-2 flex items-center gap-3 text-[10px] text-muted-foreground">
               <span className="inline-flex items-center gap-1">

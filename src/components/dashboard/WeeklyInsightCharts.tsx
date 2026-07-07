@@ -8,11 +8,11 @@ import {
   XAxis,
   YAxis,
 } from 'recharts';
+import { ENGINE_CHART_COLOR, RUN_CHART_COLOR } from '@/components/dashboard/MomentumChart';
 import { cn } from '@/lib/utils';
 import { formatScore } from '@/lib/formatScore';
 
-export const ENGINE_CHART_COLOR = 'hsl(72 100% 50%)';
-export const RUN_CHART_COLOR = 'hsl(187 85% 53%)';
+export { ENGINE_CHART_COLOR, RUN_CHART_COLOR };
 
 type StackKeys = {
   engineKey: string;
