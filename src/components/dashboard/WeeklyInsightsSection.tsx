@@ -10,6 +10,7 @@ import {
   ENGINE_CHART_COLOR,
   MomentumChart,
   RUN_CHART_COLOR,
+  resolveMomentumYAxis,
   type MomentumChartUnit,
   type MomentumSeries,
 } from '@/components/dashboard/MomentumChart';
@@ -144,6 +145,13 @@ function InsightDetailDialog({
         ? prevTotals.total_points
         : prevTotals.avg_efficiency;
 
+  const dialogSeries = momentumSeriesForTab(config.tab);
+  const dialogUnit = MOMENTUM_TAB_CHART[config.tab].unit;
+  const dialogYAxis = useMemo(
+    () => resolveMomentumYAxis(rows, dialogSeries, dialogUnit),
+    [dialogSeries, dialogUnit, rows],
+  );
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="fixed inset-0 left-0 top-0 z-50 flex h-[100dvh] max-h-[100dvh] w-full max-w-none translate-x-0 translate-y-0 flex-col gap-0 overflow-y-auto rounded-none border-0 p-0 sm:rounded-none pt-[var(--safe-area-top)] pb-[var(--safe-area-bottom)] pl-[var(--safe-area-left)] pr-[var(--safe-area-right)] [&>button]:right-[calc(1rem+var(--safe-area-right))] [&>button]:top-[calc(1rem+var(--safe-area-top))]">
@@ -165,8 +173,9 @@ function InsightDetailDialog({
             <p className="type-section-label mb-3">{data.days.length}-day trend</p>
             <MomentumChart
               data={rows}
-              series={momentumSeriesForTab(config.tab)}
-              unit={MOMENTUM_TAB_CHART[config.tab].unit}
+              series={dialogSeries}
+              unit={dialogUnit}
+              yAxis={dialogYAxis}
               height={220}
             />
           </div>
@@ -309,6 +318,10 @@ export function WeeklyInsightsSection({ data }: WeeklyInsightsSectionProps) {
   const config = cards.find((c) => c.tab === activeTab) ?? cards[0];
   const chartSeries = momentumSeriesForTab(activeTab);
   const chartUnit = MOMENTUM_TAB_CHART[activeTab].unit;
+  const chartYAxis = useMemo(
+    () => resolveMomentumYAxis(chartData, chartSeries, chartUnit),
+    [chartData, chartSeries, chartUnit],
+  );
 
   const hasChartData = chartData.some((row) =>
     chartSeries.some((s) => Number(row[s.key]) > 0),
@@ -354,6 +367,7 @@ export function WeeklyInsightsSection({ data }: WeeklyInsightsSectionProps) {
                 data={chartData}
                 series={chartSeries}
                 unit={chartUnit}
+                yAxis={chartYAxis}
                 height={140}
                 showTooltip={false}
               />

@@ -1,8 +1,8 @@
-import { useMemo } from 'react';
+import { useId, useMemo } from 'react';
 import {
+  Area,
+  AreaChart,
   CartesianGrid,
-  Line,
-  LineChart,
   ResponsiveContainer,
   Tooltip,
   XAxis,
@@ -16,6 +16,8 @@ export const ENGINE_CHART_COLOR = 'hsl(72 100% 50%)';
 /** RNKX Run cyan — matches `--secondary` / `text-secondary`. */
 export const RUN_CHART_COLOR = 'hsl(186 100% 50%)';
 
+const AREA_PEAK_OPACITY = 0.45;
+
 export type MomentumSeries = {
   key: string;
   name: string;
@@ -24,28 +26,25 @@ export type MomentumSeries = {
 
 export type MomentumChartUnit = 'pts' | 'min' | 'ppm';
 
+export type MomentumYAxis = {
+  domain: [number, number];
+  ticks: number[];
+};
+
 type ChartRow = Record<string, string | number | null>;
 
 type MomentumChartProps = {
   data: ChartRow[];
   series: MomentumSeries[];
   unit: MomentumChartUnit;
-  /** Explicit Y domain; when omitted, derived from data + unit. */
-  domain?: [number, number];
+  yAxis: MomentumYAxis;
   height?: number;
   showTooltip?: boolean;
   className?: string;
 };
 
-type RenderedLine = {
-  dataKey: string;
-  name: string;
-  color: string;
-};
-
 const Y_AXIS_TICK_COUNT = 4;
 const AXIS_TICK_STYLE = { fill: 'hsl(0 0% 55%)', fontSize: 10 };
-const CHART_BG = '#0a0a0a';
 
 function niceStep(rawStep: number): number {
   if (!Number.isFinite(rawStep) || rawStep <= 0) return 1;
@@ -94,7 +93,7 @@ function chartMaxForSeries(data: ChartRow[], keys: string[]): number {
 export function buildMomentumYAxisScale(
   maxValue: number,
   unit: MomentumChartUnit,
-): { domain: [number, number]; ticks: number[] } {
+): MomentumYAxis {
   const allowDecimals = unitUsesDecimals(unit);
   if (!Number.isFinite(maxValue) || maxValue <= 0) {
     const fallback = unit === 'ppm' ? 3 : unit === 'min' ? 60 : 100;
@@ -118,98 +117,33 @@ export function buildMomentumYAxisScale(
   return { domain: [0, niceMax], ticks };
 }
 
-function seriesHasPositiveData(data: ChartRow[], key: string): boolean {
-  return data.some((row) => (Number(row[key]) || 0) > 0);
-}
-
-function isRestDay(row: ChartRow): boolean {
-  const totalMinutes = Number(row.total_minutes);
-  if (Number.isFinite(totalMinutes)) return totalMinutes <= 0;
-  const engine = Number(row.engine_minutes) || 0;
-  const run = Number(row.run_minutes) || 0;
-  return engine + run <= 0;
-}
-
-/**
- * Split a series into contiguous training blocks separated by full rest days.
- * Each block is trimmed to the first→last day this series actually scored so we
- * never draw a line for a block that only has the other league's sessions.
- */
-function splitSeriesSegments(data: ChartRow[], seriesKey: string): ChartRow[][] {
-  const segments: ChartRow[][] = [];
-  let current: ChartRow[] = [];
-
-  const flush = () => {
-    if (current.length === 0) return;
-    let first = -1;
-    let last = -1;
-    for (let i = 0; i < current.length; i++) {
-      if ((Number(current[i][seriesKey]) || 0) > 0) {
-        if (first < 0) first = i;
-        last = i;
-      }
-    }
-    if (first >= 0) segments.push(current.slice(first, last + 1));
-    current = [];
-  };
-
-  for (const row of data) {
-    if (isRestDay(row)) {
-      flush();
-      continue;
-    }
-    current.push(row);
-  }
-  flush();
-  return segments;
-}
-
-/**
- * Build line-chart rows with per-segment keys.
- *
- * - True rest days break the line (new segment).
- * - Other-league training days sit in the segment as null bridges so monotone curves
- *   connect e.g. Fri Engine → Sun Engine across a Sat Run day without faking data.
- * - Zero values are never plotted (no flat baseline).
- */
-export function buildMomentumLineChartModel(
+/** Explicit Y-axis config for a tab — never rely on recharts auto domain. */
+export function resolveMomentumYAxis(
   data: ChartRow[],
-  activeSeries: MomentumSeries[],
-): { lineData: ChartRow[]; lines: RenderedLine[] } {
-  const lineData: ChartRow[] = data.map((row) => ({ ...row }));
-  const lines: RenderedLine[] = [];
-
-  for (const s of activeSeries) {
-    const segments = splitSeriesSegments(data, s.key);
-    segments.forEach((segment, index) => {
-      const segmentKey = `${s.key}__${index}`;
-      const segmentDates = new Set(segment.map((row) => row.date));
-
-      for (const row of lineData) {
-        if (!segmentDates.has(row.date)) {
-          row[segmentKey] = null;
-          continue;
-        }
-        const v = Number(row[s.key]) || 0;
-        row[segmentKey] = v > 0 ? v : null;
-      }
-
-      lines.push({ dataKey: segmentKey, name: s.name, color: s.color });
-    });
-  }
-
-  return { lineData, lines };
-}
-
-/** @deprecated Use {@link buildMomentumLineChartModel}. */
-export function prepareMomentumLineData(
-  data: ChartRow[],
-  seriesKeys: string[],
-): ChartRow[] {
-  return buildMomentumLineChartModel(
+  series: MomentumSeries[],
+  unit: MomentumChartUnit,
+): MomentumYAxis {
+  const maxValue = chartMaxForSeries(
     data,
-    seriesKeys.map((key) => ({ key, name: key, color: ENGINE_CHART_COLOR })),
-  ).lineData;
+    series.map((s) => s.key),
+  );
+  return buildMomentumYAxisScale(maxValue, unit);
+}
+
+/**
+ * Spike area data: every day is present. Session days keep their value; non-session
+ * days sit at 0 so monotone interpolation forms smooth valleys between peaks.
+ */
+export function prepareMomentumSpikeData(data: ChartRow[], series: MomentumSeries[]): ChartRow[] {
+  const keys = series.map((s) => s.key);
+  return data.map((row) => {
+    const point: ChartRow = { ...row };
+    for (const key of keys) {
+      const v = Number(row[key]) || 0;
+      point[key] = v > 0 ? v : 0;
+    }
+    return point;
+  });
 }
 
 function ChartTooltip({
@@ -217,23 +151,20 @@ function ChartTooltip({
   payload,
   label,
   unit,
+  series,
 }: {
   active?: boolean;
-  payload?: { name: string; value: number | null; color: string; dataKey: string }[];
+  payload?: { payload?: ChartRow }[];
   label?: string;
   unit: MomentumChartUnit;
+  series: MomentumSeries[];
 }) {
-  if (!active || !payload?.length) return null;
+  const row = payload?.[0]?.payload;
+  if (!active || !row) return null;
 
-  const seen = new Set<string>();
-  const visible = payload.filter((entry) => {
-    if (entry.value == null || !Number.isFinite(Number(entry.value)) || Number(entry.value) <= 0) {
-      return false;
-    }
-    if (seen.has(entry.name)) return false;
-    seen.add(entry.name);
-    return true;
-  });
+  const visible = series
+    .map((s) => ({ ...s, value: Number(row[s.key]) || 0 }))
+    .filter((s) => s.value > 0);
   if (!visible.length) return null;
 
   const suffix = unit === 'pts' ? ' pts' : unit === 'min' ? ' min' : ' ppm';
@@ -243,11 +174,11 @@ function ChartTooltip({
       <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{label}</p>
       <ul className="mt-1 space-y-0.5">
         {visible.map((entry) => (
-          <li key={entry.dataKey} className="flex items-center gap-2 text-xs">
+          <li key={entry.key} className="flex items-center gap-2 text-xs">
             <span className="h-2 w-2 rounded-full" style={{ backgroundColor: entry.color }} />
             <span className="text-muted-foreground">{entry.name}</span>
             <span className="font-semibold text-foreground tabular-nums">
-              {formatMomentumValue(Number(entry.value), unit)}
+              {formatMomentumValue(entry.value, unit)}
               {suffix}
             </span>
           </li>
@@ -257,56 +188,18 @@ function ChartTooltip({
   );
 }
 
-function SeriesDot({
-  cx,
-  cy,
-  payload,
-  dataKey,
-  color,
-}: {
-  cx?: number;
-  cy?: number;
-  payload?: ChartRow;
-  dataKey?: string;
-  color: string;
-}) {
-  if (cx == null || cy == null || !dataKey) return null;
-  const v = payload?.[dataKey];
-  if (v == null || Number(v) <= 0) return null;
-  return <circle cx={cx} cy={cy} r={3.5} fill={color} stroke={CHART_BG} strokeWidth={1.5} />;
-}
-
 export function MomentumChart({
   data,
   series,
   unit,
-  domain: domainOverride,
+  yAxis,
   height = 140,
   showTooltip = true,
   className,
 }: MomentumChartProps) {
-  const activeSeries = useMemo(
-    () => series.filter((s) => seriesHasPositiveData(data, s.key)),
-    [data, series],
-  );
+  const gradientPrefix = useId().replace(/:/g, '');
 
-  const { lineData, lines } = useMemo(
-    () => buildMomentumLineChartModel(data, activeSeries),
-    [activeSeries, data],
-  );
-
-  const yAxis = useMemo(() => {
-    const dataMax = chartMaxForSeries(
-      data,
-      series.map((s) => s.key),
-    );
-    const scaleMax = domainOverride ? domainOverride[1] : dataMax;
-    const scale = buildMomentumYAxisScale(scaleMax, unit);
-    if (domainOverride) {
-      return { domain: domainOverride, ticks: scale.ticks };
-    }
-    return scale;
-  }, [data, domainOverride, series, unit]);
+  const spikeData = useMemo(() => prepareMomentumSpikeData(data, series), [data, series]);
 
   const yAxisWidth = useMemo(() => {
     const widest = yAxis.ticks.reduce((max, tick) => {
@@ -319,10 +212,21 @@ export function MomentumChart({
   return (
     <div className={cn('w-full', className)} style={{ height }}>
       <ResponsiveContainer width="100%" height="100%">
-        <LineChart
-          data={lineData}
+        <AreaChart
+          data={spikeData}
           margin={{ top: 8, right: 6, left: 0, bottom: 4 }}
         >
+          <defs>
+            {series.map((s) => {
+              const fillId = `${gradientPrefix}-${s.key}`;
+              return (
+                <linearGradient key={fillId} id={fillId} x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor={s.color} stopOpacity={AREA_PEAK_OPACITY} />
+                  <stop offset="100%" stopColor={s.color} stopOpacity={0} />
+                </linearGradient>
+              );
+            })}
+          </defs>
           <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="hsla(0,0%,100%,0.06)" />
           <XAxis
             dataKey="dayLabel"
@@ -345,31 +249,31 @@ export function MomentumChart({
           />
           {showTooltip ? (
             <Tooltip
-              content={<ChartTooltip unit={unit} />}
+              content={<ChartTooltip unit={unit} series={series} />}
               cursor={{ stroke: 'hsla(0,0%,100%,0.12)', strokeWidth: 1 }}
             />
           ) : null}
-          {lines.map((line) => (
-            <Line
-              key={line.dataKey}
-              type="monotone"
-              dataKey={line.dataKey}
-              name={line.name}
-              stroke={line.color}
-              strokeWidth={2}
-              connectNulls
-              legendType="none"
-              isAnimationActive={false}
-              dot={<SeriesDot dataKey={line.dataKey} color={line.color} />}
-              activeDot={{
-                r: 5,
-                fill: line.color,
-                stroke: CHART_BG,
-                strokeWidth: 2,
-              }}
-            />
-          ))}
-        </LineChart>
+          {series.map((s) => {
+            const fillId = `${gradientPrefix}-${s.key}`;
+            return (
+              <Area
+                key={s.key}
+                type="monotone"
+                dataKey={s.key}
+                name={s.name}
+                baseValue={0}
+                stroke={s.color}
+                strokeWidth={2}
+                fill={`url(#${fillId})`}
+                fillOpacity={1}
+                connectNulls
+                isAnimationActive={false}
+                legendType="none"
+                style={{ mixBlendMode: 'screen' }}
+              />
+            );
+          })}
+        </AreaChart>
       </ResponsiveContainer>
     </div>
   );
