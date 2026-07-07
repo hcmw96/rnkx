@@ -37,6 +37,12 @@ type MomentumChartProps = {
   className?: string;
 };
 
+type RenderedLine = {
+  dataKey: string;
+  name: string;
+  color: string;
+};
+
 const Y_AXIS_TICK_COUNT = 4;
 const AXIS_TICK_STYLE = { fill: 'hsl(0 0% 55%)', fontSize: 10 };
 const CHART_BG = '#0a0a0a';
@@ -116,20 +122,94 @@ function seriesHasPositiveData(data: ChartRow[], key: string): boolean {
   return data.some((row) => (Number(row[key]) || 0) > 0);
 }
 
-/** Rest days become null so lines don't connect through zero or draw fake baselines. */
+function isRestDay(row: ChartRow): boolean {
+  const totalMinutes = Number(row.total_minutes);
+  if (Number.isFinite(totalMinutes)) return totalMinutes <= 0;
+  const engine = Number(row.engine_minutes) || 0;
+  const run = Number(row.run_minutes) || 0;
+  return engine + run <= 0;
+}
+
+/**
+ * Split a series into contiguous training blocks separated by full rest days.
+ * Each block is trimmed to the first→last day this series actually scored so we
+ * never draw a line for a block that only has the other league's sessions.
+ */
+function splitSeriesSegments(data: ChartRow[], seriesKey: string): ChartRow[][] {
+  const segments: ChartRow[][] = [];
+  let current: ChartRow[] = [];
+
+  const flush = () => {
+    if (current.length === 0) return;
+    let first = -1;
+    let last = -1;
+    for (let i = 0; i < current.length; i++) {
+      if ((Number(current[i][seriesKey]) || 0) > 0) {
+        if (first < 0) first = i;
+        last = i;
+      }
+    }
+    if (first >= 0) segments.push(current.slice(first, last + 1));
+    current = [];
+  };
+
+  for (const row of data) {
+    if (isRestDay(row)) {
+      flush();
+      continue;
+    }
+    current.push(row);
+  }
+  flush();
+  return segments;
+}
+
+/**
+ * Build line-chart rows with per-segment keys.
+ *
+ * - True rest days break the line (new segment).
+ * - Other-league training days sit in the segment as null bridges so monotone curves
+ *   connect e.g. Fri Engine → Sun Engine across a Sat Run day without faking data.
+ * - Zero values are never plotted (no flat baseline).
+ */
+export function buildMomentumLineChartModel(
+  data: ChartRow[],
+  activeSeries: MomentumSeries[],
+): { lineData: ChartRow[]; lines: RenderedLine[] } {
+  const lineData: ChartRow[] = data.map((row) => ({ ...row }));
+  const lines: RenderedLine[] = [];
+
+  for (const s of activeSeries) {
+    const segments = splitSeriesSegments(data, s.key);
+    segments.forEach((segment, index) => {
+      const segmentKey = `${s.key}__${index}`;
+      const segmentDates = new Set(segment.map((row) => row.date));
+
+      for (const row of lineData) {
+        if (!segmentDates.has(row.date)) {
+          row[segmentKey] = null;
+          continue;
+        }
+        const v = Number(row[s.key]) || 0;
+        row[segmentKey] = v > 0 ? v : null;
+      }
+
+      lines.push({ dataKey: segmentKey, name: s.name, color: s.color });
+    });
+  }
+
+  return { lineData, lines };
+}
+
+/** @deprecated Use {@link buildMomentumLineChartModel}. */
 export function prepareMomentumLineData(
   data: ChartRow[],
   seriesKeys: string[],
 ): ChartRow[] {
-  const keys = new Set(seriesKeys);
-  return data.map((row) => {
-    const point: ChartRow = { ...row };
-    for (const key of keys) {
-      const v = Number(row[key]) || 0;
-      point[key] = v > 0 ? v : null;
-    }
-    return point;
-  });
+  return buildMomentumLineChartModel(
+    data,
+    seriesKeys.map((key) => ({ key, name: key, color: ENGINE_CHART_COLOR })),
+  ).lineData;
 }
 
 function ChartTooltip({
@@ -144,9 +224,16 @@ function ChartTooltip({
   unit: MomentumChartUnit;
 }) {
   if (!active || !payload?.length) return null;
-  const visible = payload.filter(
-    (entry) => entry.value != null && Number.isFinite(Number(entry.value)) && Number(entry.value) > 0,
-  );
+
+  const seen = new Set<string>();
+  const visible = payload.filter((entry) => {
+    if (entry.value == null || !Number.isFinite(Number(entry.value)) || Number(entry.value) <= 0) {
+      return false;
+    }
+    if (seen.has(entry.name)) return false;
+    seen.add(entry.name);
+    return true;
+  });
   if (!visible.length) return null;
 
   const suffix = unit === 'pts' ? ' pts' : unit === 'min' ? ' min' : ' ppm';
@@ -203,8 +290,8 @@ export function MomentumChart({
     [data, series],
   );
 
-  const lineData = useMemo(
-    () => prepareMomentumLineData(data, activeSeries.map((s) => s.key)),
+  const { lineData, lines } = useMemo(
+    () => buildMomentumLineChartModel(data, activeSeries),
     [activeSeries, data],
   );
 
@@ -262,20 +349,21 @@ export function MomentumChart({
               cursor={{ stroke: 'hsla(0,0%,100%,0.12)', strokeWidth: 1 }}
             />
           ) : null}
-          {activeSeries.map((s) => (
+          {lines.map((line) => (
             <Line
-              key={s.key}
-              type="linear"
-              dataKey={s.key}
-              name={s.name}
-              stroke={s.color}
+              key={line.dataKey}
+              type="monotone"
+              dataKey={line.dataKey}
+              name={line.name}
+              stroke={line.color}
               strokeWidth={2}
-              connectNulls={false}
+              connectNulls
+              legendType="none"
               isAnimationActive={false}
-              dot={<SeriesDot dataKey={s.key} color={s.color} />}
+              dot={<SeriesDot dataKey={line.dataKey} color={line.color} />}
               activeDot={{
                 r: 5,
-                fill: s.color,
+                fill: line.color,
                 stroke: CHART_BG,
                 strokeWidth: 2,
               }}
