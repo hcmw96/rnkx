@@ -7,6 +7,11 @@ import { getOneSignalCredentials } from '../_shared/onesignalSend.ts';
 
 const SYNC_REMINDER_PATH = pathFromUrl('https://rnkx.netlify.app/app/profile', '/app/profile');
 
+const SYNC_REMINDER_TITLE = 'Sync your workouts ⌚';
+/** Shown on Sunday UTC cron runs — deadline is end of that calendar day in GMT. */
+const SYNC_REMINDER_MESSAGE =
+  'Sync before midnight GMT tonight so your workouts count this week.';
+
 type AthleteRow = {
   id: string;
   wearables: unknown;
@@ -15,6 +20,11 @@ type AthleteRow = {
 function hasAppleWatch(wearables: unknown): boolean {
   if (!Array.isArray(wearables)) return false;
   return wearables.some((w) => String(w).trim().toLowerCase() === 'apple_watch');
+}
+
+/** pg_cron should only invoke on Sundays; guard against stale daily jobs. */
+function isSundayUtc(now = new Date()): boolean {
+  return now.getUTCDay() === 0;
 }
 
 serve(async (req) => {
@@ -51,6 +61,12 @@ serve(async (req) => {
   }
 
   const targetAthleteId = typeof body.athlete_id === 'string' ? body.athlete_id.trim() : '';
+
+  // Manual test calls may pass athlete_id; scheduled cron runs with {} only on Sundays.
+  if (!targetAthleteId && !isSundayUtc()) {
+    console.log('[notify-sync-reminder] skipped — not Sunday UTC');
+    return notifyJson({ sent: 0, skipped: 0, reason: 'not_sunday_utc' });
+  }
 
   let candidates: AthleteRow[] = [];
 
@@ -89,8 +105,8 @@ serve(async (req) => {
     const osResult = await sendOneSignalPush({
       appId: '',
       externalUserIds: [String(row.id)],
-      title: 'Sync your workouts ⌚',
-      message: 'Sync before Sunday midnight GMT to make sure your workouts count this week.',
+      title: SYNC_REMINDER_TITLE,
+      message: SYNC_REMINDER_MESSAGE,
       path: SYNC_REMINDER_PATH,
     });
 
