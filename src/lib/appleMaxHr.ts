@@ -16,13 +16,22 @@ export function inferMaxHrFromAppleWorkouts(workouts: WorkoutObject[]): number |
   return best;
 }
 
-/** Only overwrite profile max HR from Apple when user has not set it manually or via WHOOP/Terra. */
+/**
+ * Whether an Apple-synced max HR may overwrite the stored profile value.
+ *
+ * Only a *manually* entered value is authoritative and protected. Every device
+ * source (apple_watch / whoop_* / terra_live) uses highest-ever semantics — see
+ * nextProfileMaxHrFromApple, which only ever raises the value — so letting Apple
+ * push a genuinely higher observed peak is always safe and correct, even when the
+ * current value came from an older WHOOP/Terra reading.
+ *
+ * Previously this also blocked whoop_historic / whoop_live / terra_live, which
+ * permanently froze the max HR for anyone whose source was ever stamped by a
+ * wearable they no longer use (e.g. an Apple-only athlete stuck on a stale
+ * whoop_historic value) — their real Apple peaks were silently discarded.
+ */
 export function shouldApplyAppleMaxHrToProfile(maxHrSource: string | null | undefined): boolean {
-  const s = maxHrSource ?? '';
-  if (s === 'manual') return false;
-  if (s === 'whoop_historic' || s === 'whoop_live') return false;
-  if (s === 'terra_live') return false;
-  return true;
+  return (maxHrSource ?? '') !== 'manual';
 }
 
 export function nextProfileMaxHrFromApple(
