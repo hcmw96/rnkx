@@ -16,7 +16,7 @@ const REJECT_LABELS: Record<string, string> = {
   duplicate: 'Duplicate workout',
 };
 
-function humanizeRejectReason(code: string | null | undefined): string {
+export function humanizeRejectReason(code: string | null | undefined): string {
   if (!code) return 'Not counted';
   return REJECT_LABELS[code] ?? code.replace(/_/g, ' ');
 }
