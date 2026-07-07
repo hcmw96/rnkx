@@ -1,8 +1,8 @@
 import { useMemo } from 'react';
 import {
-  Bar,
-  BarChart,
   CartesianGrid,
+  Line,
+  LineChart,
   ResponsiveContainer,
   Tooltip,
   XAxis,
@@ -24,7 +24,7 @@ export type MomentumSeries = {
 
 export type MomentumChartUnit = 'pts' | 'min' | 'ppm';
 
-type ChartRow = Record<string, string | number>;
+type ChartRow = Record<string, string | number | null>;
 
 type MomentumChartProps = {
   data: ChartRow[];
@@ -39,6 +39,7 @@ type MomentumChartProps = {
 
 const Y_AXIS_TICK_COUNT = 4;
 const AXIS_TICK_STYLE = { fill: 'hsl(0 0% 55%)', fontSize: 10 };
+const CHART_BG = '#0a0a0a';
 
 function niceStep(rawStep: number): number {
   if (!Number.isFinite(rawStep) || rawStep <= 0) return 1;
@@ -115,6 +116,22 @@ function seriesHasPositiveData(data: ChartRow[], key: string): boolean {
   return data.some((row) => (Number(row[key]) || 0) > 0);
 }
 
+/** Rest days become null so lines don't connect through zero or draw fake baselines. */
+export function prepareMomentumLineData(
+  data: ChartRow[],
+  seriesKeys: string[],
+): ChartRow[] {
+  const keys = new Set(seriesKeys);
+  return data.map((row) => {
+    const point: ChartRow = { ...row };
+    for (const key of keys) {
+      const v = Number(row[key]) || 0;
+      point[key] = v > 0 ? v : null;
+    }
+    return point;
+  });
+}
+
 function ChartTooltip({
   active,
   payload,
@@ -122,12 +139,14 @@ function ChartTooltip({
   unit,
 }: {
   active?: boolean;
-  payload?: { name: string; value: number; color: string; dataKey: string }[];
+  payload?: { name: string; value: number | null; color: string; dataKey: string }[];
   label?: string;
   unit: MomentumChartUnit;
 }) {
   if (!active || !payload?.length) return null;
-  const visible = payload.filter((entry) => Number(entry.value) > 0);
+  const visible = payload.filter(
+    (entry) => entry.value != null && Number.isFinite(Number(entry.value)) && Number(entry.value) > 0,
+  );
   if (!visible.length) return null;
 
   const suffix = unit === 'pts' ? ' pts' : unit === 'min' ? ' min' : ' ppm';
@@ -138,10 +157,10 @@ function ChartTooltip({
       <ul className="mt-1 space-y-0.5">
         {visible.map((entry) => (
           <li key={entry.dataKey} className="flex items-center gap-2 text-xs">
-            <span className="h-2 w-2 rounded-sm" style={{ backgroundColor: entry.color }} />
+            <span className="h-2 w-2 rounded-full" style={{ backgroundColor: entry.color }} />
             <span className="text-muted-foreground">{entry.name}</span>
             <span className="font-semibold text-foreground tabular-nums">
-              {formatMomentumValue(entry.value, unit)}
+              {formatMomentumValue(Number(entry.value), unit)}
               {suffix}
             </span>
           </li>
@@ -149,6 +168,25 @@ function ChartTooltip({
       </ul>
     </div>
   );
+}
+
+function SeriesDot({
+  cx,
+  cy,
+  payload,
+  dataKey,
+  color,
+}: {
+  cx?: number;
+  cy?: number;
+  payload?: ChartRow;
+  dataKey?: string;
+  color: string;
+}) {
+  if (cx == null || cy == null || !dataKey) return null;
+  const v = payload?.[dataKey];
+  if (v == null || Number(v) <= 0) return null;
+  return <circle cx={cx} cy={cy} r={3.5} fill={color} stroke={CHART_BG} strokeWidth={1.5} />;
 }
 
 export function MomentumChart({
@@ -163,6 +201,11 @@ export function MomentumChart({
   const activeSeries = useMemo(
     () => series.filter((s) => seriesHasPositiveData(data, s.key)),
     [data, series],
+  );
+
+  const lineData = useMemo(
+    () => prepareMomentumLineData(data, activeSeries.map((s) => s.key)),
+    [activeSeries, data],
   );
 
   const yAxis = useMemo(() => {
@@ -189,11 +232,9 @@ export function MomentumChart({
   return (
     <div className={cn('w-full', className)} style={{ height }}>
       <ResponsiveContainer width="100%" height="100%">
-        <BarChart
-          data={data}
-          margin={{ top: 6, right: 4, left: 0, bottom: 4 }}
-          barCategoryGap="18%"
-          barGap={2}
+        <LineChart
+          data={lineData}
+          margin={{ top: 8, right: 6, left: 0, bottom: 4 }}
         >
           <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="hsla(0,0%,100%,0.06)" />
           <XAxis
@@ -218,22 +259,29 @@ export function MomentumChart({
           {showTooltip ? (
             <Tooltip
               content={<ChartTooltip unit={unit} />}
-              cursor={{ fill: 'hsla(0,0%,100%,0.04)' }}
+              cursor={{ stroke: 'hsla(0,0%,100%,0.12)', strokeWidth: 1 }}
             />
           ) : null}
           {activeSeries.map((s) => (
-            <Bar
+            <Line
               key={s.key}
+              type="linear"
               dataKey={s.key}
               name={s.name}
-              fill={s.color}
               stroke={s.color}
-              strokeWidth={1}
-              radius={[2, 2, 0, 0]}
+              strokeWidth={2}
+              connectNulls={false}
               isAnimationActive={false}
+              dot={<SeriesDot dataKey={s.key} color={s.color} />}
+              activeDot={{
+                r: 5,
+                fill: s.color,
+                stroke: CHART_BG,
+                strokeWidth: 2,
+              }}
             />
           ))}
-        </BarChart>
+        </LineChart>
       </ResponsiveContainer>
     </div>
   );
