@@ -87,7 +87,7 @@ function lengthFromPeriod(period: unknown): { label: SubscriptionLength; periodM
   return null;
 }
 
-function titleFor(productId: string, rawTitle: string | null, lengthLabel: string): string {
+function titleFor(rawTitle: string | null, lengthLabel: string): string {
   if (rawTitle && !/^product$/i.test(rawTitle)) {
     // Prefer store title when it already includes cadence
     if (/month|year|annual|weekly/i.test(rawTitle)) return rawTitle;
@@ -125,9 +125,10 @@ function normalizeOne(raw: unknown): PaywallProduct | null {
   if (!productId) return null;
 
   const packageId = readString(rec.packageType, rec.packageIdentifier, rec.identifier, productId) ?? productId;
+  const subscription = asRecord(nested.subscription);
   const fromPeriod =
     lengthFromPeriod(nested.subscriptionPeriod) ??
-    lengthFromPeriod(nested.subscription?.duration) ??
+    lengthFromPeriod(subscription?.duration) ??
     lengthFromPeriod(nested.period) ??
     lengthFromPackageId(packageId);
 
@@ -155,7 +156,7 @@ function normalizeOne(raw: unknown): PaywallProduct | null {
 
   return {
     productId,
-    title: titleFor(productId, rawTitle, fromPeriod.label),
+    title: titleFor(rawTitle, fromPeriod.label),
     lengthLabel: fromPeriod.label,
     displayPrice,
     price,
