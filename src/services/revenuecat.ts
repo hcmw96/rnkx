@@ -50,15 +50,39 @@ export async function applyPremiumIfStoreHasEntitlement(): Promise<boolean> {
   return true;
 }
 
-export function presentPaywall(userId: string): void {
-  const isDespiaApp = navigator.userAgent.toLowerCase().includes('despia');
-  if (isDespiaApp) {
-    void despia(
-      `revenuecat://launchPaywall?external_id=${encodeURIComponent(userId)}&offering=${encodeURIComponent(REVENUECAT_OFFERING_ID)}`,
-    );
-  } else {
-    window.location.href = `/premium`;
+function isDespiaRuntime(): boolean {
+  return navigator.userAgent.toLowerCase().includes('despia');
+}
+
+/**
+ * Opens the in-app paywall screen (/premium) so Guideline 3.1.2 disclosures
+ * are visible in-app before purchase.
+ */
+export function presentPaywall(_userId?: string): void {
+  window.location.href = '/premium';
+}
+
+/** Native RevenueCat paywall sheet (same offering / entitlement path as before). */
+export function launchNativePaywall(userId: string): void {
+  if (!isDespiaRuntime()) {
+    window.location.href = '/premium';
+    return;
   }
+  void despia(
+    `revenuecat://launchPaywall?external_id=${encodeURIComponent(userId)}&offering=${encodeURIComponent(REVENUECAT_OFFERING_ID)}`,
+  );
+}
+
+/** Direct StoreKit / Play purchase for a single product ID (custom paywall CTA). */
+export function purchaseSubscriptionProduct(userId: string, productId: string): void {
+  if (!isDespiaRuntime()) {
+    window.location.href = '/premium';
+    return;
+  }
+  // Product IDs come from RevenueCat offerings (iOS plain ID; Android may be group:product).
+  void despia(
+    `revenuecat://purchase?external_id=${encodeURIComponent(userId)}&product=${encodeURIComponent(productId)}`,
+  );
 }
 
 export async function restoreInAppPurchasesAndApplyPremium(): Promise<'premium' | 'none' | 'not_despia' | 'restore_error'> {
