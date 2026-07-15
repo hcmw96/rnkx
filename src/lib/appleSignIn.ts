@@ -65,28 +65,6 @@ export function isDespiaIOS(): boolean {
   return ua.includes('despia') && (ua.includes('iphone') || ua.includes('ipad'));
 }
 
-function generateRawNonce(): string {
-  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
-    return crypto.randomUUID();
-  }
-  const bytes = new Uint8Array(32);
-  crypto.getRandomValues(bytes);
-  return Array.from(bytes, (byte) => byte.toString(16).padStart(2, '0')).join('');
-}
-
-function persistAppleNonce(rawNonce: string): void {
-  try {
-    sessionStorage.setItem(APPLE_NONCE_STORAGE_KEY, rawNonce);
-  } catch {
-    // ignore
-  }
-  try {
-    localStorage.setItem(APPLE_NONCE_STORAGE_KEY, rawNonce);
-  } catch {
-    // ignore
-  }
-}
-
 function readAppleNonce(): string | null {
   try {
     const fromSession = sessionStorage.getItem(APPLE_NONCE_STORAGE_KEY);
@@ -269,11 +247,14 @@ function parseAppleUserParam(raw: string | null): ApplePersonName | null {
 
 /**
  * Despia iOS: usePopup MUST be true — native Face ID / Apple ID sheet, id_token to JS.
- * Apple JS SDK hashes the nonce itself — pass the RAW nonce (Supabase web docs).
- * @see https://supabase.com/docs/guides/auth/social-login/auth-apple
+ *
+ * Intentionally omit `nonce` here. Apple puts a base64url SHA-256 in the JWT while
+ * hosted Supabase/GoTrue compares a hex SHA-256 → "Nonces mismatch". Without a nonce
+ * on the authorize request, Apple omits the claim and Supabase accepts the id_token.
+ * @see https://github.com/supabase/auth/issues/2378
  * @see https://setup.despia.com/native-features/oauth/apple
  */
-function requestAppleAuthorization(rawNonce: string): Promise<AppleAuthSuccess> {
+function requestAppleAuthorization(): Promise<AppleAuthSuccess> {
   return new Promise((resolve, reject) => {
     let settled = false;
 
@@ -316,8 +297,6 @@ function requestAppleAuthorization(rawNonce: string): Promise<AppleAuthSuccess> 
       scope: 'name email',
       redirectURI: APPLE_REDIRECT_URI,
       usePopup: true,
-      // RAW nonce — Apple JS SDK hashes before putting it in the id_token.
-      nonce: rawNonce,
     });
 
     const signIn = window.AppleID?.auth?.signIn;
@@ -365,20 +344,20 @@ function mapSupabaseAppleAuthError(message: string): string {
     return 'Apple Sign In is not configured in Supabase yet. Add com.despia.rnkx.web to Authentication → Providers → Apple → Client IDs.';
   }
   if (/nonce/i.test(message)) {
-    return 'Apple Sign In session expired. Please try again.';
+    return `Apple Sign In failed (${message}).`;
   }
   return message;
 }
 
 async function finishAppleSession(
   idToken: string,
-  rawNonce: string,
   appleName: ApplePersonName | null,
+  rawNonce?: string | null,
 ): Promise<AppleSignInResult> {
   const { data, error } = await supabase.auth.signInWithIdToken({
     provider: 'apple',
     token: idToken,
-    nonce: rawNonce,
+    ...(rawNonce ? { nonce: rawNonce } : {}),
   });
 
   clearAppleNonce();
@@ -417,24 +396,17 @@ export async function signInWithApple(): Promise<AppleSignInResult> {
     return { error: { message: 'Sign in with Apple is only available on the RNKX iOS app.' } };
   }
 
-  let rawNonce: string | null = null;
-
   try {
     await loadAppleAuthSdk();
 
-    rawNonce = generateRawNonce();
-    persistAppleNonce(rawNonce);
-
-    const response = await requestAppleAuthorization(rawNonce);
+    const response = await requestAppleAuthorization();
     const idToken = response.authorization.id_token;
     if (!idToken) {
-      clearAppleNonce();
       return { error: { message: 'Apple Sign In did not return an identity token.' } };
     }
 
-    return await finishAppleSession(idToken, rawNonce, response.user?.name ?? null);
+    return await finishAppleSession(idToken, response.user?.name ?? null);
   } catch (error) {
-    clearAppleNonce();
     if (isUserCancelledError(error)) {
       return { error: null, cancelled: true };
     }
@@ -461,12 +433,13 @@ export async function completeAppleSignInFromRedirect(
   }
 
   const rawNonce = readAppleNonce();
-  if (!rawNonce) {
-    return { error: { message: 'Apple Sign In session expired. Please try again.' } };
-  }
 
   try {
-    return await finishAppleSession(idToken, rawNonce, parseAppleUserParam(searchParams.get('user')));
+    return await finishAppleSession(
+      idToken,
+      parseAppleUserParam(searchParams.get('user')),
+      rawNonce,
+    );
   } catch (error) {
     clearAppleNonce();
     console.error('[Apple Sign In] complete redirect', error);

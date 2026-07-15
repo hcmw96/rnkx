@@ -32,7 +32,7 @@ declare global {
           scope: string;
           redirectURI: string;
           usePopup: boolean;
-          nonce: string;
+          nonce?: string;
         }) => void;
         signIn: () => Promise<unknown> | void;
       };
