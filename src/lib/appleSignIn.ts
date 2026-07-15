@@ -4,9 +4,9 @@ import { supabase } from '@/services/supabase';
 const APPLE_CLIENT_ID = 'com.despia.rnkx.web';
 /**
  * Must match a Return URL on Services ID `com.despia.rnkx.web`.
- * Still required by Apple when usePopup is true (tokens return to JS; no form_post).
+ * Required even with usePopup:true. Prefer site root (Despia + Supabase docs).
  */
-const APPLE_REDIRECT_URI = 'https://rnkx.netlify.app/api/auth/apple/callback';
+const APPLE_REDIRECT_URI = 'https://rnkx.netlify.app/';
 const APPLE_SDK_URL =
   'https://appleid.cdn-apple.com/appleauth/static/jsapi/appleid/1/en_US/appleid.auth.js';
 const APPLE_NONCE_STORAGE_KEY = 'rnkx_apple_auth_nonce';
@@ -66,15 +66,12 @@ export function isDespiaIOS(): boolean {
 }
 
 function generateRawNonce(): string {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+    return crypto.randomUUID();
+  }
   const bytes = new Uint8Array(32);
   crypto.getRandomValues(bytes);
   return Array.from(bytes, (byte) => byte.toString(16).padStart(2, '0')).join('');
-}
-
-async function sha256Hex(value: string): Promise<string> {
-  const data = new TextEncoder().encode(value);
-  const digest = await crypto.subtle.digest('SHA-256', data);
-  return Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, '0')).join('');
 }
 
 function persistAppleNonce(rawNonce: string): void {
@@ -123,12 +120,29 @@ const APPLE_CANCEL_ERRORS = new Set([
   'user_canceled_authorize',
 ]);
 
+function collectErrorCandidates(error: unknown): string[] {
+  const out: string[] = [];
+  if (typeof error === 'string' && error.trim()) out.push(error.trim());
+  if (error instanceof Error && error.message) out.push(error.message);
+  if (error && typeof error === 'object') {
+    const record = error as Record<string, unknown>;
+    for (const key of ['error', 'message', 'code', 'error_description', 'name']) {
+      const value = record[key];
+      if (typeof value === 'string' && value.trim()) out.push(value.trim());
+      if (value && typeof value === 'object') {
+        const nested = value as Record<string, unknown>;
+        for (const nestedKey of ['error', 'message', 'code']) {
+          const nestedVal = nested[nestedKey];
+          if (typeof nestedVal === 'string' && nestedVal.trim()) out.push(nestedVal.trim());
+        }
+      }
+    }
+  }
+  return out;
+}
+
 function isUserCancelledError(error: unknown): boolean {
-  if (!error || typeof error !== 'object') return false;
-  const record = error as Record<string, unknown>;
-  const candidates = [record.error, record.message, record.code];
-  return candidates.some((value) => {
-    if (typeof value !== 'string') return false;
+  return collectErrorCandidates(error).some((value) => {
     const normalized = value.toLowerCase();
     return (
       APPLE_CANCEL_ERRORS.has(normalized) ||
@@ -139,22 +153,44 @@ function isUserCancelledError(error: unknown): boolean {
 }
 
 function getAppleAuthErrorMessage(error: unknown): string {
-  if (error instanceof Error && error.message) return error.message;
-  if (error && typeof error === 'object') {
-    const record = error as Record<string, unknown>;
-    if (typeof record.error === 'string') {
-      switch (record.error) {
-        case 'popup_blocked_by_browser':
-          return 'Apple Sign In was blocked. Please try again.';
-        case 'invalid_client':
-        case 'invalid_request':
-          return 'Apple Sign In is misconfigured. Please try again later.';
-        default:
-          return `Apple Sign In failed (${record.error}).`;
-      }
+  const candidates = collectErrorCandidates(error);
+  for (const value of candidates) {
+    const normalized = value.toLowerCase();
+    switch (normalized) {
+      case 'popup_blocked_by_browser':
+        return 'Apple Sign In was blocked. Please try again.';
+      case 'invalid_client':
+      case 'invalid_request':
+        return 'Apple Sign In is misconfigured. Please try again later.';
+      default:
+        break;
     }
-    if (typeof record.message === 'string' && record.message) return record.message;
+    if (normalized.includes('unacceptable audience')) {
+      return 'Apple Sign In is not configured in Supabase yet. Add com.despia.rnkx.web to Authentication → Providers → Apple → Client IDs.';
+    }
+    if (normalized.includes('nonce')) {
+      return 'Apple Sign In session expired. Please try again.';
+    }
   }
+
+  if (candidates.length > 0) {
+    const primary = candidates[0];
+    // Surface Apple/Supabase codes clearly for TestFlight debugging.
+    if (/^[a-z0-9_.-]+$/i.test(primary) && primary.length < 64) {
+      return `Apple Sign In failed (${primary}).`;
+    }
+    return primary;
+  }
+
+  try {
+    const serialized = JSON.stringify(error);
+    if (serialized && serialized !== '{}' && serialized !== 'null') {
+      return `Apple Sign In failed: ${serialized.slice(0, 160)}`;
+    }
+  } catch {
+    // ignore
+  }
+
   return 'Something went wrong with Apple Sign In.';
 }
 
@@ -191,6 +227,18 @@ function parseAppleSuccessDetail(detail: unknown): AppleAuthSuccess | null {
     }
   }
 
+  // Some SDK shapes put id_token on the root.
+  if (typeof record.id_token === 'string') {
+    return {
+      authorization: {
+        id_token: record.id_token,
+        code: typeof record.code === 'string' ? record.code : undefined,
+        state: typeof record.state === 'string' ? record.state : undefined,
+      },
+      user: record.user as AppleAuthSuccess['user'],
+    };
+  }
+
   const data = record.data;
   if (data && typeof data === 'object') {
     const dataRecord = data as Record<string, unknown>;
@@ -220,12 +268,12 @@ function parseAppleUserParam(raw: string | null): ApplePersonName | null {
 }
 
 /**
- * Despia iOS: usePopup MUST be true — opens the native Face ID / Apple ID sheet and
- * returns id_token to JS with no page redirect. usePopup:false causes form_post redirects
- * / blank screens and App Store Guideline 2.1 rejections.
+ * Despia iOS: usePopup MUST be true — native Face ID / Apple ID sheet, id_token to JS.
+ * Apple JS SDK hashes the nonce itself — pass the RAW nonce (Supabase web docs).
+ * @see https://supabase.com/docs/guides/auth/social-login/auth-apple
  * @see https://setup.despia.com/native-features/oauth/apple
  */
-function requestAppleAuthorization(hashedNonce: string): Promise<AppleAuthSuccess> {
+function requestAppleAuthorization(rawNonce: string): Promise<AppleAuthSuccess> {
   return new Promise((resolve, reject) => {
     let settled = false;
 
@@ -268,7 +316,8 @@ function requestAppleAuthorization(hashedNonce: string): Promise<AppleAuthSucces
       scope: 'name email',
       redirectURI: APPLE_REDIRECT_URI,
       usePopup: true,
-      nonce: hashedNonce,
+      // RAW nonce — Apple JS SDK hashes before putting it in the id_token.
+      nonce: rawNonce,
     });
 
     const signIn = window.AppleID?.auth?.signIn;
@@ -294,12 +343,9 @@ function requestAppleAuthorization(hashedNonce: string): Promise<AppleAuthSucces
               finish(() => reject(error));
               return;
             }
-            // Prefer DOM failure event when present; otherwise surface the rejection.
             if (!settled) {
               console.warn('[Apple Sign In] signIn promise rejected', error);
-              finish(() =>
-                reject(error instanceof Error ? error : new Error(getAppleAuthErrorMessage(error))),
-              );
+              finish(() => reject(error));
             }
           });
       }
@@ -309,9 +355,7 @@ function requestAppleAuthorization(hashedNonce: string): Promise<AppleAuthSucces
         return;
       }
       console.warn('[Apple Sign In] signIn threw', error);
-      finish(() =>
-        reject(error instanceof Error ? error : new Error(getAppleAuthErrorMessage(error))),
-      );
+      finish(() => reject(error));
     }
   });
 }
@@ -379,10 +423,9 @@ export async function signInWithApple(): Promise<AppleSignInResult> {
     await loadAppleAuthSdk();
 
     rawNonce = generateRawNonce();
-    const hashedNonce = await sha256Hex(rawNonce);
     persistAppleNonce(rawNonce);
 
-    const response = await requestAppleAuthorization(hashedNonce);
+    const response = await requestAppleAuthorization(rawNonce);
     const idToken = response.authorization.id_token;
     if (!idToken) {
       clearAppleNonce();
