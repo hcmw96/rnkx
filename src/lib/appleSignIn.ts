@@ -2,8 +2,11 @@ import { bootstrapAthleteAfterAuth, isAthleteProfileComplete } from '@/lib/authP
 import { supabase } from '@/services/supabase';
 
 const APPLE_CLIENT_ID = 'com.despia.rnkx.web';
-/** Apple form_post target — must match a Return URL on Services ID com.despia.rnkx.web */
-const APPLE_POST_CALLBACK_URI = 'https://rnkx.netlify.app/api/auth/apple/callback';
+/**
+ * Must match a Return URL on Services ID `com.despia.rnkx.web`.
+ * Still required by Apple when usePopup is true (tokens return to JS; no form_post).
+ */
+const APPLE_REDIRECT_URI = 'https://rnkx.netlify.app/api/auth/apple/callback';
 const APPLE_SDK_URL =
   'https://appleid.cdn-apple.com/appleauth/static/jsapi/appleid/1/en_US/appleid.auth.js';
 const APPLE_NONCE_STORAGE_KEY = 'rnkx_apple_auth_nonce';
@@ -74,6 +77,46 @@ async function sha256Hex(value: string): Promise<string> {
   return Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, '0')).join('');
 }
 
+function persistAppleNonce(rawNonce: string): void {
+  try {
+    sessionStorage.setItem(APPLE_NONCE_STORAGE_KEY, rawNonce);
+  } catch {
+    // ignore
+  }
+  try {
+    localStorage.setItem(APPLE_NONCE_STORAGE_KEY, rawNonce);
+  } catch {
+    // ignore
+  }
+}
+
+function readAppleNonce(): string | null {
+  try {
+    const fromSession = sessionStorage.getItem(APPLE_NONCE_STORAGE_KEY);
+    if (fromSession) return fromSession;
+  } catch {
+    // ignore
+  }
+  try {
+    return localStorage.getItem(APPLE_NONCE_STORAGE_KEY);
+  } catch {
+    return null;
+  }
+}
+
+function clearAppleNonce(): void {
+  try {
+    sessionStorage.removeItem(APPLE_NONCE_STORAGE_KEY);
+  } catch {
+    // ignore
+  }
+  try {
+    localStorage.removeItem(APPLE_NONCE_STORAGE_KEY);
+  } catch {
+    // ignore
+  }
+}
+
 const APPLE_CANCEL_ERRORS = new Set([
   'popup_closed_by_user',
   'user_cancelled_authorize',
@@ -102,9 +145,10 @@ function getAppleAuthErrorMessage(error: unknown): string {
     if (typeof record.error === 'string') {
       switch (record.error) {
         case 'popup_blocked_by_browser':
-          return 'Apple Sign In was blocked by the browser. Please try again.';
+          return 'Apple Sign In was blocked. Please try again.';
+        case 'invalid_client':
         case 'invalid_request':
-          return 'Apple Sign In configuration is invalid. Check Services ID and redirect URL.';
+          return 'Apple Sign In is misconfigured. Please try again later.';
         default:
           return `Apple Sign In failed (${record.error}).`;
       }
@@ -176,8 +220,10 @@ function parseAppleUserParam(raw: string | null): ApplePersonName | null {
 }
 
 /**
- * On Despia iOS (usePopup: false) signIn() often resolves undefined — credentials arrive via DOM events.
- * Wait for in-page completion instead of assuming an immediate redirect (avoids a ~10s reload round-trip).
+ * Despia iOS: usePopup MUST be true — opens the native Face ID / Apple ID sheet and
+ * returns id_token to JS with no page redirect. usePopup:false causes form_post redirects
+ * / blank screens and App Store Guideline 2.1 rejections.
+ * @see https://setup.despia.com/native-features/oauth/apple
  */
 function requestAppleAuthorization(hashedNonce: string): Promise<AppleAuthSuccess> {
   return new Promise((resolve, reject) => {
@@ -220,8 +266,8 @@ function requestAppleAuthorization(hashedNonce: string): Promise<AppleAuthSucces
     window.AppleID.auth.init({
       clientId: APPLE_CLIENT_ID,
       scope: 'name email',
-      redirectURI: APPLE_POST_CALLBACK_URI,
-      usePopup: false,
+      redirectURI: APPLE_REDIRECT_URI,
+      usePopup: true,
       nonce: hashedNonce,
     });
 
@@ -237,11 +283,23 @@ function requestAppleAuthorization(hashedNonce: string): Promise<AppleAuthSucces
         void (result as Promise<unknown>)
           .then((response) => {
             const parsed = parseAppleSuccessDetail(response);
-            if (parsed) finish(() => resolve(parsed));
+            if (parsed) {
+              finish(() => resolve(parsed));
+              return;
+            }
+            // Some WebViews resolve without a payload — DOM success event may still fire.
           })
           .catch((error) => {
-            if (!isUserCancelledError(error)) {
+            if (isUserCancelledError(error)) {
+              finish(() => reject(error));
+              return;
+            }
+            // Prefer DOM failure event when present; otherwise surface the rejection.
+            if (!settled) {
               console.warn('[Apple Sign In] signIn promise rejected', error);
+              finish(() =>
+                reject(error instanceof Error ? error : new Error(getAppleAuthErrorMessage(error))),
+              );
             }
           });
       }
@@ -251,7 +309,9 @@ function requestAppleAuthorization(hashedNonce: string): Promise<AppleAuthSucces
         return;
       }
       console.warn('[Apple Sign In] signIn threw', error);
-      finish(() => reject(error instanceof Error ? error : new Error(getAppleAuthErrorMessage(error))));
+      finish(() =>
+        reject(error instanceof Error ? error : new Error(getAppleAuthErrorMessage(error))),
+      );
     }
   });
 }
@@ -259,6 +319,9 @@ function requestAppleAuthorization(hashedNonce: string): Promise<AppleAuthSucces
 function mapSupabaseAppleAuthError(message: string): string {
   if (message.includes('Unacceptable audience')) {
     return 'Apple Sign In is not configured in Supabase yet. Add com.despia.rnkx.web to Authentication → Providers → Apple → Client IDs.';
+  }
+  if (/nonce/i.test(message)) {
+    return 'Apple Sign In session expired. Please try again.';
   }
   return message;
 }
@@ -274,7 +337,7 @@ async function finishAppleSession(
     nonce: rawNonce,
   });
 
-  sessionStorage.removeItem(APPLE_NONCE_STORAGE_KEY);
+  clearAppleNonce();
 
   if (error) {
     return { error: { message: mapSupabaseAppleAuthError(error.message) } };
@@ -302,8 +365,8 @@ export type AppleSignInResult = {
 };
 
 /**
- * Opens the native Apple sheet on Despia iOS and completes sign-in in-page when the SDK
- * delivers credentials via DOM events (fast path). Redirect completion remains as fallback.
+ * Opens the native Apple sheet on Despia iOS (usePopup: true) and completes sign-in
+ * from the JS callback — no page redirect.
  */
 export async function signInWithApple(): Promise<AppleSignInResult> {
   if (!isDespiaIOS()) {
@@ -317,18 +380,18 @@ export async function signInWithApple(): Promise<AppleSignInResult> {
 
     rawNonce = generateRawNonce();
     const hashedNonce = await sha256Hex(rawNonce);
-    sessionStorage.setItem(APPLE_NONCE_STORAGE_KEY, rawNonce);
+    persistAppleNonce(rawNonce);
 
     const response = await requestAppleAuthorization(hashedNonce);
     const idToken = response.authorization.id_token;
     if (!idToken) {
-      sessionStorage.removeItem(APPLE_NONCE_STORAGE_KEY);
+      clearAppleNonce();
       return { error: { message: 'Apple Sign In did not return an identity token.' } };
     }
 
     return await finishAppleSession(idToken, rawNonce, response.user?.name ?? null);
   } catch (error) {
-    if (rawNonce) sessionStorage.removeItem(APPLE_NONCE_STORAGE_KEY);
+    clearAppleNonce();
     if (isUserCancelledError(error)) {
       return { error: null, cancelled: true };
     }
@@ -338,23 +401,23 @@ export async function signInWithApple(): Promise<AppleSignInResult> {
   }
 }
 
-/** Called from /auth/apple/complete after Netlify forwards Apple's form_post as a GET redirect. */
+/** Fallback if Apple ever form_posts (legacy); primary path is in-page popup. */
 export async function completeAppleSignInFromRedirect(
   searchParams: URLSearchParams,
 ): Promise<AppleSignInResult> {
   const appleError = searchParams.get('error');
   if (appleError) {
-    sessionStorage.removeItem(APPLE_NONCE_STORAGE_KEY);
+    clearAppleNonce();
     return { error: { message: `Apple Sign In failed (${appleError}).` } };
   }
 
   const idToken = searchParams.get('id_token');
   if (!idToken) {
-    sessionStorage.removeItem(APPLE_NONCE_STORAGE_KEY);
+    clearAppleNonce();
     return { error: { message: 'Apple Sign In did not return an identity token.' } };
   }
 
-  const rawNonce = sessionStorage.getItem(APPLE_NONCE_STORAGE_KEY);
+  const rawNonce = readAppleNonce();
   if (!rawNonce) {
     return { error: { message: 'Apple Sign In session expired. Please try again.' } };
   }
@@ -362,7 +425,7 @@ export async function completeAppleSignInFromRedirect(
   try {
     return await finishAppleSession(idToken, rawNonce, parseAppleUserParam(searchParams.get('user')));
   } catch (error) {
-    sessionStorage.removeItem(APPLE_NONCE_STORAGE_KEY);
+    clearAppleNonce();
     console.error('[Apple Sign In] complete redirect', error);
     return { error: { message: getAppleAuthErrorMessage(error) } };
   }
