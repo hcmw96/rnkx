@@ -4,13 +4,16 @@ import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { openExternalUrl } from '@/lib/openExternalUrl';
 import {
+  catalogFallbackProducts,
   fetchPaywallProducts,
   formatPerMonthPrice,
+  IOS_MONTHLY_PRODUCT_ID,
   type PaywallProduct,
 } from '@/lib/subscriptionProducts';
 import { supabase } from '@/services/supabase';
 import {
   launchNativePaywall,
+  purchaseSubscriptionProduct,
   restoreInAppPurchasesAndApplyPremium,
 } from '@/services/revenuecat';
 import { toast } from 'sonner';
@@ -41,16 +44,17 @@ export default function PremiumPage() {
   const [userId, setUserId] = useState<string | null>(null);
   const [restoring, setRestoring] = useState(false);
   const [purchasing, setPurchasing] = useState(false);
-  const [products, setProducts] = useState<PaywallProduct[]>([]);
+  // Show plan card immediately — never leave the reviewer staring at a spinner.
+  const [products, setProducts] = useState<PaywallProduct[]>(() => catalogFallbackProducts());
   const [loadingProducts, setLoadingProducts] = useState(true);
 
   const loadProducts = useCallback(async (uid: string) => {
     setLoadingProducts(true);
     try {
       const rows = await fetchPaywallProducts(uid);
-      setProducts(rows);
+      setProducts(rows.length > 0 ? rows : catalogFallbackProducts());
     } catch {
-      setProducts([]);
+      setProducts(catalogFallbackProducts());
     } finally {
       setLoadingProducts(false);
     }
@@ -88,18 +92,33 @@ export default function PremiumPage() {
       navigate('/auth', { replace: true });
       return;
     }
+    if (!isDespiaRuntime()) {
+      toast.message('Open RNKX on iPhone', {
+        description: 'Subscriptions are purchased through the App Store in the Despia app build.',
+      });
+      return;
+    }
     setPurchasing(true);
     try {
-      // Same RevenueCat offering / entitlement path as before.
-      launchNativePaywall(userId);
+      // Still Despia-only: native RevenueCat → StoreKit (how the published binary buys).
+      // Prefer direct product purchase when we already know the App Store product id;
+      // otherwise open the RC native paywall sheet (shows Apple’s localised price).
+      const storeProductId =
+        products.find((p) => p.displayPrice)?.productId ??
+        products[0]?.productId ??
+        IOS_MONTHLY_PRODUCT_ID;
+      if (products.some((p) => !!p.displayPrice)) {
+        purchaseSubscriptionProduct(userId, storeProductId);
+      } else {
+        launchNativePaywall(userId);
+      }
     } finally {
       window.setTimeout(() => setPurchasing(false), 1500);
     }
   }
 
-  const hasStorePrices = products.length > 0 && products.every((p) => !!p.displayPrice);
-  // Gate purchase until StoreKit-localised prices are on-screen (no placeholder / fallback prices).
-  const purchaseDisabled = !userId || purchasing || loadingProducts || !hasStorePrices;
+  const hasStorePrices = products.some((p) => !!p.displayPrice);
+  const purchaseDisabled = !userId || purchasing;
 
   return (
     <div className="fixed inset-0 overflow-y-auto bg-background">
@@ -128,45 +147,39 @@ export default function PremiumPage() {
         <section className="space-y-3" aria-busy={loadingProducts} aria-label="Subscription options">
           <h2 className="text-sm font-semibold text-foreground">Choose a plan</h2>
 
-          {hasStorePrices
-            ? products.map((product) => {
-                const perMonth = formatPerMonthPrice(product);
-                return (
-                  <div
-                    key={product.productId}
-                    className="space-y-3 rounded-xl border border-border bg-card p-4 shadow-sm"
-                  >
-                    <div className="space-y-1">
-                      <p className="text-base font-semibold text-foreground">{product.title}</p>
-                      <p className="text-sm text-muted-foreground">Length: {product.lengthLabel}</p>
-                      <p className="text-lg font-semibold tabular-nums text-foreground">
-                        {product.displayPrice}
-                        <span className="ml-1 text-sm font-normal text-muted-foreground">
-                          / {product.lengthLabel}
-                        </span>
-                      </p>
-                      {perMonth ? (
-                        <p className="text-xs text-muted-foreground">
-                          {perMonth} / month (billed annually)
-                        </p>
-                      ) : null}
-                    </div>
-                  </div>
-                );
-              })
-            : (
-              <div className="space-y-3 rounded-xl border border-border bg-card p-4 shadow-sm">
+          {products.map((product) => {
+            const perMonth = formatPerMonthPrice(product);
+            return (
+              <div
+                key={product.productId}
+                className="space-y-3 rounded-xl border border-border bg-card p-4 shadow-sm"
+              >
                 <div className="space-y-1">
-                  <p className="text-base font-semibold text-foreground">RNKX Premium — Monthly</p>
-                  <p className="text-sm text-muted-foreground">Length: 1 month</p>
-                  <p className="text-sm text-muted-foreground">
-                    {loadingProducts
-                      ? 'Loading price from the App Store…'
-                      : 'Price unavailable — Subscribe stays disabled until the App Store price loads.'}
-                  </p>
+                  <p className="text-base font-semibold text-foreground">{product.title}</p>
+                  <p className="text-sm text-muted-foreground">Length: {product.lengthLabel}</p>
+                  {product.displayPrice ? (
+                    <p className="text-lg font-semibold tabular-nums text-foreground">
+                      {product.displayPrice}
+                      <span className="ml-1 text-sm font-normal text-muted-foreground">
+                        / {product.lengthLabel}
+                      </span>
+                    </p>
+                  ) : (
+                    <p className="text-sm text-muted-foreground">
+                      {loadingProducts
+                        ? 'Fetching your local App Store price…'
+                        : isDespiaRuntime()
+                          ? 'Price is confirmed on the App Store sheet when you tap Subscribe.'
+                          : 'Open RNKX on iPhone to see App Store pricing and subscribe.'}
+                    </p>
+                  )}
+                  {perMonth ? (
+                    <p className="text-xs text-muted-foreground">{perMonth} / month (billed annually)</p>
+                  ) : null}
                 </div>
               </div>
-            )}
+            );
+          })}
 
           {!loadingProducts && !hasStorePrices && isDespiaRuntime() && userId ? (
             <Button
@@ -175,7 +188,7 @@ export default function PremiumPage() {
               className="w-full border-border"
               onClick={() => void loadProducts(userId)}
             >
-              Retry loading prices
+              Refresh App Store price
             </Button>
           ) : null}
 
@@ -185,11 +198,7 @@ export default function PremiumPage() {
             disabled={purchaseDisabled}
             onClick={() => handleSubscribe()}
           >
-            {purchasing
-              ? 'Opening App Store…'
-              : hasStorePrices
-                ? 'Subscribe'
-                : 'Subscribe (waiting for prices)'}
+            {purchasing ? 'Opening App Store…' : 'Subscribe'}
           </Button>
         </section>
 

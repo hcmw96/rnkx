@@ -17,6 +17,13 @@
   force = true
   conditions = {Method = ["POST"]}
 
+# Allow Apple Sign In popup / web_message handoff (usePopup:true).
+# same-origin alone can break AppleID.auth.signIn → "Load Failed".
+[[headers]]
+  for = "/*"
+  [headers.values]
+    Cross-Origin-Opener-Policy = "same-origin-allow-popups"
+
 [[headers]]
   for = "/.well-known/apple-app-site-association"
   [headers.values]

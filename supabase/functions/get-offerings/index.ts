@@ -7,8 +7,12 @@ const corsHeaders = {
 
 const OFFERING_ID = 'RNKXPREMIUM_MONTHLY';
 
-function rcAuthHeader(publicKey: string): string {
-  const token = btoa(`${publicKey}:`);
+/** Public SDK keys (appl_/goog_) use Basic; secret keys (sk_) use Bearer. */
+function rcAuthHeader(apiKey: string): string {
+  if (apiKey.startsWith('sk_')) {
+    return `Bearer ${apiKey}`;
+  }
+  const token = btoa(`${apiKey}:`);
   return `Basic ${token}`;
 }
 

@@ -2,6 +2,9 @@ import despia from 'despia-native';
 import { supabase } from '@/services/supabase';
 import { REVENUECAT_OFFERING_ID } from '@/services/revenuecat';
 
+/** App Store Connect / RevenueCat iOS product id for the monthly subscription. */
+export const IOS_MONTHLY_PRODUCT_ID = 'rnkxmonthly';
+
 export type SubscriptionLength = '1 month' | '1 year' | '1 week' | string;
 
 export type PaywallProduct = {
@@ -10,7 +13,7 @@ export type PaywallProduct = {
   title: string;
   /** Subscription length in words, e.g. "1 month" */
   lengthLabel: SubscriptionLength;
-  /** Localised price string from the store / SDK product object */
+  /** Localised price string from the store / SDK product object — empty when not yet available */
   displayPrice: string;
   /** Numeric price when available (for per-unit calculations) */
   price: number | null;
@@ -89,7 +92,6 @@ function lengthFromPeriod(period: unknown): { label: SubscriptionLength; periodM
 
 function titleFor(rawTitle: string | null, lengthLabel: string): string {
   if (rawTitle && !/^product$/i.test(rawTitle)) {
-    // Prefer store title when it already includes cadence
     if (/month|year|annual|weekly/i.test(rawTitle)) return rawTitle;
     const cadence =
       lengthLabel === '1 year' ? 'Yearly' : lengthLabel === '1 week' ? 'Weekly' : 'Monthly';
@@ -104,7 +106,6 @@ function normalizeOne(raw: unknown): PaywallProduct | null {
   const rec = asRecord(raw);
   if (!rec) return null;
 
-  // Unwrap nested storeProduct / product
   const nested =
     asRecord(rec.storeProduct) ??
     asRecord(rec.product) ??
@@ -132,17 +133,17 @@ function normalizeOne(raw: unknown): PaywallProduct | null {
     lengthFromPeriod(nested.period) ??
     lengthFromPackageId(packageId);
 
-  const displayPrice = readString(
-    nested.displayPrice,
-    nested.localizedPrice,
-    nested.localizedPriceString,
-    nested.priceString,
-    nested.price_string,
-    rec.displayPrice,
-    rec.localizedPrice,
-    rec.priceString,
-  );
-  if (!displayPrice) return null;
+  const displayPrice =
+    readString(
+      nested.displayPrice,
+      nested.localizedPrice,
+      nested.localizedPriceString,
+      nested.priceString,
+      nested.price_string,
+      rec.displayPrice,
+      rec.localizedPrice,
+      rec.priceString,
+    ) ?? '';
 
   const price = readNumber(nested.price, nested.priceAmount, nested.price_amount, rec.price);
   const currencyCode = readString(
@@ -174,7 +175,6 @@ function collectCandidates(root: unknown, out: unknown[]): void {
   const rec = asRecord(root);
   if (!rec) return;
 
-  // Likely product / package objects
   if (
     readString(rec.displayPrice, rec.localizedPrice, rec.localizedPriceString, rec.priceString, rec.price_string) &&
     readString(rec.productId, rec.productIdentifier, rec.identifier, rec.platform_product_identifier)
@@ -198,7 +198,6 @@ function collectCandidates(root: unknown, out: unknown[]): void {
     if (key in rec) collectCandidates(rec[key], out);
   }
 
-  // Offering map keyed by id
   for (const value of Object.values(rec)) {
     if (Array.isArray(value) || asRecord(value)) collectCandidates(value, out);
   }
@@ -217,7 +216,6 @@ export function parsePaywallProducts(payload: unknown): PaywallProduct[] {
     products.push(p);
   }
 
-  // Prefer monthly before yearly for stable UI order
   products.sort((a, b) => a.periodMonths - b.periodMonths || a.title.localeCompare(b.title));
   return products;
 }
@@ -243,7 +241,22 @@ export function formatPerMonthPrice(product: PaywallProduct): string | null {
   return perMonth.toFixed(2);
 }
 
-async function despiaWatch(command: string, watch: string[], timeoutMs = 10_000): Promise<unknown> {
+/** Catalog row without a StoreKit price — used so the paywall never sits on a spinner. */
+export function catalogFallbackProducts(): PaywallProduct[] {
+  return [
+    {
+      productId: IOS_MONTHLY_PRODUCT_ID,
+      title: 'RNKX Premium — Monthly',
+      lengthLabel: '1 month',
+      displayPrice: '',
+      price: null,
+      currencyCode: null,
+      periodMonths: 1,
+    },
+  ];
+}
+
+async function despiaWatch(command: string, watch: string[], timeoutMs: number): Promise<unknown> {
   return Promise.race([
     despia(command, watch),
     new Promise<never>((_, reject) => {
@@ -277,74 +290,70 @@ async function fetchOfferingPackages(appUserId: string): Promise<OfferingPackage
 }
 
 /**
- * Load subscription products with localised StoreKit / Play prices via Despia + RevenueCat.
- * Returns [] when nothing with a real display price is available (caller must keep UI in loading / disabled).
+ * Best-effort StoreKit prices via Despia.
+ * Despia's documented RevenueCat surface is launchPaywall / purchase — product-catalog
+ * schemes are best-effort and must fail fast so the paywall never hangs.
  */
 export async function fetchPaywallProducts(externalId: string): Promise<PaywallProduct[]> {
-  if (!externalId) return [];
+  if (!externalId) return catalogFallbackProducts();
 
-  const encodedId = encodeURIComponent(externalId);
-  const offering = encodeURIComponent(REVENUECAT_OFFERING_ID);
-  const packageRows = await fetchOfferingPackages(externalId);
-  const productIds = packageRows.map((p) => p.productId).filter(Boolean);
-  const idsParam = encodeURIComponent(productIds.join(','));
+  const packageRows = await Promise.race([
+    fetchOfferingPackages(externalId),
+    new Promise<OfferingPackageRow[]>((resolve) => window.setTimeout(() => resolve([]), 2500)),
+  ]);
+
+  const productIds = [
+    ...new Set(
+      [...packageRows.map((p) => p.productId).filter(Boolean), IOS_MONTHLY_PRODUCT_ID],
+    ),
+  ];
 
   if (isDespiaRuntime()) {
+    const encodedId = encodeURIComponent(externalId);
+    const idsParam = encodeURIComponent(productIds.join(','));
+    // One short attempt only — multi-scheme × long timeouts caused the stuck "Loading price…" state.
     const attempts: Array<{ command: string; watch: string[] }> = [
       {
-        command: `revenuecat://getOfferings?external_id=${encodedId}`,
-        watch: ['offerings'],
-      },
-      {
-        command: `revenuecat://offerings?external_id=${encodedId}&offering=${offering}`,
-        watch: ['offerings'],
-      },
-      {
-        command: `revenuecat://products?external_id=${encodedId}&offering=${offering}`,
+        command: `revenuecat://getProducts?external_id=${encodedId}&products=${idsParam}`,
         watch: ['products'],
       },
       {
-        command: `revenuecat://getProducts?external_id=${encodedId}&offering=${offering}`,
-        watch: ['products', 'offerings'],
+        command: `revenuecat://getOfferings?external_id=${encodedId}&offering=${encodeURIComponent(REVENUECAT_OFFERING_ID)}`,
+        watch: ['offerings'],
       },
     ];
 
-    if (productIds.length > 0) {
-      attempts.unshift(
-        {
-          command: `revenuecat://getProducts?external_id=${encodedId}&products=${idsParam}`,
-          watch: ['products'],
-        },
-        {
-          command: `revenuecat://products?external_id=${encodedId}&ids=${idsParam}`,
-          watch: ['products'],
-        },
-      );
-    }
-
     for (const attempt of attempts) {
       try {
-        const raw = await despiaWatch(attempt.command, attempt.watch);
-        const products = parsePaywallProducts(raw);
+        const raw = await despiaWatch(attempt.command, attempt.watch, 3500);
+        const products = parsePaywallProducts(raw).filter((p) => p.displayPrice);
         if (products.length > 0) return mergeTitlesFromPackages(products, packageRows);
-        for (const key of attempt.watch) {
-          const fromWindow = (window as unknown as Record<string, unknown>)[key];
-          const parsed = parsePaywallProducts(fromWindow);
-          if (parsed.length > 0) return mergeTitlesFromPackages(parsed, packageRows);
-        }
       } catch {
-        // try next scheme
+        // try next
       }
     }
 
-    // Prefetched / mirrored RC product payloads some Despia builds expose on window
-    for (const key of ['offerings', 'products', 'rcOfferings', 'storeProducts', 'availablePackages']) {
-      const parsed = parsePaywallProducts((window as unknown as Record<string, unknown>)[key]);
+    for (const key of ['products', 'offerings', 'storeProducts']) {
+      const parsed = parsePaywallProducts((window as unknown as Record<string, unknown>)[key]).filter(
+        (p) => p.displayPrice,
+      );
       if (parsed.length > 0) return mergeTitlesFromPackages(parsed, packageRows);
     }
   }
 
-  return [];
+  if (packageRows.length > 0) {
+    return packageRows.map((row) => ({
+      productId: row.productId,
+      title: row.title,
+      lengthLabel: row.lengthLabel as SubscriptionLength,
+      displayPrice: '',
+      price: null,
+      currencyCode: null,
+      periodMonths: row.periodMonths,
+    }));
+  }
+
+  return catalogFallbackProducts();
 }
 
 function mergeTitlesFromPackages(

@@ -3,14 +3,28 @@ import { supabase } from '@/services/supabase';
 
 const APPLE_CLIENT_ID = 'com.despia.rnkx.web';
 /**
- * Must match a Return URL on Services ID `com.despia.rnkx.web`.
- * Required even with usePopup:true. Prefer site root (Despia + Supabase docs).
+ * Canonical production origin. Must be registered as a Return URL on Services ID
+ * `com.despia.rnkx.web` (exact string, including trailing slash).
+ *
+ * At runtime we prefer `window.location.origin + '/'` so the redirectURI matches
+ * the page running the SDK (Despia requirement). A mismatch surfaces as Apple's
+ * "Load Failed" sheet during App Review.
  */
-const APPLE_REDIRECT_URI = 'https://rnkx.netlify.app/';
+const APPLE_CANONICAL_REDIRECT_URI = 'https://rnkx.netlify.app/';
 const APPLE_SDK_URL =
   'https://appleid.cdn-apple.com/appleauth/static/jsapi/appleid/1/en_US/appleid.auth.js';
 const APPLE_NONCE_STORAGE_KEY = 'rnkx_apple_auth_nonce';
 const APPLE_AUTH_TIMEOUT_MS = 120_000;
+
+/** redirectURI must equal the origin of the page that calls AppleID.auth.signIn. */
+function resolveAppleRedirectUri(): string {
+  if (typeof window === 'undefined') return APPLE_CANONICAL_REDIRECT_URI;
+  const origin = window.location.origin;
+  if (!origin || origin === 'null' || origin.startsWith('file:')) {
+    return APPLE_CANONICAL_REDIRECT_URI;
+  }
+  return origin.endsWith('/') ? origin : `${origin}/`;
+}
 
 let appleSdkPromise: Promise<void> | null = null;
 
@@ -46,6 +60,7 @@ export function loadAppleAuthSdk(): Promise<void> {
     const script = document.createElement('script');
     script.src = APPLE_SDK_URL;
     script.async = true;
+    script.crossOrigin = 'anonymous';
     script.onload = finish;
     script.onerror = () => reject(new Error('Apple Sign In SDK failed to load.'));
     document.head.appendChild(script);
@@ -142,6 +157,10 @@ function getAppleAuthErrorMessage(error: unknown): string {
         return 'Apple Sign In is misconfigured. Please try again later.';
       default:
         break;
+    }
+    // Apple / WKWebView surfaces this when Services ID Return URL ≠ page origin.
+    if (normalized.includes('load failed') || normalized.includes('failed to load')) {
+      return 'Apple Sign In could not load. Check that this app origin is listed as a Return URL on Services ID com.despia.rnkx.web.';
     }
     if (normalized.includes('unacceptable audience')) {
       return 'Apple Sign In is not configured in Supabase yet. Add com.despia.rnkx.web to Authentication → Providers → Apple → Client IDs.';
@@ -292,10 +311,18 @@ function requestAppleAuthorization(): Promise<AppleAuthSuccess> {
       finish(() => reject(new Error('Apple Sign In timed out. Please try again.')));
     }, APPLE_AUTH_TIMEOUT_MS);
 
+    const redirectURI = resolveAppleRedirectUri();
+    if (redirectURI !== APPLE_CANONICAL_REDIRECT_URI) {
+      console.warn(
+        '[Apple Sign In] page origin differs from canonical Return URL',
+        { redirectURI, canonical: APPLE_CANONICAL_REDIRECT_URI },
+      );
+    }
+
     window.AppleID.auth.init({
       clientId: APPLE_CLIENT_ID,
       scope: 'name email',
-      redirectURI: APPLE_REDIRECT_URI,
+      redirectURI,
       usePopup: true,
     });
 

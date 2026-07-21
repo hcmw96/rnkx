@@ -31,7 +31,30 @@ export async function bootstrapAthleteAfterAuth(
   userId: string,
   appleName?: ApplePersonName | null,
 ): Promise<{ error: { message: string } | null }> {
-  const displayName = formatAppleDisplayName(appleName);
+  let displayName = formatAppleDisplayName(appleName);
+
+  // Supabase often mirrors Apple's name into user_metadata on first SIWA.
+  if (!displayName) {
+    const { data: auth } = await supabase.auth.getUser();
+    const meta = auth.user?.user_metadata as Record<string, unknown> | undefined;
+    if (meta) {
+      const full = typeof meta.full_name === 'string' ? meta.full_name.trim() : '';
+      const name = typeof meta.name === 'string' ? meta.name.trim() : '';
+      const given =
+        typeof meta.given_name === 'string'
+          ? meta.given_name.trim()
+          : typeof meta.givenName === 'string'
+            ? meta.givenName.trim()
+            : '';
+      const family =
+        typeof meta.family_name === 'string'
+          ? meta.family_name.trim()
+          : typeof meta.familyName === 'string'
+            ? meta.familyName.trim()
+            : '';
+      displayName = full || name || [given, family].filter(Boolean).join(' ').trim() || null;
+    }
+  }
 
   const [byUserId, byId] = await Promise.all([
     supabase.from('athletes').select('id, display_name').eq('user_id', userId).maybeSingle(),
@@ -72,4 +95,46 @@ export async function bootstrapAthleteAfterAuth(
 
   await resolveAthleteId(userId);
   return { error: null };
+}
+
+/** Display name already provided by Sign in with Apple (or seeded athlete row). */
+export async function getSeededDisplayName(userId: string): Promise<string | null> {
+  const [byUserId, byId, auth] = await Promise.all([
+    supabase.from('athletes').select('display_name').eq('user_id', userId).maybeSingle(),
+    supabase.from('athletes').select('display_name').eq('id', userId).maybeSingle(),
+    supabase.auth.getUser(),
+  ]);
+  const fromAthlete =
+    (typeof byUserId.data?.display_name === 'string' && byUserId.data.display_name.trim()) ||
+    (typeof byId.data?.display_name === 'string' && byId.data.display_name.trim()) ||
+    '';
+  if (fromAthlete.length >= 2) return fromAthlete;
+
+  const meta = auth.data.user?.user_metadata as Record<string, unknown> | undefined;
+  if (!meta) return null;
+  const full = typeof meta.full_name === 'string' ? meta.full_name.trim() : '';
+  const name = typeof meta.name === 'string' ? meta.name.trim() : '';
+  const given =
+    typeof meta.given_name === 'string'
+      ? meta.given_name.trim()
+      : typeof meta.givenName === 'string'
+        ? meta.givenName.trim()
+        : '';
+  const family =
+    typeof meta.family_name === 'string'
+      ? meta.family_name.trim()
+      : typeof meta.familyName === 'string'
+        ? meta.familyName.trim()
+        : '';
+  const fromMeta = full || name || [given, family].filter(Boolean).join(' ').trim();
+  return fromMeta.length >= 2 ? fromMeta : null;
+}
+
+export async function isAppleAuthUser(): Promise<boolean> {
+  const { data } = await supabase.auth.getUser();
+  const user = data.user;
+  if (!user) return false;
+  if (user.app_metadata?.provider === 'apple') return true;
+  const identities = user.identities ?? [];
+  return identities.some((i) => i.provider === 'apple');
 }

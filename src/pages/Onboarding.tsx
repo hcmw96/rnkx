@@ -1,6 +1,6 @@
 import { AnimatePresence } from 'framer-motion';
 import { ArrowLeft } from 'lucide-react';
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import RNKXLogo from '@/components/RNKXLogo';
 import CountrySelect from '@/components/onboarding/CountrySelect';
@@ -17,8 +17,9 @@ import ProgressDots from '@/components/onboarding/ProgressDots';
 import UsernameInput from '@/components/onboarding/UsernameInput';
 import { Button } from '@/components/ui/button';
 import { useProfileGate } from '@/context/ProfileGateContext';
-import { supabase } from '@/services/supabase';
+import { getSeededDisplayName, isAppleAuthUser } from '@/lib/authPostLogin';
 import { getPendingLeagueInvitePath } from '@/lib/shareLeagueInvite';
+import { supabase } from '@/services/supabase';
 
 const ONBOARDING_STEP_COUNT = 8;
 
@@ -42,6 +43,9 @@ function ageFromDob(dob: Date): number {
 export default function Onboarding() {
   const navigate = useNavigate();
   const { refetchProfile } = useProfileGate();
+  const [bootstrapping, setBootstrapping] = useState(true);
+  /** When true, Sign in with Apple already supplied name — do not ask again (Guideline 4 / SIWA). */
+  const [nameFromApple, setNameFromApple] = useState(false);
   const [step, setStep] = useState(1);
   const [displayName, setDisplayName] = useState('');
   const [username, setUsername] = useState('');
@@ -54,6 +58,38 @@ export default function Onboarding() {
   const [legalAccepted, setLegalAccepted] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [finishing, setFinishing] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      const { data: auth } = await supabase.auth.getUser();
+      const userId = auth.user?.id;
+      if (!userId) {
+        if (!cancelled) setBootstrapping(false);
+        return;
+      }
+
+      const [seeded, appleUser] = await Promise.all([
+        getSeededDisplayName(userId),
+        isAppleAuthUser(),
+      ]);
+
+      if (cancelled) return;
+
+      if (seeded) {
+        setDisplayName(seeded);
+        // Apple already provided name via Authentication Services — skip re-asking.
+        if (appleUser) {
+          setNameFromApple(true);
+          setStep(2);
+        }
+      }
+      setBootstrapping(false);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const onUsernameValidChange = useCallback((valid: boolean) => {
     setUsernameValid(valid);
@@ -68,6 +104,7 @@ export default function Onboarding() {
   const canAdvanceFromStep = useCallback(() => {
     switch (step) {
       case 1:
+        // Only shown when Apple did not supply a name.
         return displayName.trim().length >= 2;
       case 2:
         return usernameValid && username.trim().length >= 3;
@@ -77,7 +114,8 @@ export default function Onboarding() {
       case 4:
         return gender !== null && gender.length > 0;
       case 5:
-        return country.trim().length > 0;
+        // Country is optional (Guideline 5.1.1(v)) — useful for leaderboards, not required.
+        return true;
       case 6:
         return leagues.length > 0;
       case 7:
@@ -87,11 +125,13 @@ export default function Onboarding() {
       default:
         return false;
     }
-  }, [step, displayName, username, usernameValid, dob, age, gender, country, leagues, legalAccepted]);
+  }, [step, displayName, username, usernameValid, dob, age, gender, leagues, legalAccepted]);
 
   const handlePrevStep = () => {
     setSubmitError(null);
-    if (step > 1) setStep((s) => s - 1);
+    if (step <= 1) return;
+    if (step === 2 && nameFromApple) return;
+    setStep((s) => s - 1);
   };
 
   const handleSignInInstead = () => {
@@ -103,7 +143,7 @@ export default function Onboarding() {
   };
 
   const handleBack = () => {
-    if (step > 1) {
+    if (step > 1 && !(step === 2 && nameFromApple)) {
       handlePrevStep();
       return;
     }
@@ -130,14 +170,21 @@ export default function Onboarding() {
         return;
       }
 
+      const trimmedName = displayName.trim();
+      if (trimmedName.length < 2) {
+        setFinishing(false);
+        setSubmitError('A display name is required for leaderboards.');
+        return;
+      }
+
       const row = {
         id: userId,
         user_id: userId,
-        display_name: displayName.trim(),
+        display_name: trimmedName,
         username: username.trim().toLowerCase(),
         date_of_birth: formatLocalDate(dob),
         gender,
-        country,
+        country: country.trim() ? country.trim() : null,
         selected_leagues: leagues,
         age,
       };
@@ -159,6 +206,14 @@ export default function Onboarding() {
     setStep((s) => s + 1);
   };
 
+  if (bootstrapping) {
+    return (
+      <div className="flex min-h-app items-center justify-center bg-background text-sm text-muted-foreground">
+        Preparing your profile…
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-app bg-background text-foreground">
       <div className="mx-auto flex min-h-full w-full max-w-lg flex-col px-4 pb-10 pt-4">
@@ -170,12 +225,17 @@ export default function Onboarding() {
           onClick={handleBack}
         >
           <ArrowLeft className="h-4 w-4" aria-hidden />
-          {step > 1 ? 'Back' : 'Sign in'}
+          {step > 1 && !(step === 2 && nameFromApple) ? 'Back' : 'Sign in'}
         </Button>
 
         <header className="mb-6 flex flex-col items-center gap-2 pt-2">
           <RNKXLogo size="md" />
           <p className="text-center text-sm text-muted-foreground">Complete your profile</p>
+          {nameFromApple ? (
+            <p className="text-center text-xs text-muted-foreground">
+              Signed in with Apple as {displayName}
+            </p>
+          ) : null}
         </header>
 
         <div className="mb-6">
@@ -189,7 +249,7 @@ export default function Onboarding() {
         )}
 
         <AnimatePresence mode="wait">
-          {step === 1 && (
+          {step === 1 && !nameFromApple && (
             <OnboardingStep key="s1" title="Display name" subtitle="How should we show you on leaderboards?">
               <DisplayNameInput value={displayName} onChange={setDisplayName} />
             </OnboardingStep>
@@ -214,7 +274,11 @@ export default function Onboarding() {
           )}
 
           {step === 5 && (
-            <OnboardingStep key="s5" title="Country" subtitle="Choose where you'll compete and represent.">
+            <OnboardingStep
+              key="s5"
+              title="Country"
+              subtitle="Optional — shown on leaderboards if you choose one. You can skip or add this later in Settings."
+            >
               <CountrySelect value={country} onChange={setCountry} />
             </OnboardingStep>
           )}
@@ -254,17 +318,25 @@ export default function Onboarding() {
         <div className="mt-8 flex flex-col gap-3">
           {step > 1 ? (
             <div className="flex gap-3">
-              <Button type="button" variant="outline" className="flex-1 gap-2" onClick={handlePrevStep}>
-                <ArrowLeft className="h-4 w-4 shrink-0" aria-hidden />
-                Back
-              </Button>
+              {!(step === 2 && nameFromApple) ? (
+                <Button type="button" variant="outline" className="flex-1 gap-2" onClick={handlePrevStep}>
+                  <ArrowLeft className="h-4 w-4 shrink-0" aria-hidden />
+                  Back
+                </Button>
+              ) : null}
               <Button
                 type="button"
                 className="flex-1 font-semibold"
                 onClick={() => void handleNext()}
                 disabled={!canAdvanceFromStep() || finishing}
               >
-                {step === 8 ? (finishing ? 'Saving…' : 'Finish & go to app') : 'Next'}
+                {step === 8
+                  ? finishing
+                    ? 'Saving…'
+                    : 'Finish & go to app'
+                  : step === 5 && !country.trim()
+                    ? 'Skip'
+                    : 'Next'}
               </Button>
             </div>
           ) : (
@@ -277,7 +349,7 @@ export default function Onboarding() {
               Next
             </Button>
           )}
-          {step === 1 ? (
+          {step === 1 && !nameFromApple ? (
             <button
               type="button"
               onClick={handleSignInInstead}
