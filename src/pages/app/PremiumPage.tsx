@@ -12,7 +12,6 @@ import {
 } from '@/lib/subscriptionProducts';
 import { supabase } from '@/services/supabase';
 import {
-  launchNativePaywall,
   purchaseSubscriptionProduct,
   restoreInAppPurchasesAndApplyPremium,
 } from '@/services/revenuecat';
@@ -100,24 +99,18 @@ export default function PremiumPage() {
     }
     setPurchasing(true);
     try {
-      // Still Despia-only: native RevenueCat → StoreKit (how the published binary buys).
-      // Prefer direct product purchase when we already know the App Store product id;
-      // otherwise open the RC native paywall sheet (shows Apple’s localised price).
       const storeProductId =
         products.find((p) => p.displayPrice)?.productId ??
         products[0]?.productId ??
         IOS_MONTHLY_PRODUCT_ID;
-      if (products.some((p) => !!p.displayPrice)) {
-        purchaseSubscriptionProduct(userId, storeProductId);
-      } else {
-        launchNativePaywall(userId);
-      }
+      // Direct Despia purchase → Apple’s StoreKit sheet (localised price). Prefer this over
+      // launchPaywall so we don’t depend on a RevenueCat Paywalls template being configured.
+      purchaseSubscriptionProduct(userId, storeProductId);
     } finally {
-      window.setTimeout(() => setPurchasing(false), 1500);
+      window.setTimeout(() => setPurchasing(false), 2000);
     }
   }
 
-  const hasStorePrices = products.some((p) => !!p.displayPrice);
   const purchaseDisabled = !userId || purchasing;
 
   return (
@@ -168,9 +161,7 @@ export default function PremiumPage() {
                     <p className="text-sm text-muted-foreground">
                       {loadingProducts
                         ? 'Fetching your local App Store price…'
-                        : isDespiaRuntime()
-                          ? 'Price is confirmed on the App Store sheet when you tap Subscribe.'
-                          : 'Open RNKX on iPhone to see App Store pricing and subscribe.'}
+                        : 'Tap Continue — the App Store shows the localised price before you pay.'}
                     </p>
                   )}
                   {perMonth ? (
@@ -181,24 +172,13 @@ export default function PremiumPage() {
             );
           })}
 
-          {!loadingProducts && !hasStorePrices && isDespiaRuntime() && userId ? (
-            <Button
-              type="button"
-              variant="outline"
-              className="w-full border-border"
-              onClick={() => void loadProducts(userId)}
-            >
-              Refresh App Store price
-            </Button>
-          ) : null}
-
           <Button
             type="button"
             className="w-full font-semibold bg-neon-lime text-black hover:bg-neon-lime/90"
             disabled={purchaseDisabled}
             onClick={() => handleSubscribe()}
           >
-            {purchasing ? 'Opening App Store…' : 'Subscribe'}
+            {purchasing ? 'Opening App Store…' : 'Continue'}
           </Button>
         </section>
 
