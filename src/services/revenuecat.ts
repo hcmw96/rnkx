@@ -101,16 +101,41 @@ export function launchNativePaywall(userId: string): void {
   );
 }
 
-export async function restoreInAppPurchasesAndApplyPremium(): Promise<'premium' | 'none' | 'not_despia' | 'restore_error'> {
-  const isDespiaApp = navigator.userAgent.toLowerCase().includes('despia');
-  if (!isDespiaApp) return 'not_despia';
+/**
+ * Sync premium from RevenueCat via the check-entitlement edge function.
+ * Updates the local premium cache so PremiumGate / settings refresh without relaunch.
+ */
+export async function syncEntitlementFromServer(): Promise<'premium' | 'none' | 'error'> {
+  const { data, error } = await supabase.functions.invoke<{ isPremium?: boolean }>('check-entitlement', {
+    body: {},
+  });
+  if (error) return 'error';
+
+  const isPremium = data?.isPremium === true;
+  const userId = await getAuthUserId();
+  if (userId) setCachedPremium(userId, isPremium);
+  return isPremium ? 'premium' : 'none';
+}
+
+/**
+ * Despia restore: `getpurchasehistory://` is the documented native restore
+ * (`revenuecat://restore` does not exist in despia-native). Then re-sync via
+ * check-entitlement so the athlete row + premium cache match RevenueCat.
+ */
+export async function restoreInAppPurchasesAndApplyPremium(): Promise<
+  'premium' | 'none' | 'not_despia' | 'restore_error'
+> {
+  if (!isDespiaRuntime()) return 'not_despia';
+
   try {
-    await despia('restoreinapppurchases://', ['restoredData']);
+    await despia('getpurchasehistory://', ['restoredData']);
   } catch {
     return 'restore_error';
   }
-  const ok = await applyPremiumIfStoreHasEntitlement();
-  return ok ? 'premium' : 'none';
+
+  const synced = await syncEntitlementFromServer();
+  if (synced === 'error') return 'restore_error';
+  return synced;
 }
 
 export function usePremium(

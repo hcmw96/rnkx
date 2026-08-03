@@ -798,13 +798,27 @@ export default function SettingsPage() {
       const result = await restoreInAppPurchasesAndApplyPremium();
       if (result === 'premium') {
         setAthlete((prev) => (prev ? { ...prev, is_premium: true } : prev));
-        toast.success('Premium unlocked! 🎉');
+        toast.success('Premium restored');
       } else if (result === 'none') {
-        toast.message('No active subscription found');
+        toast.message('No previous purchase found for this account', {
+          action: {
+            label: 'Get Premium',
+            onClick: () => {
+              window.location.href = '/premium';
+            },
+          },
+        });
       } else if (result === 'restore_error') {
-        toast.error('Could not restore purchases. Try again.');
+        toast.error('Could not restore purchases. Please try again.', {
+          action: {
+            label: 'Retry',
+            onClick: () => {
+              void handleRestorePurchases();
+            },
+          },
+        });
       } else {
-        toast.message('Restore purchases is only available in the RNKX app.');
+        toast.message('Restore purchases is only available in the RNKX iOS app.');
       }
     } finally {
       setRestorePurchasing(false);

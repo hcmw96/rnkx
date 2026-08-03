@@ -818,14 +818,21 @@ export function SettingsPageLayout(props: SettingsPageLayoutProps) {
                   }
                   onClick={() => onOpenDialog('subscription')}
                 />
-                <SettingsRowDivider />
-                <SettingsRow
-                  icon={RotateCcw}
-                  title="Restore purchases"
-                  subtitle="After reinstall or new device"
-                  disabled={restorePurchasing}
-                  onClick={onRestorePurchases}
-                />
+                {typeof navigator !== 'undefined' &&
+                navigator.userAgent.toLowerCase().includes('despia') ? (
+                  <>
+                    <SettingsRowDivider />
+                    <SettingsRow
+                      icon={RotateCcw}
+                      title="Restore purchases"
+                      subtitle={
+                        restorePurchasing ? 'Restoring…' : 'After reinstall or new device'
+                      }
+                      disabled={restorePurchasing}
+                      onClick={onRestorePurchases}
+                    />
+                  </>
+                ) : null}
               </SettingsGroup>
             </div>
 
