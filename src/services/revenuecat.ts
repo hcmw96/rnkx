@@ -50,19 +50,47 @@ export async function applyPremiumIfStoreHasEntitlement(): Promise<boolean> {
   return true;
 }
 
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => {
+    window.setTimeout(resolve, ms);
+  });
+}
+
+/**
+ * Polls the check-entitlement edge function until premium is active (or attempts exhausted).
+ * Used after a native IAP success callback.
+ */
+export async function pollCheckEntitlementUntilPremium(options?: {
+  maxAttempts?: number;
+  intervalMs?: number;
+}): Promise<boolean> {
+  const maxAttempts = options?.maxAttempts ?? 12;
+  const intervalMs = options?.intervalMs ?? 1000;
+
+  for (let attempt = 0; attempt < maxAttempts; attempt++) {
+    const { data, error } = await supabase.functions.invoke<{ isPremium?: boolean }>('check-entitlement', {
+      body: {},
+    });
+    if (!error && data?.isPremium === true) {
+      const userId = await getAuthUserId();
+      if (userId) setCachedPremium(userId, true);
+      return true;
+    }
+    if (attempt < maxAttempts - 1) await sleep(intervalMs);
+  }
+  return false;
+}
+
 function isDespiaRuntime(): boolean {
   return navigator.userAgent.toLowerCase().includes('despia');
 }
 
-/**
- * Opens the in-app paywall screen (/premium) so Guideline 3.1.2 disclosures
- * are visible in-app before purchase.
- */
+/** Opens `/premium`, which launches the native RevenueCat paywall in Despia. */
 export function presentPaywall(_userId?: string): void {
   window.location.href = '/premium';
 }
 
-/** Native RevenueCat paywall sheet (same offering / entitlement path as before). */
+/** Native RevenueCat paywall sheet. */
 export function launchNativePaywall(userId: string): void {
   if (!isDespiaRuntime()) {
     window.location.href = '/premium';
@@ -70,18 +98,6 @@ export function launchNativePaywall(userId: string): void {
   }
   void despia(
     `revenuecat://launchPaywall?external_id=${encodeURIComponent(userId)}&offering=${encodeURIComponent(REVENUECAT_OFFERING_ID)}`,
-  );
-}
-
-/** Direct StoreKit / Play purchase for a single product ID (custom paywall CTA). */
-export function purchaseSubscriptionProduct(userId: string, productId: string): void {
-  if (!isDespiaRuntime()) {
-    window.location.href = '/premium';
-    return;
-  }
-  // Product IDs come from RevenueCat offerings (iOS plain ID; Android may be group:product).
-  void despia(
-    `revenuecat://purchase?external_id=${encodeURIComponent(userId)}&product=${encodeURIComponent(productId)}`,
   );
 }
 

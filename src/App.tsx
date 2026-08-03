@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import type { Session } from '@supabase/supabase-js';
-import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
+import { BrowserRouter, Navigate, Route, Routes, useNavigate } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { toast, Toaster } from 'sonner';
 import { ProfileGateContext } from '@/context/ProfileGateContext';
@@ -46,7 +46,10 @@ import {
 import { WelcomeModal } from '@/components/WelcomeModal';
 import { isDespiaNative, registerPushForAthlete } from './services/onesignal';
 import { resolveAthleteId } from './lib/resolveAthleteId';
-import { applyPremiumIfStoreHasEntitlement } from './services/revenuecat';
+import {
+  applyPremiumIfStoreHasEntitlement,
+  pollCheckEntitlementUntilPremium,
+} from './services/revenuecat';
 import { supabase } from './services/supabase';
 
 const queryClient = new QueryClient({
@@ -73,6 +76,7 @@ async function fetchAthleteProfileComplete(userId: string): Promise<boolean> {
 }
 
 function SessionRoutes() {
+  const navigate = useNavigate();
   const [initialized, setInitialized] = useState(() => isAppleAuthCompletePath());
   const [session, setSession] = useState<Session | null>(null);
   const [profileComplete, setProfileComplete] = useState(false);
@@ -245,15 +249,25 @@ function SessionRoutes() {
 
   useEffect(() => {
     if (!session?.user?.id || !profileComplete) {
+      window.iapSuccess = undefined;
       window.onRevenueCatPurchase = undefined;
       return;
     }
 
-    window.onRevenueCatPurchase = async () => {
-      const isPremium = await applyPremiumIfStoreHasEntitlement();
+    const onIapSuccess = async () => {
+      const isPremium = await pollCheckEntitlementUntilPremium();
       if (isPremium) {
-        toast.success('Premium unlocked! 🎉');
+        toast.success('Premium unlocked!');
+        navigate('/app', { replace: true });
       }
+    };
+
+    window.iapSuccess = () => {
+      void onIapSuccess();
+    };
+    // Despia may also invoke the legacy RevenueCat purchase callback.
+    window.onRevenueCatPurchase = () => {
+      void onIapSuccess();
     };
 
     void (async () => {
@@ -261,9 +275,10 @@ function SessionRoutes() {
     })();
 
     return () => {
+      window.iapSuccess = undefined;
       window.onRevenueCatPurchase = undefined;
     };
-  }, [session?.user?.id, profileComplete]);
+  }, [session?.user?.id, profileComplete, navigate]);
 
   if (!initialized) {
     return <div className="min-h-screen bg-black" aria-hidden />;
