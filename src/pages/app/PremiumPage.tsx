@@ -58,12 +58,7 @@ export default function PremiumPage() {
               Sign in
             </Button>
           </div>
-        ) : (
-          <p className="text-sm text-muted-foreground">
-            Complete your purchase in the App Store sheet. If it closed, go back and tap Unlock Premium
-            again.
-          </p>
-        )}
+        ) : null}
       </div>
     </div>
   );
