@@ -85,12 +85,10 @@ function isDespiaRuntime(): boolean {
   return navigator.userAgent.toLowerCase().includes('despia');
 }
 
-/** Opens `/premium`, which launches the native RevenueCat paywall in Despia. */
-export function presentPaywall(_userId?: string): void {
-  window.location.href = '/premium';
-}
-
-/** Native RevenueCat paywall sheet. */
+/**
+ * Single entry point for the native RevenueCat paywall.
+ * Always passes offering=RNKXPREMIUM_MONTHLY (never the RC default fallback).
+ */
 export function launchNativePaywall(userId: string): void {
   if (!isDespiaRuntime()) {
     window.location.href = '/premium';
@@ -145,7 +143,7 @@ export function usePremium(
 ): {
   isPremium: boolean;
   loading: boolean;
-  presentPaywall: () => void;
+  launchNativePaywall: () => void;
 } {
   const sessionReady = options?.sessionReady ?? true;
 
@@ -197,13 +195,13 @@ export function usePremium(
   const loading = !sessionReady || !userId || premiumStatus === null;
   const isPremium = premiumStatus === true;
 
-  const onPresentPaywall = useCallback(() => {
+  const onLaunchNativePaywall = useCallback(() => {
     if (userId) {
-      presentPaywall(userId);
+      launchNativePaywall(userId);
     } else {
       window.location.href = '/premium';
     }
   }, [userId]);
 
-  return { isPremium, loading, presentPaywall: onPresentPaywall };
+  return { isPremium, loading, launchNativePaywall: onLaunchNativePaywall };
 }

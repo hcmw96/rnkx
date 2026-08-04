@@ -45,7 +45,7 @@ export function PremiumGate({
   const resolvedUserId = userId ?? session.authUserId;
   const resolvedAthleteId = athleteId ?? session.athleteId;
   const sessionReady = sessionReadyProp ?? session.ready;
-  const { isPremium, loading, presentPaywall } = usePremium(resolvedAthleteId, resolvedUserId, {
+  const { isPremium, loading, launchNativePaywall } = usePremium(resolvedAthleteId, resolvedUserId, {
     sessionReady,
   });
 
@@ -115,7 +115,7 @@ export function PremiumGate({
             type="button"
             size={compact ? 'default' : 'lg'}
             className="w-full font-semibold bg-neon-lime text-black hover:bg-neon-lime/90"
-            onClick={presentPaywall}
+            onClick={launchNativePaywall}
           >
             Unlock Premium
           </Button>

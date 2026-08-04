@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { ArrowLeft } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
@@ -14,6 +14,7 @@ export default function PremiumPage() {
   const [userId, setUserId] = useState<string | null>(null);
   const [ready, setReady] = useState(false);
   const despia = isDespiaRuntime();
+  const autoLaunchedRef = useRef(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -23,7 +24,8 @@ export default function PremiumPage() {
       const uid = data.user?.id ?? null;
       setUserId(uid);
       setReady(true);
-      if (uid && isDespiaRuntime()) {
+      if (uid && isDespiaRuntime() && !autoLaunchedRef.current) {
+        autoLaunchedRef.current = true;
         launchNativePaywall(uid);
       }
     })();
@@ -58,7 +60,16 @@ export default function PremiumPage() {
               Sign in
             </Button>
           </div>
-        ) : null}
+        ) : (
+          <div className="flex flex-col items-center gap-3 sm:items-start">
+            <Button type="button" className="w-full" onClick={() => launchNativePaywall(userId)}>
+              View plans
+            </Button>
+            <Button type="button" variant="link" className="h-auto p-0" onClick={() => navigate('/app/profile')}>
+              Back to profile
+            </Button>
+          </div>
+        )}
       </div>
     </div>
   );

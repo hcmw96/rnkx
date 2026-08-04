@@ -48,7 +48,7 @@ import { useAchievementUnlock } from '@/context/AchievementUnlockContext';
 import { useScoreSharePrompt } from '@/context/ScoreSharePromptContext';
 import { runAppleWorkoutSync } from '@/lib/runAppleWorkoutSync';
 import { fetchRecentWorkouts } from '@/services/despia';
-import { presentPaywall, restoreInAppPurchasesAndApplyPremium } from '@/services/revenuecat';
+import { launchNativePaywall, restoreInAppPurchasesAndApplyPremium } from '@/services/revenuecat';
 import { supabase } from '@/services/supabase';
 
 const ATHLETE_COLUMNS =
@@ -963,7 +963,7 @@ export default function SettingsPage() {
       onUnlockPremium={() => {
         if (!athlete) return;
         const uid = athlete.user_id;
-        if (uid) presentPaywall(uid);
+        if (uid) launchNativePaywall(uid);
         else window.location.href = '/premium';
       }}
       onSupportBodyChange={setSupportBody}
