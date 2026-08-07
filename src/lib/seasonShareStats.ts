@@ -1,4 +1,5 @@
 import { activitySessionScore } from '@/lib/activitySessionScore';
+import { fetchMyDivisions } from '@/lib/athleteDivisions';
 import { athleteAvatarDisplayUrl, leagueFromSelectedLeagues } from '@/lib/leagueAvatars';
 import { supabase } from '@/services/supabase';
 
@@ -14,9 +15,8 @@ export type SeasonShareStats = {
   seasonRank: number | null;
 };
 
-function divisionLabel(division: string | null | undefined, category: 'engine' | 'run'): string {
-  const div = division ?? 'Open';
-  return category === 'run' ? `${div} Run League` : `${div} Engine League`;
+function divisionLabel(division: string, category: 'engine' | 'run'): string {
+  return category === 'run' ? `${division} Run League` : `${division} Engine League`;
 }
 
 function num(v: unknown): number {
@@ -89,6 +89,7 @@ export async function fetchSeasonShareStats(athleteId: string): Promise<SeasonSh
     { data: aggregatedStats, error: aggregatedErr },
     { data: seasonWorkouts },
     { data: weekWorkouts },
+    divisions,
   ] = await Promise.all([
     supabase
       .from('athletes')
@@ -100,7 +101,7 @@ export async function fetchSeasonShareStats(athleteId: string): Promise<SeasonSh
     supabase
       .from('athlete_stats')
       .select(
-        'engine_rank, run_rank, engine_score, run_score, total_score, engine_weekly_change, run_weekly_change, engine_division, run_division',
+        'engine_rank, run_rank, engine_score, run_score, total_score, engine_weekly_change, run_weekly_change',
       )
       .eq('athlete_id', athleteId)
       .maybeSingle(),
@@ -111,6 +112,9 @@ export async function fetchSeasonShareStats(athleteId: string): Promise<SeasonSh
       .eq('athlete_id', athleteId)
       .eq('status', 'scored')
       .gte('started_at', weekAgoIso),
+    seasonId
+      ? fetchMyDivisions(athleteId, seasonId)
+      : Promise.resolve({ engine: 'Open' as const, run: 'Open' as const }),
   ]);
 
   if (!athlete) return null;
@@ -163,10 +167,10 @@ export async function fetchSeasonShareStats(athleteId: string): Promise<SeasonSh
   let seasonRank: number | null = lb?.rank != null ? num(lb.rank) : null;
 
   if (selected.includes('engine') && engineRank != null && engineRank > 0) {
-    leagueName = divisionLabel((agg?.engine_division as string) ?? 'Open', 'engine');
+    leagueName = divisionLabel(divisions.engine, 'engine');
     seasonRank = engineRank;
   } else if (selected.includes('run') && runRank != null && runRank > 0) {
-    leagueName = divisionLabel((agg?.run_division as string) ?? 'Open', 'run');
+    leagueName = divisionLabel(divisions.run, 'run');
     seasonRank = runRank;
   }
 

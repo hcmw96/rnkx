@@ -49,6 +49,7 @@ import { resolveAthleteId } from './lib/resolveAthleteId';
 import {
   applyPremiumIfStoreHasEntitlement,
   pollCheckEntitlementUntilPremium,
+  syncEntitlementFromServer,
 } from './services/revenuecat';
 import { supabase } from './services/supabase';
 
@@ -270,8 +271,14 @@ function SessionRoutes() {
       void onIapSuccess();
     };
 
+    // Once per signed-in session (not per navigation): store can only grant;
+    // check-entitlement (UUID-first, email fallback) is what clears expired premium.
+    // syncEntitlementFromServer leaves the premium cache untouched on error so
+    // offline / server failures do not revoke access; PremiumGate keeps showing
+    // the warm/DB cache while the request is in flight (no paywall flash).
     void (async () => {
       await applyPremiumIfStoreHasEntitlement();
+      await syncEntitlementFromServer();
     })();
 
     return () => {

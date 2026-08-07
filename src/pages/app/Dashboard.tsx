@@ -190,7 +190,7 @@ function activityLabel(activityType: string | null, leagueType: string): string 
 
 export default function Dashboard() {
   const { refreshAchievements } = useAchievementUnlock();
-  const { promptFromAppleSync } = useScoreSharePrompt();
+  const { promptFromAppleSync, openShareForHistory } = useScoreSharePrompt();
   const cached = getDashboardCache();
   const [loading, setLoading] = useState(!cached);
   const [error, setError] = useState<string | null>((cached?.error as string | null) ?? null);
@@ -636,6 +636,8 @@ export default function Dashboard() {
     };
   }, [stats]);
 
+  const [sharingWorkoutId, setSharingWorkoutId] = useState<string | null>(null);
+
   const recentWorkoutItems = useMemo<RecentWorkoutItem[]>(() => {
     return recentActivities.map((activity) => {
       const leagueType = activity.league_type === 'run' ? 'run' : 'engine';
@@ -650,15 +652,34 @@ export default function Dashboard() {
               activity.avg_pace_seconds != null ? Number(activity.avg_pace_seconds) : null,
             );
 
+      const shareRef = activity.id.startsWith('workout-')
+        ? { kind: 'workout' as const, id: activity.id.slice('workout-'.length) }
+        : activity.id.startsWith('activity-')
+          ? { kind: 'activity' as const, id: activity.id.slice('activity-'.length) }
+          : undefined;
+
       return {
         id: activity.id,
         label: activityLabel(activity.activity_type, leagueType),
         dateLabel: `${new Date(`${activity.activity_date}T12:00:00`).toLocaleDateString()} · ${Math.round(duration)} min`,
         leagueType,
         score,
+        shareRef,
       };
     });
   }, [recentActivities]);
+
+  const handleShareRecentWorkout = useCallback(
+    async (ref: { kind: 'workout' | 'activity'; id: string }) => {
+      setSharingWorkoutId(ref.id);
+      try {
+        await openShareForHistory(ref.kind, ref.id);
+      } finally {
+        setSharingWorkoutId(null);
+      }
+    },
+    [openShareForHistory],
+  );
 
   if (loading) {
     return (
@@ -749,7 +770,11 @@ export default function Dashboard() {
           <div className="space-y-4">
             {weeklyInsights ? <WeeklyInsightsSection data={weeklyInsights} /> : null}
             {insightsSummary ? <CoachNotesCard summary={insightsSummary} /> : null}
-            <RecentWorkoutsSection items={recentWorkoutItems} />
+            <RecentWorkoutsSection
+              items={recentWorkoutItems}
+              onShareWorkout={handleShareRecentWorkout}
+              sharingId={sharingWorkoutId}
+            />
           </div>
         </PremiumGate>
       </section>

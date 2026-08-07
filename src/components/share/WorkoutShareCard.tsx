@@ -1,123 +1,138 @@
 import { ShareCardFrame } from '@/components/share/ShareCardFrame';
+import { ENGINE_CHART_COLOR, RUN_CHART_COLOR } from '@/lib/chartTheme';
 import { formatScore } from '@/lib/formatScore';
+import {
+  DEFAULT_SHARE_PHOTO_TRANSFORM,
+  type SharePhotoTransform,
+} from '@/lib/sharePhotoTransform';
 import type { WorkoutSharePayload } from '@/types/shareCards';
 
 type WorkoutShareCardProps = {
   payload: WorkoutSharePayload;
   backgroundImageUrl?: string | null;
+  photoTransform?: SharePhotoTransform;
 };
 
-function formatDuration(min: number): string {
-  const m = Math.round(min);
-  if (m < 60) return `${m} min`;
-  const h = Math.floor(m / 60);
-  const rem = m % 60;
-  return rem > 0 ? `${h}h ${rem}m` : `${h}h`;
-}
-
-export function WorkoutShareCard({ payload, backgroundImageUrl }: WorkoutShareCardProps) {
-  const keyStatLabel = payload.leagueType === 'engine' ? 'Avg HR%' : 'Avg Pace';
-  const keyStatValue =
-    payload.leagueType === 'engine'
-      ? payload.avgHrPercent != null
-        ? `${Math.round(payload.avgHrPercent)}%`
-        : '—'
-      : payload.avgPaceDisplay ?? '—';
-
+/** V1 card: logo, league, score, rank, division — nothing else. */
+export function WorkoutShareCard({
+  payload,
+  backgroundImageUrl,
+  photoTransform = DEFAULT_SHARE_PHOTO_TRANSFORM,
+}: WorkoutShareCardProps) {
+  const accent = payload.leagueType === 'run' ? RUN_CHART_COLOR : ENGINE_CHART_COLOR;
+  const leagueLabel = payload.leagueType === 'run' ? 'RUN' : 'ENGINE';
   const rankText = payload.seasonRank != null ? `#${payload.seasonRank}` : '—';
+  const usingPhoto = Boolean(backgroundImageUrl);
+  const textShadow = usingPhoto ? '0 2px 14px rgba(0,0,0,0.55)' : undefined;
 
   return (
-    <ShareCardFrame backgroundImageUrl={backgroundImageUrl}>
-      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', flex: 1, width: '100%' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 28, marginBottom: 40 }}>
-          {payload.avatarUrl ? (
-            <img
-              src={payload.avatarUrl}
-              alt=""
-              crossOrigin="anonymous"
-              style={{
-                width: 100,
-                height: 100,
-                borderRadius: '50%',
-                objectFit: 'cover',
-                border: '3px solid rgba(190, 242, 100, 0.45)',
-              }}
-            />
-          ) : (
-            <div
-              style={{
-                width: 100,
-                height: 100,
-                borderRadius: '50%',
-                background: 'rgba(190, 242, 100, 0.2)',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                fontSize: 40,
-                fontWeight: 700,
-                color: '#bef264',
-              }}
-            >
-              {payload.displayName.charAt(0).toUpperCase()}
-            </div>
-          )}
-          <p style={{ margin: 0, fontSize: 36, fontWeight: 600 }}>@{payload.username}</p>
-        </div>
+    <ShareCardFrame
+      backgroundImageUrl={backgroundImageUrl}
+      photoTransform={photoTransform}
+      accentColor={accent}
+    >
+      <div
+        style={{
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          justifyContent: 'center',
+          flex: 1,
+          width: '100%',
+          gap: 0,
+        }}
+      >
         <p
           style={{
-            margin: 0,
-            fontSize: 32,
-            letterSpacing: '0.14em',
+            margin: '80px 0 0',
+            fontSize: 28,
+            fontWeight: 700,
+            letterSpacing: '0.28em',
             textTransform: 'uppercase',
-            color: 'rgba(244, 244, 245, 0.75)',
+            color: accent,
+            textShadow,
           }}
         >
-          {payload.activityLabel}
+          {leagueLabel}
         </p>
+
         <p
           className="font-sans font-bold tabular-nums"
           style={{
-            margin: '24px 0 0',
-            fontSize: 140,
+            margin: '36px 0 0',
+            fontSize: 168,
             lineHeight: 1,
-            color: '#bef264',
+            color: accent,
+            textShadow,
           }}
         >
           +{formatScore(payload.pointsScored)}
         </p>
-        <p style={{ margin: '16px 0 0', fontSize: 28, color: 'rgba(244, 244, 245, 0.65)' }}>points</p>
+
         <div
           style={{
-            marginTop: 64,
+            marginTop: 96,
             display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
             gap: 48,
-            width: '100%',
-            justifyContent: 'center',
           }}
         >
           <div style={{ textAlign: 'center' }}>
-            <p style={{ margin: 0, fontSize: 26, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'rgba(244,244,245,0.6)' }}>
-              {keyStatLabel}
+            <p
+              style={{
+                margin: 0,
+                fontSize: 24,
+                letterSpacing: '0.18em',
+                textTransform: 'uppercase',
+                color: usingPhoto ? 'rgba(244, 244, 245, 0.72)' : 'rgba(244, 244, 245, 0.55)',
+                fontWeight: 600,
+                textShadow,
+              }}
+            >
+              Rank
             </p>
-            <p className="font-sans font-bold tabular-nums" style={{ margin: '12px 0 0', fontSize: 52, color: '#f4f4f5' }}>
-              {keyStatValue}
+            <p
+              className="font-sans font-bold tabular-nums"
+              style={{
+                margin: '14px 0 0',
+                fontSize: 72,
+                lineHeight: 1,
+                color: '#f4f4f5',
+                textShadow,
+              }}
+            >
+              {rankText}
             </p>
           </div>
+
           <div style={{ textAlign: 'center' }}>
-            <p style={{ margin: 0, fontSize: 26, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'rgba(244,244,245,0.6)' }}>
-              Duration
+            <p
+              style={{
+                margin: 0,
+                fontSize: 24,
+                letterSpacing: '0.18em',
+                textTransform: 'uppercase',
+                color: usingPhoto ? 'rgba(244, 244, 245, 0.72)' : 'rgba(244, 244, 245, 0.55)',
+                fontWeight: 600,
+                textShadow,
+              }}
+            >
+              Division
             </p>
-            <p className="font-sans font-bold tabular-nums" style={{ margin: '12px 0 0', fontSize: 52, color: '#f4f4f5' }}>
-              {formatDuration(payload.durationMin)}
+            <p
+              className="font-sans font-bold"
+              style={{
+                margin: '14px 0 0',
+                fontSize: 56,
+                lineHeight: 1.1,
+                color: '#f4f4f5',
+                textShadow,
+              }}
+            >
+              {payload.division}
             </p>
           </div>
-        </div>
-        <div style={{ marginTop: 'auto', textAlign: 'center', paddingTop: 80 }}>
-          <p style={{ margin: 0, fontSize: 28, color: 'rgba(244, 244, 245, 0.65)' }}>Season rank</p>
-          <p className="font-sans font-bold tabular-nums" style={{ margin: '12px 0 0', fontSize: 64, color: '#bef264' }}>
-            {rankText}
-          </p>
-          <p style={{ margin: '8px 0 0', fontSize: 28, color: 'rgba(244, 244, 245, 0.55)' }}>{payload.leagueLabel}</p>
         </div>
       </div>
     </ShareCardFrame>

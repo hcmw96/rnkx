@@ -1,15 +1,13 @@
+import type { Division } from '@/lib/division';
+
+/** V1 workout social card — only these fields are rendered. */
 export type WorkoutSharePayload = {
-  username: string;
-  displayName: string;
-  avatarUrl: string | null;
-  activityLabel: string;
   leagueType: 'engine' | 'run';
   pointsScored: number;
-  durationMin: number;
-  avgHrPercent: number | null;
-  avgPaceDisplay: string | null;
+  /** Current season standing for this league (not historical). */
   seasonRank: number | null;
-  leagueLabel: string;
+  /** From athlete_divisions; Open when no membership row. */
+  division: Division;
 };
 
 export type ProcessActivityRpcResult = {

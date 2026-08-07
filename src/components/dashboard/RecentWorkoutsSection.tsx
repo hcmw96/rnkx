@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { ChevronDown } from 'lucide-react';
+import { ChevronDown, Loader2, Share2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { formatScore } from '@/lib/formatScore';
 import { cn } from '@/lib/utils';
@@ -12,10 +12,14 @@ export type RecentWorkoutItem = {
   dateLabel: string;
   leagueType: 'engine' | 'run';
   score: number;
+  /** When set, show share control that reopens the social card for this workout. */
+  shareRef?: { kind: 'workout' | 'activity'; id: string };
 };
 
 type RecentWorkoutsSectionProps = {
   items: RecentWorkoutItem[];
+  onShareWorkout?: (ref: { kind: 'workout' | 'activity'; id: string }) => void | Promise<void>;
+  sharingId?: string | null;
 };
 
 const LEAGUE_SCORE_CLASS = {
@@ -28,7 +32,11 @@ const LEAGUE_BADGE_CLASS = {
   run: 'bg-cyan-500/15 text-cyan-300',
 } as const;
 
-export function RecentWorkoutsSection({ items }: RecentWorkoutsSectionProps) {
+export function RecentWorkoutsSection({
+  items,
+  onShareWorkout,
+  sharingId,
+}: RecentWorkoutsSectionProps) {
   const [expanded, setExpanded] = useState(false);
 
   const visibleItems = useMemo(() => {
@@ -48,36 +56,56 @@ export function RecentWorkoutsSection({ items }: RecentWorkoutsSectionProps) {
       ) : (
         <>
           <ul className="mt-3 flex flex-col gap-1.5">
-            {visibleItems.map((item) => (
-              <li
-                key={item.id}
-                className="flex items-center gap-2 rounded-lg border border-border/70 bg-[hsla(0,0%,10%,1)] px-2.5 py-2"
-              >
-                <div className="min-w-0 flex-1">
-                  <p className="type-heading truncate">{item.label}</p>
-                  <p className="type-meta mt-0.5 truncate">{item.dateLabel}</p>
-                </div>
-                <div className="flex shrink-0 items-center gap-2">
-                  <span
-                    className={cn(
-                      'inline-flex rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide',
-                      LEAGUE_BADGE_CLASS[item.leagueType],
-                    )}
-                  >
-                    {item.leagueType === 'run' ? 'Run' : 'Engine'}
-                  </span>
-                  <p
-                    className={cn(
-                      'shrink-0 whitespace-nowrap text-right tabular-nums leading-tight',
-                      LEAGUE_SCORE_CLASS[item.leagueType],
-                    )}
-                  >
-                    <span className="text-lg font-bold">{formatScore(item.score)}</span>
-                    <span className="ml-1 text-xs font-medium text-muted-foreground">pts</span>
-                  </p>
-                </div>
-              </li>
-            ))}
+            {visibleItems.map((item) => {
+              const busy = sharingId != null && item.shareRef?.id === sharingId;
+              return (
+                <li
+                  key={item.id}
+                  className="flex items-center gap-2 rounded-lg border border-border/70 bg-[hsla(0,0%,10%,1)] px-2.5 py-2"
+                >
+                  <div className="min-w-0 flex-1">
+                    <p className="type-heading truncate">{item.label}</p>
+                    <p className="type-meta mt-0.5 truncate">{item.dateLabel}</p>
+                  </div>
+                  <div className="flex shrink-0 items-center gap-1.5">
+                    <span
+                      className={cn(
+                        'inline-flex rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide',
+                        LEAGUE_BADGE_CLASS[item.leagueType],
+                      )}
+                    >
+                      {item.leagueType === 'run' ? 'Run' : 'Engine'}
+                    </span>
+                    <p
+                      className={cn(
+                        'shrink-0 whitespace-nowrap text-right tabular-nums leading-tight',
+                        LEAGUE_SCORE_CLASS[item.leagueType],
+                      )}
+                    >
+                      <span className="text-lg font-bold">{formatScore(item.score)}</span>
+                      <span className="ml-1 text-xs font-medium text-muted-foreground">pts</span>
+                    </p>
+                    {item.shareRef && onShareWorkout ? (
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8 shrink-0 text-muted-foreground hover:text-neon-lime"
+                        disabled={busy}
+                        aria-label={`Share ${item.label}`}
+                        onClick={() => void onShareWorkout(item.shareRef!)}
+                      >
+                        {busy ? (
+                          <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
+                        ) : (
+                          <Share2 className="h-4 w-4" aria-hidden />
+                        )}
+                      </Button>
+                    ) : null}
+                  </div>
+                </li>
+              );
+            })}
           </ul>
 
           {showToggle ? (

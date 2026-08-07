@@ -1,5 +1,6 @@
 import { activitySessionScore } from '@/lib/activitySessionScore';
-import { fetchSeasonShareStats } from '@/lib/seasonShareStats';
+import { fetchMyDivision } from '@/lib/athleteDivisions';
+import type { Division } from '@/lib/division';
 import type { WorkoutObject } from '@/services/despia';
 import { supabase } from '@/services/supabase';
 import type { ProcessActivityRpcResult, WorkoutSharePayload } from '@/types/shareCards';
@@ -14,6 +15,12 @@ export function formatPaceDisplay(secondsPerKm: number): string {
 function isRunActivityType(activityType: string | null | undefined, leagueType: 'engine' | 'run'): boolean {
   const t = (activityType ?? '').toLowerCase();
   return leagueType === 'run' || t.includes('run') || t.includes('walk') || t.includes('jog');
+}
+
+function num(v: unknown): number {
+  if (v === null || v === undefined) return 0;
+  const n = typeof v === 'number' ? v : Number(v);
+  return Number.isFinite(n) ? n : 0;
 }
 
 type WorkoutRow = {
@@ -35,34 +42,69 @@ type ActivityRow = {
   avg_pace_seconds: number | string | null;
 };
 
+/** Current league rank + athlete_divisions membership for the share card. */
+async function standingForLeague(
+  athleteId: string,
+  leagueType: 'engine' | 'run',
+): Promise<{ seasonRank: number | null; division: Division }> {
+  const { data: season } = await supabase
+    .from('seasons')
+    .select('id')
+    .eq('is_active', true)
+    .maybeSingle();
+
+  const seasonId = (season?.id as string | undefined) ?? null;
+
+  const division: Division = seasonId
+    ? await fetchMyDivision(athleteId, seasonId, leagueType)
+    : 'Open';
+
+  let seasonStatsQuery = supabase
+    .from('athlete_stats')
+    .select('category, rank')
+    .eq('athlete_id', athleteId)
+    .eq('category', leagueType);
+
+  if (seasonId) {
+    seasonStatsQuery = seasonStatsQuery.eq('season_id', seasonId);
+  }
+
+  const [{ data: categoryRow }, { data: aggregated }] = await Promise.all([
+    seasonStatsQuery.maybeSingle(),
+    supabase
+      .from('athlete_stats')
+      .select('engine_rank, run_rank')
+      .eq('athlete_id', athleteId)
+      .maybeSingle(),
+  ]);
+
+  const fromCategory = categoryRow?.rank != null ? num(categoryRow.rank) : 0;
+  const fromAgg =
+    leagueType === 'run' ? num(aggregated?.run_rank) : num(aggregated?.engine_rank);
+  const rank = fromCategory > 0 ? fromCategory : fromAgg > 0 ? fromAgg : null;
+
+  return { seasonRank: rank, division };
+}
+
 async function basePayload(
   athleteId: string,
   opts: {
     leagueType: 'engine' | 'run';
     pointsScored: number;
-    durationMin: number;
-    avgHrPercent: number | null;
-    avgPaceDisplay: string | null;
     activityType: string | null;
   },
 ): Promise<WorkoutSharePayload | null> {
-  const season = await fetchSeasonShareStats(athleteId);
-  if (!season || opts.pointsScored <= 0) return null;
+  if (opts.pointsScored <= 0) return null;
 
   const runWorkout = isRunActivityType(opts.activityType, opts.leagueType);
+  const leagueType: 'engine' | 'run' = runWorkout ? 'run' : 'engine';
+  const standing = await standingForLeague(athleteId, leagueType);
 
   return {
-    username: season.username,
-    displayName: season.displayName,
-    avatarUrl: season.avatarUrl,
-    activityLabel: runWorkout ? 'Run' : 'Engine',
-    leagueType: runWorkout ? 'run' : 'engine',
+    leagueType,
     pointsScored: Math.round(opts.pointsScored),
-    durationMin: opts.durationMin,
-    avgHrPercent: opts.avgHrPercent,
-    avgPaceDisplay: opts.avgPaceDisplay,
-    seasonRank: season.seasonRank,
-    leagueLabel: season.leagueName,
+    seasonRank: standing.seasonRank,
+    division: standing.division,
   };
 }
 
@@ -76,28 +118,9 @@ export async function buildWorkoutShareFromWorkoutRow(
   const points = Math.max(engine, run);
   if (points <= 0) return null;
 
-  const { data: athleteRow } = await supabase
-    .from('athletes')
-    .select('max_hr, age')
-    .eq('id', athleteId)
-    .maybeSingle();
-
-  const effectiveMaxHr =
-    athleteRow?.max_hr != null
-      ? Number(athleteRow.max_hr)
-      : Math.max(1, 220 - Number(athleteRow?.age ?? 30));
-
-  const avgHr = row.avg_hr != null ? Number(row.avg_hr) : null;
-  const avgHrPercent = avgHr != null && effectiveMaxHr > 0 ? (avgHr / effectiveMaxHr) * 100 : null;
-  const paceSec = row.avg_pace_per_km != null ? Number(row.avg_pace_per_km) : null;
-  const avgPaceDisplay = paceSec != null && paceSec > 0 ? formatPaceDisplay(paceSec) : null;
-
   return basePayload(athleteId, {
     leagueType,
     pointsScored: points,
-    durationMin: Number(row.duration_min) || 0,
-    avgHrPercent,
-    avgPaceDisplay,
     activityType: row.activity_type,
   });
 }
@@ -113,14 +136,9 @@ export async function buildWorkoutShareFromActivityRow(
   const points = activitySessionScore(leagueType, duration, hrPct, pace);
   if (points <= 0) return null;
 
-  const avgPaceDisplay = pace != null && pace > 0 ? formatPaceDisplay(pace) : null;
-
   return basePayload(athleteId, {
     leagueType,
     pointsScored: points,
-    durationMin: duration,
-    avgHrPercent: hrPct,
-    avgPaceDisplay,
     activityType: row.activity_type,
   });
 }
@@ -139,28 +157,9 @@ export async function buildWorkoutShareFromAppleSync(
   const points = Math.max(engine, run);
   if (points <= 0) return null;
 
-  const { data: athleteRow } = await supabase
-    .from('athletes')
-    .select('max_hr, age')
-    .eq('id', athleteId)
-    .maybeSingle();
-
-  const effectiveMaxHr =
-    athleteRow?.max_hr != null
-      ? Number(athleteRow.max_hr)
-      : Math.max(1, 220 - Number(athleteRow?.age ?? 30));
-
-  const avgHr = workout.avgHr != null ? Number(workout.avgHr) : null;
-  const avgHrPercent = avgHr != null && effectiveMaxHr > 0 ? (avgHr / effectiveMaxHr) * 100 : null;
-  const paceSec = workout.avgPacePerKm != null ? Number(workout.avgPacePerKm) : null;
-  const avgPaceDisplay = paceSec != null && paceSec > 0 ? formatPaceDisplay(paceSec) : null;
-
   return basePayload(athleteId, {
     leagueType,
     pointsScored: points,
-    durationMin: Number(workout.durationMin) || 0,
-    avgHrPercent,
-    avgPaceDisplay,
     activityType: workout.activityType,
   });
 }

@@ -8,10 +8,15 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
+import { useSharePhotoGestures } from '@/hooks/useSharePhotoGestures';
 import { captureElementAsPng, sharePngBlob } from '@/lib/shareCardImage';
+import {
+  DEFAULT_SHARE_PHOTO_TRANSFORM,
+  type SharePhotoTransform,
+} from '@/lib/sharePhotoTransform';
 import type { WorkoutSharePayload } from '@/types/shareCards';
 import { Loader2, Share2 } from 'lucide-react';
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
 
 const PREVIEW_SCALE = 0.28;
@@ -26,6 +31,36 @@ export function WorkoutShareDialog({ open, onOpenChange, payload }: WorkoutShare
   const captureRef = useRef<HTMLDivElement>(null);
   const [sharing, setSharing] = useState(false);
   const [backgroundImageUrl, setBackgroundImageUrl] = useState<string | null>(null);
+  const [photoTransform, setPhotoTransform] = useState<SharePhotoTransform>(
+    DEFAULT_SHARE_PHOTO_TRANSFORM,
+  );
+  const [naturalSize, setNaturalSize] = useState({ w: 0, h: 0 });
+
+  useEffect(() => {
+    if (!backgroundImageUrl) {
+      setNaturalSize({ w: 0, h: 0 });
+      setPhotoTransform(DEFAULT_SHARE_PHOTO_TRANSFORM);
+      return;
+    }
+    setPhotoTransform(DEFAULT_SHARE_PHOTO_TRANSFORM);
+    const img = new Image();
+    img.onload = () => setNaturalSize({ w: img.naturalWidth, h: img.naturalHeight });
+    img.onerror = () => {
+      setBackgroundImageUrl(null);
+      setNaturalSize({ w: 0, h: 0 });
+      toast.error('Could not load that photo. Using RNKX background.');
+    };
+    img.src = backgroundImageUrl;
+  }, [backgroundImageUrl]);
+
+  const photoGestures = useSharePhotoGestures({
+    enabled: open && Boolean(backgroundImageUrl) && naturalSize.w > 0 && !sharing,
+    imageWidth: naturalSize.w,
+    imageHeight: naturalSize.h,
+    viewScale: PREVIEW_SCALE,
+    transform: photoTransform,
+    onTransformChange: setPhotoTransform,
+  });
 
   async function handleShare() {
     const el = captureRef.current;
@@ -44,7 +79,13 @@ export function WorkoutShareDialog({ open, onOpenChange, payload }: WorkoutShare
     }
   }
 
+  function handleBackgroundChange(url: string | null) {
+    setBackgroundImageUrl(url);
+    if (!url) setPhotoTransform(DEFAULT_SHARE_PHOTO_TRANSFORM);
+  }
+
   const previewHeight = Math.round(1920 * PREVIEW_SCALE);
+  const usingPhoto = Boolean(backgroundImageUrl);
 
   if (!payload) return null;
 
@@ -52,19 +93,28 @@ export function WorkoutShareDialog({ open, onOpenChange, payload }: WorkoutShare
     <Dialog
       open={open}
       onOpenChange={(o) => {
-        if (!o) setBackgroundImageUrl(null);
+        if (!o) {
+          setBackgroundImageUrl(null);
+          setPhotoTransform(DEFAULT_SHARE_PHOTO_TRANSFORM);
+        }
         onOpenChange(o);
       }}
     >
       <DialogContent className="max-h-[92dvh] overflow-y-auto border-border bg-card sm:max-w-md">
         <DialogHeader>
           <DialogTitle className="type-page-title">Workout scored!</DialogTitle>
-          <DialogDescription>Share your result — portrait 9:16 for Stories.</DialogDescription>
+          <DialogDescription>Share your result on socials</DialogDescription>
         </DialogHeader>
 
         <div
-          className="relative mx-auto overflow-hidden rounded-xl border border-border bg-zinc-950"
-          style={{ height: previewHeight, width: '100%', maxWidth: 1080 * PREVIEW_SCALE }}
+          ref={photoGestures.surfaceRef}
+          className="relative mx-auto overflow-hidden rounded-xl border border-border bg-zinc-950 touch-none"
+          style={{
+            height: previewHeight,
+            width: '100%',
+            maxWidth: 1080 * PREVIEW_SCALE,
+            cursor: usingPhoto ? (photoGestures.dragging ? 'grabbing' : 'grab') : 'default',
+          }}
         >
           <div
             className="absolute left-1/2 top-0 origin-top"
@@ -72,22 +122,38 @@ export function WorkoutShareDialog({ open, onOpenChange, payload }: WorkoutShare
               transform: `translateX(-50%) scale(${PREVIEW_SCALE})`,
               width: 1080,
               height: 1920,
+              pointerEvents: 'none',
             }}
           >
-            <WorkoutShareCard payload={payload} backgroundImageUrl={backgroundImageUrl} />
+            <WorkoutShareCard
+              payload={payload}
+              backgroundImageUrl={backgroundImageUrl}
+              photoTransform={photoTransform}
+            />
           </div>
         </div>
 
+        {usingPhoto ? (
+          <p className="text-center text-xs text-muted-foreground">
+            Pinch to zoom · drag to reposition · double-tap to reset
+          </p>
+        ) : null}
+
         <div className="pointer-events-none fixed left-[-10000px] top-0 opacity-0" aria-hidden>
           <div ref={captureRef}>
-            <WorkoutShareCard payload={payload} backgroundImageUrl={backgroundImageUrl} />
+            <WorkoutShareCard
+              payload={payload}
+              backgroundImageUrl={backgroundImageUrl}
+              photoTransform={photoTransform}
+            />
           </div>
         </div>
 
         <ShareBackgroundPicker
           backgroundImageUrl={backgroundImageUrl}
-          onBackgroundChange={setBackgroundImageUrl}
+          onBackgroundChange={handleBackgroundChange}
           disabled={sharing}
+          allowLibraryPhoto
         />
 
         <div className="flex gap-2">

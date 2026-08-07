@@ -102,6 +102,8 @@ export function launchNativePaywall(userId: string): void {
 /**
  * Sync premium from RevenueCat via the check-entitlement edge function.
  * Updates the local premium cache so PremiumGate / settings refresh without relaunch.
+ * On invoke failure (offline, 5xx, etc.) returns 'error' and does not touch the cache —
+ * callers must treat that as fail-open so paying users are not locked out.
  */
 export async function syncEntitlementFromServer(): Promise<'premium' | 'none' | 'error'> {
   const { data, error } = await supabase.functions.invoke<{ isPremium?: boolean }>('check-entitlement', {

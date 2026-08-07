@@ -7,6 +7,7 @@ import {
   useState,
   type ReactNode,
 } from 'react';
+import { toast } from 'sonner';
 import { WorkoutShareDialog } from '@/components/share/WorkoutShareDialog';
 import {
   buildWorkoutShareFromActivityRow,
@@ -33,6 +34,8 @@ type ScoreSharePromptContextValue = {
     workouts: WorkoutObject[],
     results: ProcessActivityRpcResult[],
   ) => Promise<void>;
+  /** Re-open the share sheet for a historical workout / activity (no dedupe). */
+  openShareForHistory: (kind: 'workout' | 'activity', id: string) => Promise<void>;
 };
 
 const ScoreSharePromptContext = createContext<ScoreSharePromptContextValue | null>(null);
@@ -184,6 +187,56 @@ export function ScoreSharePromptProvider({ children, authUserId, enabled }: Scor
     [offerShare],
   );
 
+  const openShareForHistory = useCallback(
+    async (kind: 'workout' | 'activity', id: string) => {
+      const aid = athleteId;
+      if (!aid || promptingRef.current) return;
+
+      promptingRef.current = true;
+      try {
+        let built: WorkoutSharePayload | null = null;
+
+        if (kind === 'workout') {
+          const { data: row } = await supabase
+            .from('workouts')
+            .select('id, engine_score, run_score, duration_min, avg_hr, avg_pace_per_km, activity_type')
+            .eq('id', id)
+            .eq('athlete_id', aid)
+            .eq('status', 'scored')
+            .maybeSingle();
+          if (row) {
+            built = await buildWorkoutShareFromWorkoutRow(aid, row);
+          }
+        } else {
+          const { data: row } = await supabase
+            .from('activities')
+            .select(
+              'id, league_type, activity_type, duration_minutes, avg_hr_percent, avg_pace_seconds',
+            )
+            .eq('id', id)
+            .eq('athlete_id', aid)
+            .maybeSingle();
+          if (row) {
+            built = await buildWorkoutShareFromActivityRow(aid, row);
+          }
+        }
+
+        if (!built) {
+          promptingRef.current = false;
+          toast.error('Could not open share card for this workout.');
+          return;
+        }
+
+        setPayload(built);
+        setOpen(true);
+      } catch {
+        promptingRef.current = false;
+        toast.error('Could not open share card for this workout.');
+      }
+    },
+    [athleteId],
+  );
+
   useEffect(() => {
     if (!enabled || !athleteId) return;
 
@@ -266,6 +319,7 @@ export function ScoreSharePromptProvider({ children, authUserId, enabled }: Scor
 
   const value: ScoreSharePromptContextValue = {
     promptFromAppleSync,
+    openShareForHistory,
   };
 
   return (
