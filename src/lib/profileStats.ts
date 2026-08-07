@@ -14,10 +14,66 @@ export type ProfileCareerStats = {
   topActivityType: string;
 };
 
+export type PromotionTimelineItem = {
+  id: string;
+  seasonLabel: string;
+  league: 'engine' | 'run';
+  result: 'promoted' | 'relegated' | 'held';
+  fromDivision: string;
+  toDivision: string;
+  createdAt: string;
+};
+
 function numScore(v: number | string | null | undefined): number {
   if (v === null || v === undefined) return 0;
   const n = typeof v === 'number' ? v : Number(v);
   return Number.isFinite(n) ? n : 0;
+}
+
+/** Short season name for timeline lines, e.g. "Season 2". */
+export function seasonTimelineLabel(name: string | null | undefined): string {
+  if (!name?.trim()) return 'Season';
+  let trimmed = name.trim().replace(/^\[PLACEHOLDER\]\s*/i, '');
+  const sep = trimmed.search(/\s+[—–-]\s+/);
+  if (sep > 0) trimmed = trimmed.slice(0, sep).trim();
+  return trimmed || 'Season';
+}
+
+export async function fetchPromotionTimeline(athleteId: string): Promise<PromotionTimelineItem[]> {
+  const { data, error } = await supabase
+    .from('promotion_history')
+    .select('id, league, result, from_division, to_division, created_at, seasons(name, ends_at)')
+    .eq('athlete_id', athleteId)
+    .order('created_at', { ascending: false });
+
+  if (error || !data?.length) return [];
+
+  type Raw = {
+    id: string;
+    league: string;
+    result: string;
+    from_division: string;
+    to_division: string;
+    created_at: string;
+    seasons?: { name?: string | null; ends_at?: string | null } | null;
+  };
+
+  return (data as Raw[]).map((row) => {
+    const league = row.league === 'run' ? 'run' : 'engine';
+    const result =
+      row.result === 'promoted' || row.result === 'relegated' || row.result === 'held'
+        ? row.result
+        : 'held';
+    return {
+      id: row.id,
+      seasonLabel: seasonTimelineLabel(row.seasons?.name),
+      league,
+      result,
+      fromDivision: row.from_division,
+      toDivision: row.to_division,
+      createdAt: row.created_at,
+    };
+  });
 }
 
 export function formatSeasonDisplay(name: string | null | undefined): string {
@@ -72,14 +128,46 @@ export type SeasonStanding = {
   topPercent: number;
 };
 
-/** Global leaderboard standing for the profile season bar. */
+/**
+ * Season standing for the profile bar — rank within the athlete's division
+ * for the active season (not lifetime). Uses the league where they have more
+ * season points (engine vs run); ties prefer engine.
+ */
 export async function fetchSeasonStanding(athleteId: string): Promise<SeasonStanding> {
-  const [{ data: lb }, { count }] = await Promise.all([
-    supabase.from('leaderboard').select('rank').eq('id', athleteId).maybeSingle(),
-    supabase.from('leaderboard').select('id', { count: 'exact', head: true }),
-  ]);
+  const { data: season } = await supabase.from('seasons').select('id').eq('is_active', true).maybeSingle();
+  if (!season?.id) return { standingPercent: 50, topPercent: 50 };
 
-  const rank = lb?.rank != null ? numScore(lb.rank as number | string) : 0;
+  const seasonId = String(season.id);
+  const { data: mine } = await supabase
+    .from('season_division_leaderboard')
+    .select('league, division, rank, season_score')
+    .eq('season_id', seasonId)
+    .eq('id', athleteId)
+    .in('league', ['engine', 'run']);
+
+  type Row = {
+    league: string;
+    division: string;
+    rank: number | string | null;
+    season_score: number | string | null;
+  };
+  const rows = (mine ?? []) as Row[];
+  if (!rows.length) return { standingPercent: 50, topPercent: 50 };
+
+  const pick = [...rows].sort((a, b) => {
+    const scoreDiff = numScore(b.season_score) - numScore(a.season_score);
+    if (scoreDiff !== 0) return scoreDiff;
+    return a.league === 'engine' ? -1 : 1;
+  })[0];
+
+  const rank = numScore(pick.rank);
+  const { count } = await supabase
+    .from('season_division_leaderboard')
+    .select('id', { count: 'exact', head: true })
+    .eq('season_id', seasonId)
+    .eq('league', pick.league)
+    .eq('division', pick.division);
+
   const total = count ?? 0;
   if (!rank || !total || total < 2) {
     return { standingPercent: 50, topPercent: 50 };

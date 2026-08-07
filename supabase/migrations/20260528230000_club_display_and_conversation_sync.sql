@@ -83,6 +83,8 @@ $$;
 revoke all on function public.get_club_by_conversation(uuid) from public;
 grant execute on function public.get_club_by_conversation(uuid) to authenticated;
 
+-- DROP required: baseline (and later gender migration) widen RETURNS TABLE with gender.
+drop function if exists public.get_private_league(uuid);
 create or replace function public.get_private_league(p_league_id uuid)
 returns table (
   id uuid,

@@ -10,13 +10,14 @@ import {
   ENGINE_CHART_COLOR,
   MomentumChart,
   RUN_CHART_COLOR,
+  formatMomentumAxisTick,
   resolveMomentumYAxis,
   type MomentumChartUnit,
   type MomentumSeries,
 } from '@/components/dashboard/MomentumChart';
 import type { DailyWeekAggregate, WeeklyInsightsData } from '@/lib/dashboardWeeklyInsights';
 import { formatInsightDateLabel, weekDeltaPercent } from '@/lib/dashboardWeeklyInsights';
-import { formatScore, formatScorePts } from '@/lib/formatScore';
+import { formatScorePts } from '@/lib/formatScore';
 import { cn } from '@/lib/utils';
 
 export type InsightCardKind = 'volume' | 'score' | 'efficiency';
@@ -57,6 +58,7 @@ const MOMENTUM_TAB_CHART: Record<
 
 function momentumSeriesForTab(tab: InsightTab): MomentumSeries[] {
   const { engineKey, runKey } = MOMENTUM_TAB_CHART[tab];
+  // Engine = lime, Run = cyan — do not swap (mapping has been crossed before).
   return [
     { key: engineKey, name: 'Engine', color: ENGINE_CHART_COLOR },
     { key: runKey, name: 'Run', color: RUN_CHART_COLOR },
@@ -88,8 +90,8 @@ function DeltaBadge({ current, previous }: { current: number; previous: number }
     <span
       className={cn(
         'inline-flex items-center gap-1 text-xs font-medium tabular-nums',
-        up && 'text-emerald-400',
-        down && 'text-amber-400/90',
+        up && 'text-neon-lime',
+        down && 'text-secondary',
         !up && !down && 'text-muted-foreground',
       )}
     >
@@ -216,7 +218,7 @@ function InsightDetailDialog({
                   label="Engine"
                   value={
                     totals.engine_minutes > 0
-                      ? `${formatScore(totals.engine_points / totals.engine_minutes)} ppm`
+                      ? `${formatMomentumAxisTick(totals.engine_points / totals.engine_minutes, 'ppm')} ppm`
                       : '—'
                   }
                   colorClass="text-neon-lime"
@@ -225,7 +227,7 @@ function InsightDetailDialog({
                   label="Run"
                   value={
                     totals.run_minutes > 0
-                      ? `${formatScore(totals.run_points / totals.run_minutes)} ppm`
+                      ? `${formatMomentumAxisTick(totals.run_points / totals.run_minutes, 'ppm')} ppm`
                       : '—'
                   }
                   colorClass="text-secondary"
@@ -243,7 +245,9 @@ function InsightDetailDialog({
               let detail = 'Rest day';
               if (config.kind === 'volume' && mins > 0) detail = `${Math.round(mins)} min`;
               if (config.kind === 'score' && pts > 0) detail = formatScorePts(pts);
-              if (config.kind === 'efficiency' && mins > 0) detail = `${formatScore(eff)} ppm`;
+              if (config.kind === 'efficiency' && mins > 0) {
+                detail = `${formatMomentumAxisTick(eff, 'ppm')} ppm`;
+              }
 
               return (
                 <div
@@ -305,7 +309,7 @@ export function WeeklyInsightsSection({ data }: WeeklyInsightsSectionProps) {
         cardTitle: 'Efficiency',
         subtitle: `Last ${dayCount} days · points per minute`,
         summaryLabel: 'Period avg',
-        summaryValue: `${formatScore(totals.avg_efficiency)} ppm`,
+        summaryValue: `${formatMomentumAxisTick(totals.avg_efficiency, 'ppm')} ppm`,
         engineKey: 'engine_efficiency',
         runKey: 'run_efficiency',
         valueSuffix: ' ppm',
@@ -373,12 +377,12 @@ export function WeeklyInsightsSection({ data }: WeeklyInsightsSectionProps) {
               />
             </div>
             <div className="mt-2 flex items-center gap-3 text-[10px] text-muted-foreground">
-              <span className="inline-flex items-center gap-1">
-                <span className="h-2 w-2 rounded-sm" style={{ background: ENGINE_CHART_COLOR }} />
+              <span className="inline-flex items-center gap-1.5">
+                <span className="h-2 w-2 rounded-full" style={{ background: ENGINE_CHART_COLOR }} />
                 Engine
               </span>
-              <span className="inline-flex items-center gap-1">
-                <span className="h-2 w-2 rounded-sm" style={{ background: RUN_CHART_COLOR }} />
+              <span className="inline-flex items-center gap-1.5">
+                <span className="h-2 w-2 rounded-full" style={{ background: RUN_CHART_COLOR }} />
                 Run
               </span>
             </div>

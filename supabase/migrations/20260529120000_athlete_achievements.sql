@@ -26,6 +26,10 @@ create index if not exists athlete_achievements_athlete_id_idx
 
 alter table public.athlete_achievements enable row level security;
 
+drop policy if exists "athlete_achievements_select_own" on public.athlete_achievements;
+drop policy if exists "athlete_achievements_insert_own" on public.athlete_achievements;
+drop policy if exists "athlete_achievements_update_own" on public.athlete_achievements;
+
 create policy "athlete_achievements_select_own"
   on public.athlete_achievements for select
   using (

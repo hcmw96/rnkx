@@ -22,7 +22,10 @@ export function useLeaderboard(filter: LeagueFilter) {
       const { data, error: queryError } = await supabase
         .from('leaderboard')
         .select('id,display_name,total_score,rank')
-        .order('rank', { ascending: true });
+        .order('rank', { ascending: true })
+        // Stable tiebreak so equal-rank rows don't shuffle between loads (see
+        // SCORING_AUDIT_REPORT.md Part 1 — interim until the view ranks deterministically).
+        .order('id', { ascending: true });
 
       if (queryError) {
         setError(queryError.message);

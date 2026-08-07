@@ -1,6 +1,7 @@
 import { TrendingDown, TrendingUp, Zap } from 'lucide-react';
 import { useMemo } from 'react';
 import { InsightsLineChart } from '@/components/insights/InsightsLineChart';
+import { ENGINE_CHART_COLOR, RUN_CHART_COLOR } from '@/lib/chartTheme';
 import {
   buildInsightsSummary,
   mergeActivitiesAndWorkoutsForInsights,
@@ -11,9 +12,8 @@ import {
 import { formatScore } from '@/lib/formatScore';
 import { cn } from '@/lib/utils';
 
-const LIME = 'hsl(72 100% 50%)';
-const CYAN = 'hsl(187 85% 53%)';
-const AMBER = 'hsl(38 92% 50%)';
+const LIME = ENGINE_CHART_COLOR;
+const CYAN = RUN_CHART_COLOR;
 
 type AthleteStatsSlice = {
   engine_rank: number | null;
@@ -51,8 +51,8 @@ function RankPill({
         <p
           className={cn(
             'mt-1 flex items-center gap-1 text-xs font-medium',
-            up && 'text-emerald-400',
-            down && 'text-amber-400/90',
+            up && 'text-neon-lime',
+            down && 'text-secondary',
             !up && !down && 'text-muted-foreground',
           )}
         >
@@ -146,8 +146,8 @@ export function DashboardInsights({
               className={cn(
                 'shrink-0 rounded-full px-2 py-0.5 text-xs font-bold tabular-nums',
                 summary.weekDelta > 0
-                  ? 'bg-emerald-500/15 text-emerald-400'
-                  : 'bg-amber-500/15 text-amber-400',
+                  ? 'bg-neon-lime/15 text-neon-lime'
+                  : 'bg-secondary/15 text-secondary',
               )}
             >
               {summary.weekDelta > 0 ? '+' : ''}
@@ -181,9 +181,9 @@ export function DashboardInsights({
             className="mt-4"
             height={180}
             data={cumulativeData}
-            variant="line"
+            variant="area"
             valueSuffix=" pts"
-            series={[{ dataKey: 'total', label: 'Total', color: LIME }]}
+            series={[{ dataKey: 'total', label: 'Total', color: LIME, fillId: 'insightCumulative' }]}
           />
         ) : (
           <EmptyChartHint />
@@ -218,10 +218,10 @@ export function DashboardInsights({
               className="mt-3"
               height={160}
               data={intensityData}
-              variant="line"
+              variant="area"
               valueSuffix="%"
               yDomain={[40, 100]}
-              series={[{ dataKey: 'Intensity', label: 'Intensity', color: AMBER }]}
+              series={[{ dataKey: 'Intensity', label: 'Intensity', color: LIME, fillId: 'insightIntensity' }]}
             />
           ) : (
             <EmptyChartHint compact />

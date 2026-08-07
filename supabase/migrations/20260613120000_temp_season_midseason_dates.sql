@@ -1,8 +1,21 @@
--- Temporary: centre the active season on "today" so dashboard shows ~Day 21/42
--- instead of Day 42/42 "Ends today". Revert or replace before production season end.
+-- NEUTRALISED — DO NOT RE-ENABLE.
+--
+-- This was a one-off, manual production fix that re-centred the active season's
+-- starts_at/ends_at around now() so the dashboard showed ~Day 21/42 instead of
+-- "Ends today". It has ALREADY been applied to production.
+--
+-- The file is intentionally kept (its version is recorded as applied in
+-- schema_migrations; a missing file would read as migration drift), but its body
+-- is deliberately empty.
+--
+-- It must NEVER run again. On a fresh replay it would overwrite the active
+-- season's ends_at relative to now(), and the season-reset routine fires off
+-- ends_at — re-running this would silently move a real season boundary.
+--
+-- Original statement (for the record, kept only as a comment):
+--   update public.seasons
+--   set starts_at = timezone('utc', now()) - interval '21 days',
+--       ends_at   = timezone('utc', now()) + interval '21 days'
+--   where is_active = true;
 
-update public.seasons
-set
-  starts_at = timezone('utc', now()) - interval '21 days',
-  ends_at = timezone('utc', now()) + interval '21 days'
-where is_active = true;
+-- Intentionally no-op.

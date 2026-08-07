@@ -177,7 +177,7 @@ export function SeasonCard({
           </div>
           <div className="h-1.5 overflow-hidden rounded-full bg-muted/80">
             <div
-              className="h-full rounded-full bg-gradient-to-r from-neon-lime via-emerald-400 to-secondary"
+              className="h-full rounded-full bg-gradient-to-r from-neon-lime to-secondary"
               style={{ width: `${progress.progress}%` }}
             />
           </div>

@@ -5,6 +5,7 @@ import { AppShell } from '@/components/app/AppShell';
 import { AppHeaderActions } from '@/components/app/AppHeaderActions';
 import { InsightsLineChart } from '@/components/insights/InsightsLineChart';
 import { PremiumGate } from '@/components/PremiumGate';
+import { ENGINE_CHART_COLOR, RUN_CHART_COLOR } from '@/lib/chartTheme';
 import {
   buildInsightsSummary,
   mergeActivitiesAndWorkoutsForInsights,
@@ -19,8 +20,8 @@ type RecoveryPageProps = {
   embedded?: boolean;
 };
 
-const LIME = 'hsl(72 100% 50%)';
-const CYAN = 'hsl(187 85% 53%)';
+const LIME = ENGINE_CHART_COLOR;
+const CYAN = RUN_CHART_COLOR;
 
 type Readiness = 'ready' | 'moderate' | 'rest';
 

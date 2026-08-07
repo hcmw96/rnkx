@@ -134,6 +134,8 @@ revoke all on function public.get_or_create_dm_conversation(uuid, uuid) from pub
 grant execute on function public.get_or_create_dm_conversation(uuid, uuid) to authenticated;
 
 -- Load messages without hitting recursive RLS.
+-- DROP required: later migrations rename OUT col body→content; OR REPLACE cannot change OUT cols.
+drop function if exists public.list_conversation_messages(uuid, int);
 create or replace function public.list_conversation_messages(
   p_conversation_id uuid,
   p_limit int default 200

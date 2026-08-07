@@ -14,6 +14,8 @@ where pl.invite_code is null;
 alter table public.private_league_members add column if not exists invited_by uuid references public.athletes (id) on delete set null;
 
 -- Public join preview (no direct table exposure to anon)
+-- DROP required: baseline (and later gender migration) widen RETURNS TABLE; OR REPLACE cannot change OUT cols.
+drop function if exists public.get_private_league_for_join(text);
 create or replace function public.get_private_league_for_join(p_invite_code text)
 returns table (
   id uuid,

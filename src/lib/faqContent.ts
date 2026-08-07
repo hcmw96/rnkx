@@ -74,12 +74,12 @@ export const FAQ_SECTIONS: FaqSection[] = [
       {
         question: 'Which devices work with RNKX?',
         answer:
-          'Apple Watch and Garmin support both Engine League and Run League scoring.\n\nWHOOP currently supports Engine League scoring only. Runs tracked with WHOOP still score in Engine League based on heart rate, ensuring no workout is wasted.',
+          'RNKX supports Apple Watch, Garmin, WHOOP, Polar, COROS, Fitbit, and Strava.\n\nApple Watch and Garmin support both Engine League and Run League scoring.\n\nWHOOP currently supports Engine League scoring only. Runs tracked with WHOOP still score in Engine League based on heart rate, ensuring no workout is wasted.\n\nPolar, COROS, Fitbit, and Strava connect through the device list in Settings.',
       },
       {
         question: 'Do I need to sync manually?',
         answer:
-          'Apple Watch users need to tap Sync Workouts in Settings → Devices & Sync.\n\nGarmin and WHOOP workouts sync automatically.',
+          'Apple Watch users need to tap Sync Workouts in Settings → Devices & Sync.\n\nGarmin, WHOOP, Polar, COROS, Fitbit, and Strava workouts sync automatically.',
       },
       {
         question: 'How is my maximum heart rate set?',

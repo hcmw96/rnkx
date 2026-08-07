@@ -6,7 +6,6 @@ type AthleteRow = {
   id: string;
   selected_leagues: string[] | null;
   date_of_birth: string | null;
-  observed_max_hr: number | null;
   max_hr: number | string | null;
 };
 
@@ -86,7 +85,19 @@ async function processTerraWorkouts(params: {
     const maxHrAge = athlete.date_of_birth
       ? 220 - Math.floor((Date.now() - new Date(athlete.date_of_birth).getTime()) / (365.25 * 24 * 60 * 60 * 1000))
       : 190;
-    const effectiveMaxHr = Math.max(maxHrAge, athlete.observed_max_hr ?? 0);
+    // Score against the athlete's stored device max HR when present, else 220 - age.
+    // Mirrors process_activity (Apple path): coalesce(max_hr, 220 - age). Previously this
+    // used observed_max_hr, which is never written, so every Terra/WHOOP/Garmin session was
+    // scored against 220 - age regardless of the athlete's real max HR.
+    const storedMaxHrRaw = athlete.max_hr;
+    const storedMaxHr =
+      typeof storedMaxHrRaw === 'number'
+        ? storedMaxHrRaw
+        : typeof storedMaxHrRaw === 'string'
+          ? Number(storedMaxHrRaw)
+          : NaN;
+    const effectiveMaxHr =
+      Number.isFinite(storedMaxHr) && storedMaxHr > 0 ? storedMaxHr : maxHrAge;
     const avgHrPercent = avgHrBpm ? Math.round((avgHrBpm / effectiveMaxHr) * 100) : null;
 
     const avgSpeedMps = workout.movement_data?.avg_speed_meters_per_second ?? null;
@@ -147,6 +158,7 @@ async function processTerraWorkouts(params: {
           duration_minutes: Math.min(durationMin, 120),
           avg_pace_seconds: avgPaceSeconds,
           avg_hr_percent: avgHrPercent,
+          avg_hr: avgHrBpm,
           activity_date: activityDate,
           source: provider,
           source_id: sourceId,
@@ -282,7 +294,7 @@ serve(async (req) => {
 
       const { data: athlete } = await supabase
         .from('athletes')
-        .select('id, selected_leagues, date_of_birth, observed_max_hr, max_hr')
+        .select('id, selected_leagues, date_of_birth, max_hr')
         .eq('id', referenceId)
         .single();
       if (!athlete) {
@@ -326,7 +338,7 @@ serve(async (req) => {
 
       const { data: athlete } = await supabase
         .from('athletes')
-        .select('id, selected_leagues, date_of_birth, observed_max_hr, max_hr')
+        .select('id, selected_leagues, date_of_birth, max_hr')
         .eq('id', referenceId)
         .single();
       if (!athlete) {
@@ -366,7 +378,7 @@ serve(async (req) => {
 
     const { data: athlete } = await supabase
       .from('athletes')
-      .select('id, selected_leagues, date_of_birth, observed_max_hr, max_hr')
+      .select('id, selected_leagues, date_of_birth, max_hr')
       .eq('id', connection.athlete_id)
       .single();
     if (!athlete) {

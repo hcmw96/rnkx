@@ -1,4 +1,5 @@
-import { FormEvent, useEffect, useMemo, useState } from 'react';
+import { FormEvent, useCallback, useEffect, useMemo, useState } from 'react';
+import { AdminCompetitionPanel } from '@/components/admin/AdminCompetitionPanel';
 import { AppShell } from '@/components/app/AppShell';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -70,9 +71,13 @@ type ActivityRow = {
 type AthleteSeasonScores = {
   season_id: string | null;
   total_score: number;
+  /** Season engine total (workout points + consistency bonuses). */
   engine_score: number;
+  /** Season run total (workout points + consistency bonuses). */
   run_score: number;
-  consistency_bonus: number;
+  /** Breakdown only — already included in engine_score / run_score. */
+  engine_consistency_bonus: number;
+  run_consistency_bonus: number;
 };
 
 type RejectedFeedRow = {
@@ -245,9 +250,20 @@ export default function AdminPage() {
   const [signedInEmail, setSignedInEmail] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [adminNotice, setAdminNotice] = useState<string | null>(null);
 
   const [leaderboardRows, setLeaderboardRows] = useState<LeaderboardRow[]>([]);
   const [leaderboardTab, setLeaderboardTab] = useState<LeagueTab>('engine');
+  const [missingDivisions, setMissingDivisions] = useState<
+    {
+      athlete_id: string;
+      username: string | null;
+      display_name: string | null;
+      league: string;
+      season_id: string;
+    }[]
+  >([]);
+  const [reconcileBusy, setReconcileBusy] = useState(false);
 
   const [athletes, setAthletes] = useState<AthleteRow[]>([]);
   const [athleteSearch, setAthleteSearch] = useState('');
@@ -284,98 +300,135 @@ export default function AdminPage() {
     })();
   }, []);
 
-  useEffect(() => {
-    if (!authed) return;
-    void (async () => {
-      setLoading(true);
-      setError(null);
+  const loadAdminDashboard = useCallback(async () => {
+    setLoading(true);
+    setError(null);
 
-      const { data: dashboardJson, error: dashboardErr } = await supabase.rpc('admin_get_dashboard');
+    const { data: dashboardJson, error: dashboardErr } = await supabase.rpc('admin_get_dashboard');
 
-      if (dashboardErr) {
-        const msg = dashboardErr.message;
-        if (/forbidden/i.test(msg)) {
-          clearAdminPasswordSession();
-          setAuthed(false);
-          const username = await resolveCurrentUsername();
-          const {
-            data: { user: authUser },
-          } = await supabase.auth.getUser();
-          setAuthError(
-            isAllowlistedAdminCaller(username, authUser?.email ?? null)
-              ? `Signed in but the server rejected admin access. Apply the latest Supabase migration (admin allowlist), sign out and back in, or contact support.`
-              : 'Your account is not authorized for admin. Contact support if this is unexpected.',
-          );
-          setAthletes([]);
-          setLeaderboardRows([]);
-          setLoading(false);
-          return;
-        }
-        setError(msg);
+    if (dashboardErr) {
+      const msg = dashboardErr.message;
+      if (/forbidden/i.test(msg)) {
+        clearAdminPasswordSession();
+        setAuthed(false);
+        const username = await resolveCurrentUsername();
+        const {
+          data: { user: authUser },
+        } = await supabase.auth.getUser();
+        setAuthError(
+          isAllowlistedAdminCaller(username, authUser?.email ?? null)
+            ? `Signed in but the server rejected admin access. Apply the latest Supabase migration (admin allowlist), sign out and back in, or contact support.`
+            : 'Your account is not authorized for admin. Contact support if this is unexpected.',
+        );
+        setAthletes([]);
+        setLeaderboardRows([]);
+        setMissingDivisions([]);
         setLoading(false);
         return;
       }
-
-      const payload = dashboardJson as {
-        season_id?: string | null;
-        athletes?: AthleteRow[] | null;
-        leaderboard?: {
-          athlete_id: string;
-          category: string;
-          score: number | string | null;
-          rank: number | null;
-          username?: string | null;
-          display_name?: string | null;
-        }[] | null;
-      };
-
-      const athletesList = (payload.athletes as AthleteRow[] | null) ?? [];
-      setAthletes(athletesList);
-      if (athletesList.length > 0) {
-        setSelectedAthleteId((prev) => prev ?? athletesList[0].id);
-      }
-
-      const lbRows: LeaderboardRow[] = (payload.leaderboard ?? []).map((row) => ({
-        athlete_id: row.athlete_id,
-        category: row.category,
-        score: row.score,
-        rank: row.rank,
-        athletes: {
-          username: row.username ?? null,
-          display_name: row.display_name ?? null,
-        },
-      }));
-      setLeaderboardRows(lbRows);
-
-      const ids = athletesList.map((a) => a.id);
-      if (ids.length > 0) {
-        const { data: summaryJson, error: summaryErr } = await supabase.rpc('admin_athlete_wearable_summary', {
-          p_athlete_ids: ids,
-        });
-        if (summaryErr) {
-          setError((prev) => prev ?? summaryErr.message);
-          setWearableSummaryByAthlete({});
-        } else {
-          const next: Record<string, ConnectionSummary> = {};
-          const raw = summaryJson as Record<string, { terra_providers?: unknown; has_whoop?: unknown }> | null;
-          if (raw && typeof raw === 'object') {
-            for (const [athleteId, v] of Object.entries(raw)) {
-              const tp = v?.terra_providers;
-              next[athleteId] = {
-                terra_providers: Array.isArray(tp) ? tp.map((x) => String(x)) : [],
-                has_whoop: Boolean(v?.has_whoop),
-              };
-            }
-          }
-          setWearableSummaryByAthlete(next);
-        }
-      } else {
-        setWearableSummaryByAthlete({});
-      }
-
+      setError(msg);
       setLoading(false);
-    })();
-  }, [authed]);
+      return;
+    }
+
+    const payload = dashboardJson as {
+      season_id?: string | null;
+      athletes?: AthleteRow[] | null;
+      leaderboard?: {
+        athlete_id: string;
+        category: string;
+        score: number | string | null;
+        rank: number | null;
+        username?: string | null;
+        display_name?: string | null;
+      }[] | null;
+      missing_divisions?: {
+        athlete_id: string;
+        username?: string | null;
+        display_name?: string | null;
+        league: string;
+        season_id: string;
+      }[] | null;
+    };
+
+    const athletesList = (payload.athletes as AthleteRow[] | null) ?? [];
+    setAthletes(athletesList);
+    if (athletesList.length > 0) {
+      setSelectedAthleteId((prev) => prev ?? athletesList[0].id);
+    }
+
+    const lbRows: LeaderboardRow[] = (payload.leaderboard ?? []).map((row) => ({
+      athlete_id: row.athlete_id,
+      category: row.category,
+      score: row.score,
+      rank: row.rank,
+      athletes: {
+        username: row.username ?? null,
+        display_name: row.display_name ?? null,
+      },
+    }));
+    setLeaderboardRows(lbRows);
+    setMissingDivisions(
+      (payload.missing_divisions ?? []).map((row) => ({
+        athlete_id: row.athlete_id,
+        username: row.username ?? null,
+        display_name: row.display_name ?? null,
+        league: row.league,
+        season_id: row.season_id,
+      })),
+    );
+
+    const ids = athletesList.map((a) => a.id);
+    if (ids.length > 0) {
+      const { data: summaryJson, error: summaryErr } = await supabase.rpc('admin_athlete_wearable_summary', {
+        p_athlete_ids: ids,
+      });
+      if (summaryErr) {
+        setError((prev) => prev ?? summaryErr.message);
+        setWearableSummaryByAthlete({});
+      } else {
+        const next: Record<string, ConnectionSummary> = {};
+        const raw = summaryJson as Record<string, { terra_providers?: unknown; has_whoop?: unknown }> | null;
+        if (raw && typeof raw === 'object') {
+          for (const [athleteId, v] of Object.entries(raw)) {
+            const tp = v?.terra_providers;
+            next[athleteId] = {
+              terra_providers: Array.isArray(tp) ? tp.map((x) => String(x)) : [],
+              has_whoop: Boolean(v?.has_whoop),
+            };
+          }
+        }
+        setWearableSummaryByAthlete(next);
+      }
+    } else {
+      setWearableSummaryByAthlete({});
+    }
+
+    setLoading(false);
+  }, []);
+
+  useEffect(() => {
+    if (!authed) return;
+    void loadAdminDashboard();
+  }, [authed, loadAdminDashboard]);
+
+  async function handleReconcileOrphans() {
+    const seasonId = missingDivisions[0]?.season_id;
+    if (!seasonId) return;
+    setReconcileBusy(true);
+    setError(null);
+    const { data, error: err } = await supabase.rpc('admin_reconcile_athlete_divisions', {
+      p_season_id: seasonId,
+    });
+    setReconcileBusy(false);
+    if (err) {
+      setError(err.message);
+      return;
+    }
+    const rows = (data as { rows_upserted?: number } | null)?.rows_upserted;
+    await loadAdminDashboard();
+    setAdminNotice(`Reconciled ${rows ?? 0} division membership row(s).`);
+  }
 
   useEffect(() => {
     if (!authed) return;
@@ -440,7 +493,9 @@ export default function AdminPage() {
         setDetailError((prev) => prev ?? scoresRes.error?.message ?? null);
         setSeasonScores(null);
       } else {
-        const scores = scoresRes.data as AthleteSeasonScores | null;
+        const scores = scoresRes.data as (AthleteSeasonScores & {
+          consistency_bonus?: number;
+        }) | null;
         setSeasonScores(
           scores
             ? {
@@ -448,7 +503,10 @@ export default function AdminPage() {
                 total_score: Number(scores.total_score ?? 0),
                 engine_score: Number(scores.engine_score ?? 0),
                 run_score: Number(scores.run_score ?? 0),
-                consistency_bonus: Number(scores.consistency_bonus ?? 0),
+                engine_consistency_bonus: Number(
+                  scores.engine_consistency_bonus ?? scores.consistency_bonus ?? 0,
+                ),
+                run_consistency_bonus: Number(scores.run_consistency_bonus ?? 0),
               }
             : null,
         );
@@ -643,6 +701,40 @@ export default function AdminPage() {
   return (
     <AppShell>
       <section className="space-y-4">
+        {missingDivisions.length > 0 ? (
+          <div
+            role="alert"
+            className="rounded-lg border-2 border-destructive bg-destructive/15 p-4 shadow-[0_0_0_1px_rgba(239,68,68,0.35)]"
+          >
+            <h2 className="type-section-label text-destructive">
+              Orphan stats — missing division membership ({missingDivisions.length})
+            </h2>
+            <p className="mt-1 text-sm text-destructive/90">
+              Athletes with <code className="text-xs">athlete_stats</code> but no{' '}
+              <code className="text-xs">athlete_divisions</code> for this season. Promotion and the
+              division board will treat them incorrectly until reconciled. Fix before any reset.
+            </p>
+            <ul className="mt-3 max-h-40 space-y-1 overflow-auto text-sm font-medium text-foreground">
+              {missingDivisions.map((row) => (
+                <li key={`${row.athlete_id}-${row.league}`}>
+                  {row.display_name || row.username || row.athlete_id} · {row.league}
+                </li>
+              ))}
+            </ul>
+            <Button
+              type="button"
+              variant="destructive"
+              className="mt-4"
+              disabled={reconcileBusy}
+              onClick={() => void handleReconcileOrphans()}
+            >
+              {reconcileBusy ? 'Reconciling…' : 'Reconcile division membership for this season'}
+            </Button>
+          </div>
+        ) : null}
+
+        <AdminCompetitionPanel enabled={authed} />
+
         <div className="rounded-lg border border-border bg-card p-4">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <h2 className="type-section-label">Current season leaderboard</h2>
@@ -695,6 +787,7 @@ export default function AdminPage() {
         <div className="rounded-lg border border-border bg-card p-4">
           <h2 className="type-section-label">Athletes</h2>
           {loading ? <p className="mt-3 text-sm text-muted-foreground">Loading athletes...</p> : null}
+          {adminNotice ? <p className="mt-3 text-sm text-neon-lime">{adminNotice}</p> : null}
           {error ? <p className="mt-3 text-sm text-destructive">{error}</p> : null}
           <div className="mt-3 overflow-x-auto">
             <table className="w-full table-fixed text-left text-sm">
@@ -785,18 +878,31 @@ export default function AdminPage() {
               </div>
 
               {seasonScores ? (
-                <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-                  {[
-                    { label: 'Total', value: seasonScores.total_score },
-                    { label: 'Engine', value: seasonScores.engine_score },
-                    { label: 'Run', value: seasonScores.run_score },
-                    { label: 'Consistency', value: seasonScores.consistency_bonus },
-                  ].map(({ label, value }) => (
-                    <div key={label} className="rounded-md border border-border/60 bg-background/40 px-3 py-2">
-                      <p className="text-[11px] uppercase tracking-wide text-muted-foreground">{label}</p>
-                      <p className="mt-0.5 text-base font-semibold tabular-nums">{formatScore(value)}</p>
-                    </div>
-                  ))}
+                <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+                  <div className="rounded-md border border-border/60 bg-background/40 px-3 py-2">
+                    <p className="text-[11px] uppercase tracking-wide text-muted-foreground">Total</p>
+                    <p className="mt-0.5 text-base font-semibold tabular-nums">
+                      {formatScore(seasonScores.total_score)}
+                    </p>
+                  </div>
+                  <div className="rounded-md border border-border/60 bg-background/40 px-3 py-2">
+                    <p className="text-[11px] uppercase tracking-wide text-muted-foreground">Engine</p>
+                    <p className="mt-0.5 text-base font-semibold tabular-nums">
+                      {formatScore(seasonScores.engine_score)}
+                    </p>
+                    <p className="mt-0.5 text-[11px] text-muted-foreground">
+                      of which consistency: {formatScore(seasonScores.engine_consistency_bonus)}
+                    </p>
+                  </div>
+                  <div className="rounded-md border border-border/60 bg-background/40 px-3 py-2">
+                    <p className="text-[11px] uppercase tracking-wide text-muted-foreground">Run</p>
+                    <p className="mt-0.5 text-base font-semibold tabular-nums">
+                      {formatScore(seasonScores.run_score)}
+                    </p>
+                    <p className="mt-0.5 text-[11px] text-muted-foreground">
+                      of which consistency: {formatScore(seasonScores.run_consistency_bonus)}
+                    </p>
+                  </div>
                 </div>
               ) : null}
 

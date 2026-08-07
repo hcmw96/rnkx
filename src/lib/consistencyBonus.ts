@@ -1,8 +1,10 @@
 /**
- * Weekly consistency bonus tiers.
+ * Weekly consistency bonus tiers (client preview only).
+ * Server source of truth: public.consistency_bonus_tiers (per league, admin-editable).
+ * Weeks are Mon–Sun Europe/London.
  *
- * Thresholds apply to the number of **qualifying workouts** in a Mon–Sun week.
- * A qualifying workout is any session that scored > 0 points.
+ * Thresholds apply to the number of **qualifying workouts** in a Mon–Sun London week.
+ * A qualifying workout is any session that scored > 0 points in that league.
  */
 
 export type ConsistencyTier = {

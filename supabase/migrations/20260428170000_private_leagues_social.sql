@@ -77,6 +77,7 @@ drop policy if exists "conversations_select_member" on public.conversations;
 drop policy if exists "conversations_insert_creator" on public.conversations;
 drop policy if exists "conversation_members_select" on public.conversation_members;
 drop policy if exists "conversation_members_insert_self" on public.conversation_members;
+drop policy if exists "conversation_members_insert_league_creator" on public.conversation_members;
 drop policy if exists "conversation_messages_select" on public.conversation_messages;
 drop policy if exists "conversation_messages_insert_self" on public.conversation_messages;
 drop policy if exists "private_leagues_select_member" on public.private_leagues;

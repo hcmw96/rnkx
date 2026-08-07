@@ -29,8 +29,14 @@ import {
   type InsightWorkoutRow,
   type WeeklyInsightsData,
 } from '@/lib/dashboardWeeklyInsights';
+import { fetchMyDivisions } from '@/lib/athleteDivisions';
 import { computeCategoryRank } from '@/lib/categoryRank';
-import { momentumPlacesFromRank } from '@/lib/momentumMetrics';
+import { isDivision, type Division } from '@/lib/division';
+import {
+  momentumPlacesFromDivisionStanding,
+  type DivisionRule,
+  type MomentumPlaces,
+} from '@/lib/momentumMetrics';
 import { isDespiaIphoneUa, wearablesIncludeAppleWatch } from '@/lib/despiaPlatform';
 import { runAppleWorkoutSync } from '@/lib/runAppleWorkoutSync';
 import { PREVIEW_COACH_SUMMARY, PREVIEW_RECENT_WORKOUTS, PREVIEW_WEEKLY_INSIGHTS } from '@/lib/dashboardPreviewData';
@@ -69,7 +75,41 @@ interface AthleteStats {
   run_places_to_relegation: number | null;
   engine_division: string | null;
   run_division: string | null;
+  engine_division_rank: number | null;
+  run_division_rank: number | null;
+  engine_division_size: number;
+  run_division_size: number;
+  division_rules: DivisionRule[];
   selected_leagues: string[] | null;
+}
+
+async function fetchDivisionBoardStanding(
+  athleteId: string,
+  seasonId: string,
+  league: 'engine' | 'run',
+  division: Division,
+): Promise<{ rank: number | null; size: number }> {
+  const [{ data: mine }, { count }] = await Promise.all([
+    supabase
+      .from('season_division_leaderboard')
+      .select('rank')
+      .eq('season_id', seasonId)
+      .eq('id', athleteId)
+      .eq('league', league)
+      .maybeSingle(),
+    supabase
+      .from('season_division_leaderboard')
+      .select('id', { count: 'exact', head: true })
+      .eq('season_id', seasonId)
+      .eq('league', league)
+      .eq('division', division),
+  ]);
+
+  const raw = (mine as { rank?: number | string | null } | null)?.rank;
+  const rankNum = raw != null ? Number(raw) : null;
+  const rank =
+    rankNum != null && Number.isFinite(rankNum) && rankNum > 0 ? Math.round(rankNum) : null;
+  return { rank, size: count ?? 0 };
 }
 
 interface RecentActivity {
@@ -291,6 +331,65 @@ export default function Dashboard() {
           runRank = computedRunRank;
         }
 
+        const membershipAthleteId = (await resolveAthleteId(userId)) ?? userId;
+        let engineDivision: Division = 'Open';
+        let runDivision: Division = 'Open';
+        let engineDivisionRank: number | null = null;
+        let runDivisionRank: number | null = null;
+        let engineDivisionSize = 0;
+        let runDivisionSize = 0;
+        let divisionRules: DivisionRule[] = [];
+
+        if (activeSeasonId && membershipAthleteId) {
+          const [membership, rulesPack] = await Promise.all([
+            fetchMyDivisions(membershipAthleteId, activeSeasonId),
+            supabase
+              .from('division_rules')
+              .select(
+                'division, promote_percent, promote_min_count, relegate_percent, promotes_to, relegates_to',
+              ),
+          ]);
+
+          engineDivision = membership.engine;
+          runDivision = membership.run;
+          divisionRules = (rulesPack.data as DivisionRule[] | null) ?? [];
+
+          const [engineBoard, runBoard] = await Promise.all([
+            fetchDivisionBoardStanding(
+              membershipAthleteId,
+              activeSeasonId,
+              'engine',
+              engineDivision,
+            ),
+            fetchDivisionBoardStanding(
+              membershipAthleteId,
+              activeSeasonId,
+              'run',
+              runDivision,
+            ),
+          ]);
+          engineDivisionRank = engineBoard.rank;
+          engineDivisionSize = engineBoard.size;
+          runDivisionRank = runBoard.rank;
+          runDivisionSize = runBoard.size;
+        }
+
+        const ruleFor = (d: Division) =>
+          divisionRules.find((r) => r.division === d) ?? null;
+
+        const enginePlaces = momentumPlacesFromDivisionStanding({
+          division: engineDivision,
+          rank: engineDivisionRank,
+          divisionSize: engineDivisionSize,
+          rule: ruleFor(engineDivision),
+        });
+        const runPlaces = momentumPlacesFromDivisionStanding({
+          division: runDivision,
+          rank: runDivisionRank,
+          divisionSize: runDivisionSize,
+          rule: ruleFor(runDivision),
+        });
+
         setStats({
           engine_rank: engineRank,
           run_rank: runRank,
@@ -299,12 +398,17 @@ export default function Dashboard() {
           total_score: engineScore + runScore,
           engine_weekly_change: null,
           run_weekly_change: null,
-          engine_places_to_promotion: null,
-          run_places_to_promotion: null,
-          engine_places_to_relegation: null,
-          run_places_to_relegation: null,
-          engine_division: null,
-          run_division: null,
+          engine_places_to_promotion: enginePlaces.placesToPromotion,
+          run_places_to_promotion: runPlaces.placesToPromotion,
+          engine_places_to_relegation: enginePlaces.placesToRelegation,
+          run_places_to_relegation: runPlaces.placesToRelegation,
+          engine_division: engineDivision,
+          run_division: runDivision,
+          engine_division_rank: engineDivisionRank,
+          run_division_rank: runDivisionRank,
+          engine_division_size: engineDivisionSize,
+          run_division_size: runDivisionSize,
+          division_rules: divisionRules,
           selected_leagues: (athleteRow?.selected_leagues as string[] | null | undefined) ?? null,
         });
       }
@@ -495,18 +599,39 @@ export default function Dashboard() {
   }, [syncReminderDismissed, lastSynced, wearables]);
 
   const momentumData = useMemo(() => {
-    const enginePlaces = momentumPlacesFromRank(stats?.engine_rank ?? null);
-    const runPlaces = momentumPlacesFromRank(stats?.run_rank ?? null);
+    const ruleFor = (d: Division) =>
+      (stats?.division_rules ?? []).find((r) => r.division === d) ?? null;
+
+    const engineDivision: Division = isDivision(stats?.engine_division)
+      ? stats.engine_division
+      : 'Open';
+    const runDivision: Division = isDivision(stats?.run_division) ? stats.run_division : 'Open';
+
+    const enginePlaces: MomentumPlaces = momentumPlacesFromDivisionStanding({
+      division: engineDivision,
+      rank: stats?.engine_division_rank ?? null,
+      divisionSize: stats?.engine_division_size ?? 0,
+      rule: ruleFor(engineDivision),
+    });
+    const runPlaces: MomentumPlaces = momentumPlacesFromDivisionStanding({
+      division: runDivision,
+      rank: stats?.run_division_rank ?? null,
+      divisionSize: stats?.run_division_size ?? 0,
+      rule: ruleFor(runDivision),
+    });
 
     return {
       engine: {
         placesToPromotion: enginePlaces.placesToPromotion,
-        division:
-          (stats?.engine_division as string | null | undefined) ?? enginePlaces.division,
+        division: enginePlaces.division,
+        divisionSize: enginePlaces.divisionSize,
+        promoteSlots: enginePlaces.promoteSlots,
       },
       run: {
         placesToPromotion: runPlaces.placesToPromotion,
-        division: (stats?.run_division as string | null | undefined) ?? runPlaces.division,
+        division: runPlaces.division,
+        divisionSize: runPlaces.divisionSize,
+        promoteSlots: runPlaces.promoteSlots,
       },
     };
   }, [stats]);
@@ -602,8 +727,10 @@ export default function Dashboard() {
           seasonStartsAt={season?.starts_at ?? null}
           seasonEndsAt={season?.ends_at ?? null}
           selectedLeagues={stats?.selected_leagues ?? []}
-          engineDivision={(stats?.engine_division as 'Open' | 'Challenger' | 'Pro' | 'Elite' | null) ?? 'Open'}
-          runDivision={(stats?.run_division as 'Open' | 'Challenger' | 'Pro' | 'Elite' | null) ?? 'Open'}
+          engineDivision={
+            (isDivision(stats?.engine_division) ? stats.engine_division : 'Open') as Division
+          }
+          runDivision={(isDivision(stats?.run_division) ? stats.run_division : 'Open') as Division}
         />
 
         <MomentumSection engine={momentumData.engine} run={momentumData.run} />

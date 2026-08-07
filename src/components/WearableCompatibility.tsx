@@ -13,7 +13,7 @@ type WearableDevice = {
   leagues: LeagueSupport;
 };
 
-/** Display order: Apple → Garmin → WHOOP */
+/** Canonical supported set: Apple Watch, Garmin, WHOOP, Polar, COROS, Fitbit, Strava. */
 const WEARABLE_DEVICES: WearableDevice[] = [
   {
     name: 'Apple Watch',
@@ -32,6 +32,30 @@ const WEARABLE_DEVICES: WearableDevice[] = [
     sync: 'automatic',
     description: 'Automatic. Workouts sync in the background.',
     leagues: 'engine',
+  },
+  {
+    name: 'Polar',
+    sync: 'automatic',
+    description: 'Automatic. Connect via the device list in Settings.',
+    leagues: 'both',
+  },
+  {
+    name: 'COROS',
+    sync: 'automatic',
+    description: 'Automatic. Connect via the device list in Settings.',
+    leagues: 'both',
+  },
+  {
+    name: 'Fitbit',
+    sync: 'automatic',
+    description: 'Automatic. Connect via the device list in Settings.',
+    leagues: 'both',
+  },
+  {
+    name: 'Strava',
+    sync: 'automatic',
+    description: 'Automatic. Run activities sync in the background.',
+    leagues: 'run',
   },
 ];
 
@@ -141,9 +165,6 @@ export function WearableCompatibility({ className }: WearableCompatibilityProps)
               <p className="mt-1 text-xs leading-relaxed text-muted-foreground">{device.description}</p>
             </div>
           ))}
-          <p className="border-t border-border/60 px-3 py-2.5 text-xs text-muted-foreground/60">
-            More devices coming soon
-          </p>
         </div>
       </CompatibilitySection>
 
@@ -175,6 +196,9 @@ export function WearableCompatibility({ className }: WearableCompatibilityProps)
                 <p className="mt-1 text-xs text-muted-foreground">
                   Engine League only — runs still score on heart rate.
                 </p>
+              ) : null}
+              {device.leagues === 'run' ? (
+                <p className="mt-1 text-xs text-muted-foreground">Run League only.</p>
               ) : null}
             </div>
           ))}

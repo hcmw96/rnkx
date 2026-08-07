@@ -21,6 +21,40 @@ function isPremiumEntitlementActive(ent: Record<string, unknown> | null | undefi
   return t > Date.now();
 }
 
+/**
+ * Look up a RevenueCat subscriber by App User ID.
+ * Returns whether premium is active. 404 / missing entitlement → false (caller may fall back).
+ */
+async function isPremiumForAppUserId(
+  appUserId: string,
+  rcPublicKey: string,
+): Promise<boolean> {
+  const subUrl = `https://api.revenuecat.com/v1/subscribers/${encodeURIComponent(appUserId)}`;
+  const rcRes = await fetch(subUrl, {
+    headers: { Authorization: rcAuthHeader(rcPublicKey) },
+  });
+
+  if (rcRes.ok) {
+    const body = (await rcRes.json()) as Record<string, unknown>;
+    const subscriber = body['subscriber'] as Record<string, unknown> | undefined;
+    const entitlements = subscriber?.['entitlements'] as Record<string, unknown> | undefined;
+    const premium = entitlements?.['premium'] as Record<string, unknown> | undefined;
+    return isPremiumEntitlementActive(premium);
+  }
+
+  if (rcRes.status !== 404) {
+    let detail: unknown;
+    try {
+      detail = await rcRes.json();
+    } catch {
+      detail = await rcRes.text();
+    }
+    console.error('[check-entitlement] RevenueCat error', appUserId, rcRes.status, detail);
+  }
+
+  return false;
+}
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders });
@@ -57,14 +91,6 @@ serve(async (req) => {
     });
   }
 
-  const email = typeof user.email === 'string' && user.email.trim() !== '' ? user.email.trim() : null;
-  if (!email) {
-    return new Response(JSON.stringify({ isPremium: false, error: 'No email on account' }), {
-      status: 200,
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-    });
-  }
-
   const { data: athleteRows, error: athErr } = await supabase
     .from('athletes')
     .select('id')
@@ -82,27 +108,26 @@ serve(async (req) => {
   }
 
   const athleteId = athlete.id as string;
+  const email = typeof user.email === 'string' && user.email.trim() !== '' ? user.email.trim() : null;
 
-  const subUrl = `https://api.revenuecat.com/v1/subscribers/${encodeURIComponent(email)}`;
-  const rcRes = await fetch(subUrl, {
-    headers: { Authorization: rcAuthHeader(rcPublicKey) },
-  });
+  // Primary: auth UUID — matches launchNativePaywall external_id.
+  // Fallback: email — historical check-entitlement identity (may own legacy subscribers).
+  let isPremium = await isPremiumForAppUserId(user.id, rcPublicKey);
+  let matchedBy: 'auth_uuid' | 'email' | 'none' = isPremium ? 'auth_uuid' : 'none';
 
-  let isPremium = false;
-  if (rcRes.ok) {
-    const body = (await rcRes.json()) as Record<string, unknown>;
-    const subscriber = body['subscriber'] as Record<string, unknown> | undefined;
-    const entitlements = subscriber?.['entitlements'] as Record<string, unknown> | undefined;
-    const premium = entitlements?.['premium'] as Record<string, unknown> | undefined;
-    isPremium = isPremiumEntitlementActive(premium);
-  } else if (rcRes.status !== 404) {
-    let detail: unknown;
-    try {
-      detail = await rcRes.json();
-    } catch {
-      detail = await rcRes.text();
+  if (!isPremium && email && email !== user.id) {
+    const emailPremium = await isPremiumForAppUserId(email, rcPublicKey);
+    if (emailPremium) {
+      isPremium = true;
+      matchedBy = 'email';
     }
-    console.error('[check-entitlement] RevenueCat error', rcRes.status, detail);
+  }
+
+  if (matchedBy === 'email') {
+    console.warn(
+      '[check-entitlement] premium found under email App User ID; purchase path uses auth UUID',
+      { authUserId: user.id, athleteId },
+    );
   }
 
   const { error: upErr } = await supabase.from('athletes').update({ is_premium: isPremium }).eq('id', athleteId);

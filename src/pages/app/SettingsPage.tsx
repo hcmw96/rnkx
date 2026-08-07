@@ -6,7 +6,6 @@ import {
   useState,
   type ComponentType,
 } from 'react';
-import despia from 'despia-native';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import { SHOW_RECOVERY } from '@/lib/featureFlags';
@@ -36,7 +35,7 @@ import { isDespiaIphoneUa } from '@/lib/despiaPlatform';
 import {
   extractHealthkitWorkoutsArray,
   readHealthKitWorkouts,
-  SYNC_INCLUDED_HR,
+  requestAppleWatchHealthKitConnect,
 } from '@/lib/healthKitWorkoutRead';
 import {
   isHealthKitBusy,
@@ -240,8 +239,11 @@ export default function SettingsPage() {
   }, [loadProfile]);
 
   useEffect(() => {
-    if (!SHOW_RECOVERY || !athlete || location.hash !== '#recovery') return;
-    const el = document.getElementById('recovery');
+    if (!athlete) return;
+    if (location.hash !== '#recovery' && location.hash !== '#devices') return;
+    const id = location.hash === '#recovery' ? 'recovery' : 'devices';
+    if (id === 'recovery' && !SHOW_RECOVERY) return;
+    const el = document.getElementById(id);
     if (!el) return;
     const timer = window.setTimeout(() => {
       el.scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -546,7 +548,7 @@ export default function SettingsPage() {
     setAppleConnecting(true);
     setAppleError(null);
     try {
-      await despia(`healthkit://workouts?days=1&included=${SYNC_INCLUDED_HR}`, ['healthkitWorkouts']);
+      await requestAppleWatchHealthKitConnect();
 
       const current = athlete.wearables ?? [];
       const nextWearables = Array.from(new Set([...current, 'apple_watch']));

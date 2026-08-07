@@ -2,27 +2,32 @@ import {
   CorosLogo,
   FitbitLogo,
   GarminLogo,
-  OuraLogo,
   PolarLogo,
-  SamsungLogo,
   StravaLogo,
-  WhoopLogo,
 } from '@/components/BrandLogos';
 
-/** Providers shown in the Terra “Connect Wearables” grid (non-Apple). */
+/** Providers offered in the Terra widget (must match terra-widget-session). */
 export const TERRA_WIDGET_PROVIDERS = [
   { id: 'GARMIN', label: 'Garmin', Logo: GarminLogo },
   { id: 'POLAR', label: 'Polar', Logo: PolarLogo },
   { id: 'COROS', label: 'COROS', Logo: CorosLogo },
   { id: 'FITBIT', label: 'Fitbit', Logo: FitbitLogo },
-  { id: 'OURA', label: 'Oura', Logo: OuraLogo },
-  { id: 'SAMSUNG', label: 'Samsung', Logo: SamsungLogo },
   { id: 'STRAVA', label: 'Strava', Logo: StravaLogo },
-  { id: 'WHOOP', label: 'WHOOP', Logo: WhoopLogo },
 ] as const;
+
+/** Labels for Terra widget providers plus legacy / native codes still shown on connected rows. */
+const PROVIDER_LABELS: Record<string, string> = {
+  GARMIN: 'Garmin',
+  POLAR: 'Polar',
+  COROS: 'COROS',
+  FITBIT: 'Fitbit',
+  STRAVA: 'Strava',
+  WHOOP: 'WHOOP',
+  OURA: 'Oura',
+  SAMSUNG: 'Samsung',
+};
 
 export function providerLabel(code: string): string {
   const u = code.toUpperCase();
-  const row = TERRA_WIDGET_PROVIDERS.find((p) => p.id === u);
-  return row?.label ?? code;
+  return PROVIDER_LABELS[u] ?? code;
 }

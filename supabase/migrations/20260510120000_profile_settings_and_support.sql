@@ -10,6 +10,9 @@ create table if not exists public.support_messages (
 
 alter table public.support_messages enable row level security;
 
+drop policy if exists "support_messages_insert_own" on public.support_messages;
+drop policy if exists "support_messages_select_own" on public.support_messages;
+
 create policy "support_messages_insert_own"
   on public.support_messages for insert
   with check (

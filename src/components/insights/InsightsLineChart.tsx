@@ -1,14 +1,23 @@
+import { useId } from 'react';
 import {
   Area,
   AreaChart,
   CartesianGrid,
-  Line,
-  LineChart,
   ResponsiveContainer,
   Tooltip,
   XAxis,
   YAxis,
 } from 'recharts';
+import {
+  AREA_FLOOR_OPACITY,
+  AREA_PEAK_OPACITY,
+  CHART_ACTIVE_DOT_STROKE,
+  CHART_AXIS_TICK,
+  CHART_CURSOR_STROKE,
+  CHART_GRID_STROKE,
+  CHART_STROKE_WIDTH,
+  CHART_TOOLTIP_CLASS,
+} from '@/lib/chartTheme';
 import { cn } from '@/lib/utils';
 import { formatScore } from '@/lib/formatScore';
 
@@ -24,6 +33,7 @@ type SeriesConfig = {
 type InsightsLineChartProps = {
   data: ChartPoint[];
   series: SeriesConfig[];
+  /** Kept for call-site compatibility — always renders the SCORE gradient area style. */
   variant?: 'line' | 'area';
   height?: number;
   valueSuffix?: string;
@@ -44,7 +54,7 @@ function ChartTooltip({
 }) {
   if (!active || !payload?.length) return null;
   return (
-    <div className="rounded-lg border border-border/80 bg-[hsla(0,0%,8%,0.95)] px-3 py-2 shadow-xl backdrop-blur-sm">
+    <div className={CHART_TOOLTIP_CLASS}>
       <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{label}</p>
       <ul className="mt-1 space-y-0.5">
         {payload.map((entry) => (
@@ -65,32 +75,32 @@ function ChartTooltip({
 export function InsightsLineChart({
   data,
   series,
-  variant = 'area',
   height = 200,
   valueSuffix = '',
   className,
   yDomain,
 }: InsightsLineChartProps) {
-  const Chart = variant === 'area' ? AreaChart : LineChart;
+  const gradientPrefix = useId().replace(/:/g, '');
 
   return (
     <div className={cn('w-full', className)} style={{ height }}>
       <ResponsiveContainer width="100%" height="100%">
-        <Chart data={data} margin={{ top: 8, right: 4, left: -18, bottom: 0 }}>
+        <AreaChart data={data} margin={{ top: 8, right: 4, left: -18, bottom: 0 }}>
           <defs>
-            {series.map((s) =>
-              s.fillId ? (
-                <linearGradient key={s.fillId} id={s.fillId} x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor={s.color} stopOpacity={0.45} />
-                  <stop offset="95%" stopColor={s.color} stopOpacity={0} />
+            {series.map((s) => {
+              const fillId = s.fillId ?? `${gradientPrefix}-${s.dataKey}`;
+              return (
+                <linearGradient key={fillId} id={fillId} x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor={s.color} stopOpacity={AREA_PEAK_OPACITY} />
+                  <stop offset="100%" stopColor={s.color} stopOpacity={AREA_FLOOR_OPACITY} />
                 </linearGradient>
-              ) : null,
-            )}
+              );
+            })}
           </defs>
-          <CartesianGrid stroke="hsla(0,0%,18%,1)" strokeDasharray="3 6" vertical={false} />
+          <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={CHART_GRID_STROKE} />
           <XAxis
             dataKey="label"
-            tick={{ fill: 'hsla(0,0%,55%,1)', fontSize: 10 }}
+            tick={CHART_AXIS_TICK}
             axisLine={false}
             tickLine={false}
             interval="preserveStartEnd"
@@ -98,40 +108,35 @@ export function InsightsLineChart({
           />
           <YAxis
             domain={yDomain ?? [0, 'auto']}
-            tick={{ fill: 'hsla(0,0%,45%,1)', fontSize: 10 }}
+            tick={CHART_AXIS_TICK}
             axisLine={false}
             tickLine={false}
             width={32}
             tickCount={4}
           />
-          <Tooltip content={<ChartTooltip valueSuffix={valueSuffix} />} cursor={{ stroke: 'hsla(0,0%,30%,0.8)' }} />
-          {series.map((s) =>
-            variant === 'area' ? (
+          <Tooltip
+            content={<ChartTooltip valueSuffix={valueSuffix} />}
+            cursor={{ stroke: CHART_CURSOR_STROKE, strokeWidth: 1 }}
+          />
+          {series.map((s) => {
+            const fillId = s.fillId ?? `${gradientPrefix}-${s.dataKey}`;
+            return (
               <Area
                 key={s.dataKey}
                 type="monotone"
                 dataKey={s.dataKey}
                 name={s.label}
                 stroke={s.color}
-                strokeWidth={2.5}
-                fill={s.fillId ? `url(#${s.fillId})` : s.color}
+                strokeWidth={CHART_STROKE_WIDTH}
+                fill={`url(#${fillId})`}
+                fillOpacity={1}
                 dot={false}
-                activeDot={{ r: 4, fill: s.color, stroke: '#0a0a0a', strokeWidth: 2 }}
+                activeDot={{ r: 4, fill: s.color, stroke: CHART_ACTIVE_DOT_STROKE, strokeWidth: 2 }}
+                isAnimationActive={false}
               />
-            ) : (
-              <Line
-                key={s.dataKey}
-                type="monotone"
-                dataKey={s.dataKey}
-                name={s.label}
-                stroke={s.color}
-                strokeWidth={2.5}
-                dot={false}
-                activeDot={{ r: 4, fill: s.color, stroke: '#0a0a0a', strokeWidth: 2 }}
-              />
-            ),
-          )}
-        </Chart>
+            );
+          })}
+        </AreaChart>
       </ResponsiveContainer>
     </div>
   );

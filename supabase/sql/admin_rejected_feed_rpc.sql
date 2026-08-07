@@ -13,7 +13,8 @@ declare
   v_total numeric;
   v_engine numeric := 0;
   v_run numeric := 0;
-  v_consistency numeric := 0;
+  v_engine_consistency numeric := 0;
+  v_run_consistency numeric := 0;
 begin
   perform public.admin_assert_caller();
 
@@ -30,13 +31,19 @@ begin
 
   if v_season_id is not null then
     select coalesce(max(score) filter (where category = 'engine'), 0),
-           coalesce(max(score) filter (where category = 'run'), 0),
-           coalesce(max(score) filter (where category = 'consistency'), 0)
-    into v_engine, v_run, v_consistency
+           coalesce(max(score) filter (where category = 'run'), 0)
+    into v_engine, v_run
     from public.athlete_stats
     where athlete_id = p_athlete_id
       and season_id = v_season_id
-      and category in ('engine', 'run', 'consistency');
+      and category in ('engine', 'run');
+
+    select coalesce(sum(bonus_points) filter (where league = 'engine'), 0),
+           coalesce(sum(bonus_points) filter (where league = 'run'), 0)
+    into v_engine_consistency, v_run_consistency
+    from public.weekly_consistency_bonuses
+    where athlete_id = p_athlete_id
+      and season_id = v_season_id;
   end if;
 
   return jsonb_build_object(
@@ -44,7 +51,10 @@ begin
     'total_score', coalesce(v_total, 0),
     'engine_score', coalesce(v_engine, 0),
     'run_score', coalesce(v_run, 0),
-    'consistency_bonus', coalesce(v_consistency, 0)
+    'engine_consistency_bonus', coalesce(v_engine_consistency, 0),
+    'run_consistency_bonus', coalesce(v_run_consistency, 0),
+    'consistency_bonus',
+      coalesce(v_engine_consistency, 0) + coalesce(v_run_consistency, 0)
   );
 end;
 $$;

@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react';
 import { Lock } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { PaywallSubscriptionDisclosure } from '@/components/PaywallSubscriptionDisclosure';
 import { useAthleteSession } from '@/context/AthleteSessionContext';
 import { cn } from '@/lib/utils';
 import { usePremium } from '@/services/revenuecat';
@@ -119,6 +120,28 @@ export function PremiumGate({
           >
             Unlock Premium
           </Button>
+          <PaywallSubscriptionDisclosure externalId={resolvedUserId} />
+          <p className="text-[11px] leading-relaxed text-muted-foreground">
+            <a
+              href="/terms"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="underline decoration-muted-foreground/40 underline-offset-2 hover:text-foreground hover:decoration-foreground/50"
+            >
+              Terms
+            </a>
+            <span className="mx-1.5 text-muted-foreground/50" aria-hidden>
+              ·
+            </span>
+            <a
+              href="/privacy"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="underline decoration-muted-foreground/40 underline-offset-2 hover:text-foreground hover:decoration-foreground/50"
+            >
+              Privacy
+            </a>
+          </p>
         </div>
       </div>
     </div>

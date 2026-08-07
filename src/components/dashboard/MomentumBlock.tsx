@@ -10,12 +10,16 @@ interface MomentumRowProps {
   placesToPromotion?: number | null;
   category: 'engine' | 'run';
   division?: string;
+  divisionSize?: number;
+  promoteSlots?: number;
 }
 
 function MomentumRow({
   placesToPromotion,
   category,
   division = 'Open',
+  divisionSize = 0,
+  promoteSlots = 0,
 }: MomentumRowProps) {
   const resolvedDivision: Division = isDivision(division) ? division : 'Open';
   const isEngine = category === 'engine';
@@ -28,9 +32,9 @@ function MomentumRow({
     ? 'border border-neon-lime/35 shadow-[0_0_6px_hsl(var(--neon-lime)/0.12)]'
     : 'border border-secondary/35 shadow-[0_0_6px_hsl(var(--secondary)/0.12)]';
 
-  const inPromotionZone = isInPromotionZone(resolvedDivision, placesToPromotion);
+  const inPromotionZone = isInPromotionZone(placesToPromotion);
   const promotionPct = momentumPromotionTickPct();
-  const position = momentumThumbPosition(resolvedDivision, placesToPromotion);
+  const position = momentumThumbPosition(placesToPromotion, divisionSize, promoteSlots);
   const divisionLabel = `${resolvedDivision} division`;
   const leagueLabel = isEngine ? 'Engine' : 'Run';
 
@@ -101,12 +105,18 @@ function MomentumRow({
       <div
         className={cn(
           'flex items-end gap-3',
-          resolvedDivision === 'Open' ? 'justify-between' : 'justify-end',
+          resolvedDivision === 'Open' || resolvedDivision === 'Elite'
+            ? 'justify-between'
+            : 'justify-end',
         )}
       >
         {resolvedDivision === 'Open' ? (
           <p className="text-[10px] font-medium uppercase tracking-wider text-foreground">
             No relegation
+          </p>
+        ) : resolvedDivision === 'Elite' ? (
+          <p className="text-[10px] font-medium uppercase tracking-wider text-foreground">
+            No promotion
           </p>
         ) : null}
         <div className="shrink-0 text-right">

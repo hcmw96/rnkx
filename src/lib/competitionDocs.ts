@@ -116,7 +116,7 @@ export const COMPETITION_RULES: CompetitionDoc = {
     {
       heading: '6. Supported Devices',
       paragraphs: [
-        'Apple, Garmin, WHOOP, Polar, Fitbit, Samsung, COROS, Strava, Oura, MyZone. Supported devices may change over time.',
+        'Apple Watch, Garmin, WHOOP, Polar, COROS, Fitbit, Strava. Supported devices may change over time.',
       ],
     },
     {

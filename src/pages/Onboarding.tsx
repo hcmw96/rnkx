@@ -18,6 +18,7 @@ import UsernameInput from '@/components/onboarding/UsernameInput';
 import { Button } from '@/components/ui/button';
 import { useProfileGate } from '@/context/ProfileGateContext';
 import { getSeededDisplayName, isAppleAuthUser } from '@/lib/authPostLogin';
+import { consumeAfterOnboardingPath } from '@/hooks/useWearableConnect';
 import { getPendingLeagueInvitePath } from '@/lib/shareLeagueInvite';
 import { supabase } from '@/services/supabase';
 
@@ -187,6 +188,8 @@ export default function Onboarding() {
         country: country.trim() ? country.trim() : null,
         selected_leagues: leagues,
         age,
+        // Only persist devices that were actually connected (Apple HealthKit today).
+        ...(wearables.includes('apple') ? { wearables: ['apple_watch'] } : {}),
       };
 
       const { error: insertError } = await supabase.from('athletes').upsert(row, { onConflict: 'id' });
@@ -199,7 +202,8 @@ export default function Onboarding() {
 
       await refetchProfile();
       setFinishing(false);
-      navigate(getPendingLeagueInvitePath() ?? '/app', { replace: true });
+      const afterPath = consumeAfterOnboardingPath();
+      navigate(afterPath ?? getPendingLeagueInvitePath() ?? '/app', { replace: true });
       return;
     }
 
@@ -297,7 +301,7 @@ export default function Onboarding() {
             <OnboardingStep
               key="s7"
               title="Connect Your Wearable"
-              subtitle="Sync your workouts and climb the ranks."
+              subtitle="Apple Watch can connect now. Garmin, WHOOP, and Strava connect in Settings after setup."
             >
               <OnboardingWearables
                 initialConnected={wearables}

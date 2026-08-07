@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { ArrowLeft } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
+import { PaywallSubscriptionDisclosure } from '@/components/PaywallSubscriptionDisclosure';
 import { launchNativePaywall } from '@/services/revenuecat';
 import { supabase } from '@/services/supabase';
 
@@ -65,6 +66,28 @@ export default function PremiumPage() {
             <Button type="button" className="w-full" onClick={() => launchNativePaywall(userId)}>
               View plans
             </Button>
+            <PaywallSubscriptionDisclosure externalId={userId} align="start" className="w-full" />
+            <p className="w-full text-center text-[11px] leading-relaxed text-muted-foreground sm:text-left">
+              <a
+                href="/terms"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="underline decoration-muted-foreground/40 underline-offset-2 hover:text-foreground hover:decoration-foreground/50"
+              >
+                Terms
+              </a>
+              <span className="mx-1.5 text-muted-foreground/50" aria-hidden>
+                ·
+              </span>
+              <a
+                href="/privacy"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="underline decoration-muted-foreground/40 underline-offset-2 hover:text-foreground hover:decoration-foreground/50"
+              >
+                Privacy
+              </a>
+            </p>
             <Button type="button" variant="link" className="h-auto p-0" onClick={() => navigate('/app/profile')}>
               Back to profile
             </Button>

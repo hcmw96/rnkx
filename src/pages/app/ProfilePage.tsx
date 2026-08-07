@@ -1,15 +1,17 @@
 import { useCallback, useEffect, useRef, useState, type ChangeEvent } from 'react';
 import { format } from 'date-fns';
 import { toast } from 'sonner';
-import { ProfileOverviewCard, ProfileProgressCard } from '@/components/profile/ProfileSections';
+import { ProfileDivisionTimeline, ProfileOverviewCard, ProfileProgressCard } from '@/components/profile/ProfileSections';
 import { getCountryByName } from '@/data/countries';
 import { fetchAchievementStates, type AchievementState } from '@/lib/achievements';
 import {
   fetchProfileCareerStats,
   fetchProfileSeasonStats,
+  fetchPromotionTimeline,
   fetchSeasonStanding,
   type ProfileCareerStats,
   type ProfileSeasonStats,
+  type PromotionTimelineItem,
 } from '@/lib/profileStats';
 import { leagueFromSelectedLeagues } from '@/lib/leagueAvatars';
 import { getProfileCache, setProfileCache } from '@/lib/routeCaches';
@@ -58,12 +60,14 @@ export default function ProfilePage() {
   const [achievements, setAchievements] = useState<AchievementState[]>(
     (cached?.achievements as AchievementState[]) ?? [],
   );
+  const [timeline, setTimeline] = useState<PromotionTimelineItem[]>([]);
+  const [timelineLoading, setTimelineLoading] = useState(true);
   const [loading, setLoading] = useState(!cached);
   const [uploading, setUploading] = useState(false);
 
   const loadProfile = useCallback(async (options?: { silent?: boolean }) => {
     if (!options?.silent) {
-      setLoading(true);
+    setLoading(true);
     }
     const { data: auth, error: authErr } = await supabase.auth.getUser();
     if (authErr || !auth.user) {
@@ -71,6 +75,8 @@ export default function ProfilePage() {
       setAthlete(null);
       setSeasonStats(null);
       setCareerStats(null);
+      setTimeline([]);
+      setTimelineLoading(false);
       setLoading(false);
       return;
     }
@@ -88,6 +94,8 @@ export default function ProfilePage() {
       setAthlete(null);
       setSeasonStats(null);
       setCareerStats(null);
+      setTimeline([]);
+      setTimelineLoading(false);
       setLoading(false);
       return;
     }
@@ -96,10 +104,12 @@ export default function ProfilePage() {
     setAthlete(row);
 
     const allTime = numScore(row.total_score);
-    const [season, career, standing] = await Promise.all([
+    setTimelineLoading(true);
+    const [season, career, standing, promoTimeline] = await Promise.all([
       fetchProfileSeasonStats(row.id),
       fetchProfileCareerStats(row.id, allTime),
       fetchSeasonStanding(row.id),
+      fetchPromotionTimeline(row.id),
     ]);
     const badgeStates = await fetchAchievementStates(row.id, season, career);
     setSeasonStats(season);
@@ -107,6 +117,8 @@ export default function ProfilePage() {
     setStandingPercent(standing.standingPercent);
     setTopPercent(standing.topPercent);
     setAchievements(badgeStates);
+    setTimeline(promoTimeline);
+    setTimelineLoading(false);
     setLoading(false);
   }, []);
 
@@ -228,6 +240,8 @@ export default function ProfilePage() {
               standingPercent={standingPercent}
               topPercent={topPercent}
             />
+
+            <ProfileDivisionTimeline items={timeline} loading={timelineLoading} />
 
             <ProfileProgressCard careerStats={careerStats} achievements={achievements} />
           </>

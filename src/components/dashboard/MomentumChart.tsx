@@ -8,15 +8,22 @@ import {
   XAxis,
   YAxis,
 } from 'recharts';
+import {
+  AREA_FLOOR_OPACITY,
+  AREA_PEAK_OPACITY,
+  CHART_ACTIVE_DOT_STROKE,
+  CHART_AXIS_TICK,
+  CHART_CURSOR_STROKE,
+  CHART_GRID_STROKE,
+  CHART_STROKE_WIDTH,
+  CHART_TOOLTIP_CLASS,
+  ENGINE_CHART_COLOR,
+  RUN_CHART_COLOR,
+} from '@/lib/chartTheme';
 import { formatScore } from '@/lib/formatScore';
 import { cn } from '@/lib/utils';
 
-/** RNKX Engine green — matches `--neon-lime` / `text-neon-lime`. */
-export const ENGINE_CHART_COLOR = 'hsl(72 100% 50%)';
-/** RNKX Run cyan — matches `--secondary` / `text-secondary`. */
-export const RUN_CHART_COLOR = 'hsl(186 100% 50%)';
-
-const AREA_PEAK_OPACITY = 0.45;
+export { ENGINE_CHART_COLOR, RUN_CHART_COLOR };
 
 export type MomentumSeries = {
   key: string;
@@ -44,7 +51,6 @@ type MomentumChartProps = {
 };
 
 const Y_AXIS_TICK_COUNT = 4;
-const AXIS_TICK_STYLE = { fill: 'hsl(0 0% 55%)', fontSize: 10 };
 
 function niceStep(rawStep: number): number {
   if (!Number.isFinite(rawStep) || rawStep <= 0) return 1;
@@ -60,12 +66,12 @@ function unitUsesDecimals(unit: MomentumChartUnit): boolean {
   return unit === 'ppm';
 }
 
-/** Shared axis tick formatter — never use formatScore for ppm (it rounds to integers). */
+/** Axis tick labels — ppm keeps decimals; never route ppm through formatScore (ceil → ints). */
 export function formatMomentumAxisTick(value: number, unit: MomentumChartUnit): string {
   if (!Number.isFinite(value)) return '';
   if (unit === 'ppm') {
     const rounded = Math.round(value * 100) / 100;
-    if (rounded === 0) return '0';
+    if (Object.is(rounded, -0) || rounded === 0) return '0';
     if (Number.isInteger(rounded)) return String(rounded);
     return rounded.toFixed(2).replace(/0+$/, '').replace(/\.$/, '');
   }
@@ -83,41 +89,64 @@ function chartMaxForSeries(data: ChartRow[], keys: string[]): number {
   let max = 0;
   for (const row of data) {
     for (const key of keys) {
-      max = Math.max(max, Number(row[key]) || 0);
+      const n = Number(row[key]);
+      if (Number.isFinite(n) && n > max) max = n;
     }
   }
   return max;
 }
 
-/** Evenly spaced monotonic ticks from 0 with a padded ceiling aligned to the step. */
+/** Evenly spaced monotonic ticks from 0 → padded nice ceiling. */
 export function buildMomentumYAxisScale(
   maxValue: number,
   unit: MomentumChartUnit,
 ): MomentumYAxis {
   const allowDecimals = unitUsesDecimals(unit);
+  const fallback = unit === 'ppm' ? 3 : unit === 'min' ? 60 : 100;
+  const intervals = Y_AXIS_TICK_COUNT - 1;
+
   if (!Number.isFinite(maxValue) || maxValue <= 0) {
-    const fallback = unit === 'ppm' ? 3 : unit === 'min' ? 60 : 100;
-    const intervals = Y_AXIS_TICK_COUNT - 1;
     const step = fallback / intervals;
     const ticks = Array.from({ length: Y_AXIS_TICK_COUNT }, (_, i) => {
       const value = i * step;
       return allowDecimals ? Math.round(value * 100) / 100 : Math.round(value);
     });
-    return { domain: [0, fallback], ticks };
+    return { domain: [0, ticks[ticks.length - 1]!], ticks };
   }
 
-  const intervals = Y_AXIS_TICK_COUNT - 1;
-  const step = niceStep((maxValue * 1.12) / intervals);
-  const niceMax = step * intervals;
+  // Efficiency is points÷minutes (low single digits). Avoid oversized ceilings
+  // from aggressive nice-steps (e.g. 7.2 → step 5 → domain 15).
+  const pad = unit === 'ppm' ? 1.15 : 1.12;
+  let step = niceStep((maxValue * pad) / intervals);
+  let niceMax = step * intervals;
+  if (unit === 'ppm' && niceMax > maxValue * 1.5) {
+    const finer =
+      step === 5 ? 2.5 : step === 2.5 ? 2 : step === 2 ? 1 : step === 1 ? 0.5 : step / 2;
+    if (finer * intervals >= maxValue) {
+      step = finer;
+      niceMax = step * intervals;
+    }
+  }
+
   const ticks = Array.from({ length: Y_AXIS_TICK_COUNT }, (_, i) => {
     const value = i * step;
     if (!allowDecimals) return Math.round(value);
     return Math.round(value * 100) / 100;
   });
-  return { domain: [0, niceMax], ticks };
+
+  // Guarantee strictly increasing ticks (guards float edge cases).
+  for (let i = 1; i < ticks.length; i++) {
+    if (ticks[i]! <= ticks[i - 1]!) {
+      ticks[i] = allowDecimals
+        ? Math.round((ticks[i - 1]! + step) * 100) / 100
+        : ticks[i - 1]! + Math.max(1, Math.round(step));
+    }
+  }
+
+  return { domain: [0, ticks[ticks.length - 1]!], ticks };
 }
 
-/** Explicit Y-axis config for a tab — never rely on recharts auto domain. */
+/** Explicit Y-axis for a tab — never rely on Recharts auto domain. */
 export function resolveMomentumYAxis(
   data: ChartRow[],
   series: MomentumSeries[],
@@ -131,16 +160,20 @@ export function resolveMomentumYAxis(
 }
 
 /**
- * Spike area data: every day is present. Session days keep their value; non-session
- * days sit at 0 so monotone interpolation forms smooth valleys between peaks.
+ * Spike series for the shared 7-day axis: every day is present.
+ * Session days keep their value; empty days sit at 0 so monotone areas
+ * form valleys (no null gaps / floating segments).
  */
 export function prepareMomentumSpikeData(data: ChartRow[], series: MomentumSeries[]): ChartRow[] {
   const keys = series.map((s) => s.key);
   return data.map((row) => {
-    const point: ChartRow = { ...row };
+    const point: ChartRow = {
+      date: row.date ?? null,
+      dayLabel: row.dayLabel ?? '',
+    };
     for (const key of keys) {
-      const v = Number(row[key]) || 0;
-      point[key] = v > 0 ? v : 0;
+      const raw = Number(row[key]);
+      point[key] = Number.isFinite(raw) && raw > 0 ? raw : 0;
     }
     return point;
   });
@@ -170,7 +203,7 @@ function ChartTooltip({
   const suffix = unit === 'pts' ? ' pts' : unit === 'min' ? ' min' : ' ppm';
 
   return (
-    <div className="rounded-lg border border-border/80 bg-[hsla(0,0%,8%,0.95)] px-3 py-2 shadow-xl backdrop-blur-sm">
+    <div className={CHART_TOOLTIP_CLASS}>
       <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{label}</p>
       <ul className="mt-1 space-y-0.5">
         {visible.map((entry) => (
@@ -210,47 +243,50 @@ export function MomentumChart({
   }, [unit, yAxis.ticks]);
 
   return (
-    <div className={cn('w-full', className)} style={{ height }}>
+    <div
+      className={cn('w-full', className)}
+      style={{ height, isolation: 'isolate' }}
+    >
       <ResponsiveContainer width="100%" height="100%">
-        <AreaChart
-          data={spikeData}
-          margin={{ top: 8, right: 6, left: 0, bottom: 4 }}
-        >
+        <AreaChart data={spikeData} margin={{ top: 8, right: 6, left: 0, bottom: 4 }}>
           <defs>
             {series.map((s) => {
               const fillId = `${gradientPrefix}-${s.key}`;
               return (
                 <linearGradient key={fillId} id={fillId} x1="0" y1="0" x2="0" y2="1">
                   <stop offset="0%" stopColor={s.color} stopOpacity={AREA_PEAK_OPACITY} />
-                  <stop offset="100%" stopColor={s.color} stopOpacity={0} />
+                  <stop offset="100%" stopColor={s.color} stopOpacity={AREA_FLOOR_OPACITY} />
                 </linearGradient>
               );
             })}
           </defs>
-          <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="hsla(0,0%,100%,0.06)" />
+          <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={CHART_GRID_STROKE} />
           <XAxis
             dataKey="dayLabel"
-            tick={AXIS_TICK_STYLE}
+            tick={CHART_AXIS_TICK}
             axisLine={false}
             tickLine={false}
             interval={0}
             minTickGap={0}
           />
           <YAxis
-            tick={AXIS_TICK_STYLE}
+            type="number"
+            tick={CHART_AXIS_TICK}
             axisLine={false}
             tickLine={false}
             width={yAxisWidth}
             domain={yAxis.domain}
             ticks={yAxis.ticks}
+            interval={0}
             allowDecimals={unitUsesDecimals(unit)}
+            allowDataOverflow
             tickMargin={2}
             tickFormatter={(value) => formatMomentumAxisTick(Number(value), unit)}
           />
           {showTooltip ? (
             <Tooltip
               content={<ChartTooltip unit={unit} series={series} />}
-              cursor={{ stroke: 'hsla(0,0%,100%,0.12)', strokeWidth: 1 }}
+              cursor={{ stroke: CHART_CURSOR_STROKE, strokeWidth: 1 }}
             />
           ) : null}
           {series.map((s) => {
@@ -263,10 +299,15 @@ export function MomentumChart({
                 name={s.name}
                 baseValue={0}
                 stroke={s.color}
-                strokeWidth={2}
+                strokeWidth={CHART_STROKE_WIDTH}
                 fill={`url(#${fillId})`}
                 fillOpacity={1}
-                connectNulls
+                dot={false}
+                activeDot={
+                  showTooltip
+                    ? { r: 4, fill: s.color, stroke: CHART_ACTIVE_DOT_STROKE, strokeWidth: 2 }
+                    : false
+                }
                 isAnimationActive={false}
                 legendType="none"
                 style={{ mixBlendMode: 'screen' }}

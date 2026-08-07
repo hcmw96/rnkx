@@ -5,7 +5,8 @@ import { PremiumGate } from '@/components/PremiumGate';
 import { FriendsPreview } from '@/components/premium/PreviewMocks';
 import { Select, SelectContent, SelectItem, SelectTrigger } from '@/components/ui/select';
 import { Skeleton } from '@/components/ui/skeleton';
-import { divisionForRank, type Division } from '@/lib/division';
+import { fetchMyDivision, type League } from '@/lib/athleteDivisions';
+import { isDivision, type Division } from '@/lib/division';
 import { fetchAcceptedFriendIds } from '@/lib/friendships';
 import { isHiddenFromLeaderboard } from '@/lib/leaderboardHidden';
 import { haptic } from '@/lib/haptics';
@@ -15,7 +16,6 @@ import { usePullToRefresh } from '@/hooks/usePullToRefresh';
 import { cn } from '@/lib/utils';
 import { supabase } from '@/services/supabase';
 
-type League = 'engine' | 'run';
 type ScopeTab = 'open' | 'overall' | 'friends';
 type GenderFilter = 'all' | 'male' | 'female';
 
@@ -54,11 +54,14 @@ function seasonSubtitle(name: string | null | undefined): string | null {
   return subtitle || null;
 }
 
-interface LeaderboardViewRow {
+interface SeasonBoardRow {
   id: string;
   display_name: string;
-  total_score: number | string;
+  season_score: number | string;
   rank: number;
+  division: string;
+  league: string;
+  recorded_at: string | null;
 }
 
 interface AthleteExtra {
@@ -69,26 +72,17 @@ interface AthleteExtra {
   gender: string | null;
 }
 
-interface AthleteStatExtra {
-  athlete_id: string;
-  season_id: string;
-  category: 'engine' | 'run';
-  score: number | string | null;
-  rank: number | null;
-}
-
 interface MergedAthlete {
   id: string;
   display_name: string;
-  total_score: number;
+  season_score: number;
+  rank: number;
+  division: Division;
   username: string | null;
   country: string | null;
   avatar_url: string | null;
   gender: 'male' | 'female' | null;
-  engine_score: number;
-  run_score: number;
-  engine_rank: number | null;
-  run_rank: number | null;
+  recorded_at: string | null;
 }
 
 interface LeaderboardRow {
@@ -106,56 +100,20 @@ function num(v: number | string | null | undefined): number {
   return typeof v === 'number' ? v : Number(v);
 }
 
-/** Re-assign ranks 1..n by score after client-side filters (gender, country, division, friends). */
-function reRankByScore(rows: LeaderboardRow[]): LeaderboardRow[] {
+/** Re-assign ranks after client filters; same tie-break as the SQL views. */
+function reRankBySeasonTieBreak(
+  rows: LeaderboardRow[],
+  recordedAtById: Map<string, string | null>,
+): LeaderboardRow[] {
   return [...rows]
-    .sort((a, b) => b.score - a.score)
+    .sort((a, b) => {
+      if (b.score !== a.score) return b.score - a.score;
+      const ta = recordedAtById.get(a.id) ?? '';
+      const tb = recordedAtById.get(b.id) ?? '';
+      if (ta !== tb) return ta.localeCompare(tb);
+      return a.id.localeCompare(b.id);
+    })
     .map((r, i) => ({ ...r, rank: i + 1 }));
-}
-
-function buildRowsForLeague(merged: MergedAthlete[], league: League): LeaderboardRow[] {
-  const allHaveLeagueRank =
-    merged.length > 0 &&
-    merged.every((m) => (league === 'engine' ? m.engine_rank != null : m.run_rank != null));
-
-  if (allHaveLeagueRank) {
-    return merged
-      .map((m) => {
-        const rank = league === 'engine' ? (m.engine_rank as number) : (m.run_rank as number);
-        const score = league === 'engine' ? m.engine_score : m.run_score;
-        const username = m.username || m.display_name || 'Athlete';
-        return {
-          id: m.id,
-          rank,
-          score,
-          displayName: m.display_name,
-          username,
-          country: m.country,
-          avatarUrl: m.avatar_url,
-        };
-      })
-      .sort((a, b) => a.rank - b.rank);
-  }
-
-  return [...merged]
-    .map((m) => ({
-      id: m.id,
-      score: league === 'engine' ? m.engine_score : m.run_score,
-      displayName: m.display_name,
-      username: m.username || m.display_name || 'Athlete',
-      country: m.country,
-      avatarUrl: m.avatar_url,
-    }))
-    .sort((a, b) => b.score - a.score)
-    .map((r, i) => ({
-      id: r.id,
-      rank: i + 1,
-      score: r.score,
-      displayName: r.displayName,
-      username: r.username,
-      country: r.country,
-      avatarUrl: r.avatarUrl,
-    }));
 }
 
 function LeaderboardFilterSelect({
@@ -219,81 +177,56 @@ function LeaderboardSkeleton() {
   );
 }
 
-const LEADERBOARD_COLUMNS = 'id,display_name,total_score,rank';
+const SEASON_BOARD_COLUMNS = 'id,display_name,season_score,rank,division,league,recorded_at';
 const ATHLETE_ENRICH_COLUMNS = 'id,username,country,avatar_url,gender';
-const ATHLETE_STATS_COLUMNS = 'athlete_id,season_id,category,score,rank';
 
-async function fetchMergedLeaderboard(
-  activeSeasonId: string | null,
+async function fetchSeasonBoard(
+  view: 'season_division_leaderboard' | 'season_overall_leaderboard',
+  seasonId: string,
+  league: League,
+  division?: Division | null,
 ): Promise<{ merged: MergedAthlete[]; error: string | null }> {
-  const lb = await supabase.from('leaderboard').select(LEADERBOARD_COLUMNS).order('rank', { ascending: true });
+  let q = supabase
+    .from(view)
+    .select(SEASON_BOARD_COLUMNS)
+    .eq('season_id', seasonId)
+    .eq('league', league)
+    .order('rank', { ascending: true });
 
-  if (lb.error) {
-    return { merged: [], error: lb.error.message };
+  if (view === 'season_division_leaderboard' && division) {
+    q = q.eq('division', division);
   }
 
-  const base = (lb.data ?? []) as LeaderboardViewRow[];
-  const ids = base.map((r) => r.id).filter(Boolean);
+  const board = await q;
+  if (board.error) {
+    return { merged: [], error: board.error.message };
+  }
 
+  const base = (board.data ?? []) as SeasonBoardRow[];
+  const ids = base.map((r) => r.id).filter(Boolean);
   const athleteMap = new Map<string, AthleteExtra>();
-  const statsMap = new Map<
-    string,
-    { engine_score: number; run_score: number; engine_rank: number | null; run_rank: number | null }
-  >();
 
   if (ids.length) {
-    const [athRes, statRes] = await Promise.all([
-      supabase.from('athletes').select(ATHLETE_ENRICH_COLUMNS).in('id', ids),
-      activeSeasonId
-        ? supabase
-            .from('athlete_stats')
-            .select(ATHLETE_STATS_COLUMNS)
-            .eq('season_id', activeSeasonId)
-            .in('athlete_id', ids)
-            .in('category', ['engine', 'run'])
-        : Promise.resolve({ data: [], error: null }),
-    ]);
-
+    const athRes = await supabase.from('athletes').select(ATHLETE_ENRICH_COLUMNS).in('id', ids);
     if (!athRes.error && athRes.data) {
       (athRes.data as AthleteExtra[]).forEach((a) => athleteMap.set(a.id, a));
-    }
-    if (!statRes.error && statRes.data) {
-      (statRes.data as AthleteStatExtra[]).forEach((s) => {
-        const existing = statsMap.get(s.athlete_id) ?? {
-          engine_score: 0,
-          run_score: 0,
-          engine_rank: null,
-          run_rank: null,
-        };
-        const score = num(s.score);
-        if (s.category === 'engine') {
-          existing.engine_score = score;
-          existing.engine_rank = s.rank ?? null;
-        } else if (s.category === 'run') {
-          existing.run_score = score;
-          existing.run_rank = s.rank ?? null;
-        }
-        statsMap.set(s.athlete_id, existing);
-      });
     }
   }
 
   const merged: MergedAthlete[] = base.map((row) => {
     const a = athleteMap.get(row.id);
-    const s = statsMap.get(row.id);
-    const total = num(row.total_score);
+    const divisionValue = isDivision(row.division) ? row.division : 'Open';
     return {
       id: row.id,
       display_name: row.display_name,
-      total_score: total,
+      season_score: num(row.season_score),
+      rank: num(row.rank),
+      division: divisionValue,
       username: a?.username?.trim() || null,
       country: a?.country ?? null,
       avatar_url: a?.avatar_url ?? null,
       gender: normalizeGender(a?.gender),
-      engine_score: s?.engine_score ?? 0,
-      run_score: s?.run_score ?? 0,
-      engine_rank: s?.engine_rank ?? null,
-      run_rank: s?.run_rank ?? null,
+      recorded_at: row.recorded_at ?? null,
     };
   });
 
@@ -313,57 +246,81 @@ export default function LeaderboardPage() {
   const [error, setError] = useState<string | null>(cached?.error ?? null);
   const [currentUserId, setCurrentUserId] = useState<string | null>(cached?.currentUserId ?? null);
   const [myAthleteId, setMyAthleteId] = useState<string | null>(cached?.myAthleteId ?? null);
-  const [friendIds, setFriendIds] = useState<Set<string>>(
-    new Set(cached?.friendIds ?? []),
-  );
+  const [friendIds, setFriendIds] = useState<Set<string>>(new Set(cached?.friendIds ?? []));
   const [myDivision, setMyDivision] = useState<Division>((cached?.myDivision as Division) ?? 'Open');
 
-  const loadAll = useCallback(async (options?: { silent?: boolean }) => {
-    if (!options?.silent) {
-      setLoading(true);
-    }
-    setError(null);
+  const loadAll = useCallback(
+    async (options?: { silent?: boolean }) => {
+      if (!options?.silent) {
+        setLoading(true);
+      }
+      setError(null);
 
-    const [{ data: auth }, { data: seasonRows, error: seasonsErr }] = await Promise.all([
-      supabase.auth.getUser(),
-      supabase.from('seasons').select('id,name,is_active').order('starts_at', { ascending: false }),
-    ]);
+      const [{ data: auth }, { data: seasonRows, error: seasonsErr }] = await Promise.all([
+        supabase.auth.getUser(),
+        supabase.from('seasons').select('id,name,is_active').order('starts_at', { ascending: false }),
+      ]);
 
-    const uid = auth.user?.id ?? null;
-    setCurrentUserId(uid);
+      const uid = auth.user?.id ?? null;
+      setCurrentUserId(uid);
 
-    const list = (seasonRows ?? []) as SeasonOption[];
-    if (!seasonsErr) {
-      setSeasons(list);
-    }
+      const list = (seasonRows ?? []) as SeasonOption[];
+      if (!seasonsErr) {
+        setSeasons(list);
+      }
 
-    const activeSeason = list.find((s) => s.is_active) ?? list[0] ?? null;
-    const seasonId = selectedSeasonId ?? activeSeason?.id ?? null;
+      const activeSeason = list.find((s) => s.is_active) ?? list[0] ?? null;
+      const seasonId = selectedSeasonId ?? activeSeason?.id ?? null;
 
-    if (uid) {
-      const aid = await resolveAthleteId(uid);
-      setMyAthleteId(aid ?? null);
-      if (aid) {
-        const friends = await fetchAcceptedFriendIds(aid);
-        setFriendIds(new Set(friends));
+      let aid: string | null = null;
+      if (uid) {
+        aid = (await resolveAthleteId(uid)) ?? null;
+        setMyAthleteId(aid);
+        if (aid) {
+          const friends = await fetchAcceptedFriendIds(aid);
+          setFriendIds(new Set(friends));
+        } else {
+          setFriendIds(new Set());
+        }
       } else {
+        setMyAthleteId(null);
         setFriendIds(new Set());
       }
-    } else {
-      setMyAthleteId(null);
-      setFriendIds(new Set());
-    }
 
-    const pack = await fetchMergedLeaderboard(seasonId);
-    if (pack.error) {
-      setError(pack.error);
-      setMerged([]);
-    } else {
-      setMerged(pack.merged);
-    }
+      if (!seasonId) {
+        setMerged([]);
+        setLoading(false);
+        return;
+      }
 
-    setLoading(false);
-  }, [selectedSeasonId]);
+      let division: Division = 'Open';
+      if (aid) {
+        division = await fetchMyDivision(aid, seasonId, activeLeague);
+        setMyDivision(division);
+      } else {
+        setMyDivision('Open');
+      }
+
+      const view =
+        scopeTab === 'open' ? 'season_division_leaderboard' : 'season_overall_leaderboard';
+      const pack = await fetchSeasonBoard(
+        view,
+        seasonId,
+        activeLeague,
+        scopeTab === 'open' ? division : null,
+      );
+
+      if (pack.error) {
+        setError(pack.error);
+        setMerged([]);
+      } else {
+        setMerged(pack.merged);
+      }
+
+      setLoading(false);
+    },
+    [selectedSeasonId, activeLeague, scopeTab],
+  );
 
   useEffect(() => {
     void loadAll({ silent: !!getLeaderboardCache() });
@@ -409,14 +366,6 @@ export default function LeaderboardPage() {
 
   const { isRefreshing, pullDistance, pullHandlers } = usePullToRefresh(loadAll);
 
-  useEffect(() => {
-    if (!myAthleteId || merged.length === 0) return;
-    const me = buildRowsForLeague(merged, activeLeague).find((r) => r.id === myAthleteId);
-    if (me) {
-      setMyDivision(divisionForRank(me.rank));
-    }
-  }, [merged, activeLeague, myAthleteId]);
-
   const selectedSeason = useMemo(
     () => seasons.find((s) => s.id === selectedSeasonId) ?? seasons.find((s) => s.is_active) ?? null,
     [seasons, selectedSeasonId],
@@ -452,17 +401,22 @@ export default function LeaderboardPage() {
     [seasons],
   );
 
-  const effectiveDivision = useMemo((): Division | null => {
-    if (scopeTab === 'open') return myDivision;
-    return null;
-  }, [scopeTab, myDivision]);
+  const recordedAtById = useMemo(() => {
+    const map = new Map<string, string | null>();
+    for (const m of merged) map.set(m.id, m.recorded_at);
+    return map;
+  }, [merged]);
 
   const rows = useMemo(() => {
-    let base = buildRowsForLeague(merged, activeLeague);
-
-    if (effectiveDivision) {
-      base = base.filter((r) => divisionForRank(r.rank) === effectiveDivision);
-    }
+    let base: LeaderboardRow[] = merged.map((m) => ({
+      id: m.id,
+      rank: m.rank,
+      score: m.season_score,
+      displayName: m.display_name,
+      username: m.username || m.display_name || 'Athlete',
+      country: m.country,
+      avatarUrl: m.avatar_url,
+    }));
 
     if (countryFilter !== 'all') {
       base = base.filter((r) => r.country === countryFilter);
@@ -483,14 +437,13 @@ export default function LeaderboardPage() {
     }
 
     const clientFiltered =
-      effectiveDivision != null ||
       countryFilter !== 'all' ||
       genderFilter !== 'all' ||
       scopeTab === 'friends' ||
       hiddenFromLeague;
 
     if (clientFiltered) {
-      base = reRankByScore(base);
+      base = reRankBySeasonTieBreak(base, recordedAtById);
     }
 
     return base;
@@ -498,11 +451,11 @@ export default function LeaderboardPage() {
     merged,
     activeLeague,
     scopeTab,
-    effectiveDivision,
     countryFilter,
     genderFilter,
     friendIds,
     myAthleteId,
+    recordedAtById,
   ]);
 
   const countryFilterLabel =
@@ -515,15 +468,11 @@ export default function LeaderboardPage() {
     const parts: string[] = [];
 
     if (scopeTab === 'open') {
-      parts.push(
-        effectiveDivision ? `${effectiveDivision} division` : `${myDivision} division`,
-      );
+      parts.push(`${myDivision} division · promotion board`);
     } else if (scopeTab === 'overall') {
-      parts.push(effectiveDivision ? `${effectiveDivision} division` : 'All divisions');
+      parts.push('All divisions · browse only');
     } else if (scopeTab === 'friends') {
-      parts.push('Friends');
-    } else {
-      return seasonLabel;
+      parts.push('Friends · season scores');
     }
 
     parts.push(leagueLabel);
@@ -534,191 +483,179 @@ export default function LeaderboardPage() {
   }, [
     scopeTab,
     activeLeague,
-    effectiveDivision,
     myDivision,
     countryFilter,
     countryFilterLabel,
     genderFilter,
     genderFilterLabel,
-    seasonLabel,
   ]);
 
   const scopeTabs: { id: ScopeTab; label: string }[] = [
-    { id: 'open', label: 'Open' },
+    { id: 'open', label: myDivision },
     { id: 'overall', label: 'Overall' },
     { id: 'friends', label: 'Friends' },
   ];
 
   return (
     <section className="mx-auto flex max-w-lg flex-col gap-5 pb-2" {...pullHandlers}>
-        {(isRefreshing || pullDistance > 0) && (
-          <p className="text-center text-xs text-muted-foreground">
-            {isRefreshing ? 'Refreshing…' : pullDistance > 72 ? 'Release to refresh' : ''}
-          </p>
-        )}
+      {(isRefreshing || pullDistance > 0) && (
+        <p className="text-center text-xs text-muted-foreground">
+          {isRefreshing ? 'Refreshing…' : pullDistance > 72 ? 'Release to refresh' : ''}
+        </p>
+      )}
 
-        {/* Status banner */}
-        <div className="flex items-center justify-center gap-2 rounded-xl border border-neon-lime/35 bg-[hsla(72,35%,12%,0.45)] px-3.5 py-2.5 text-center">
-          <Zap className="h-4 w-4 shrink-0 text-neon-lime" aria-hidden />
-          <p className="text-sm font-medium leading-snug text-neon-lime">
-            <span className="font-semibold">
-              {seasonLabel} is LIVE
-              {seasonLiveSubtitle ? ` - ${seasonLiveSubtitle}` : ''}
-            </span>
-          </p>
-        </div>
+      <div className="flex items-center justify-center gap-2 rounded-xl border border-neon-lime/35 bg-[hsla(72,35%,12%,0.45)] px-3.5 py-2.5 text-center">
+        <Zap className="h-4 w-4 shrink-0 text-neon-lime" aria-hidden />
+        <p className="text-sm font-medium leading-snug text-neon-lime">
+          <span className="font-semibold">
+            {seasonLabel} is LIVE
+            {seasonLiveSubtitle ? ` - ${seasonLiveSubtitle}` : ''}
+          </span>
+        </p>
+      </div>
 
-        {/* ENGINE | RUN segmented control */}
-        <div className="flex rounded-xl bg-muted/90 p-1">
-          <button
-            type="button"
-            onClick={() => {
-              haptic('light');
-              setActiveLeague('engine');
-            }}
-            className={cn(
-              'flex-1 rounded-lg px-4 py-3 font-sans text-sm font-semibold tracking-wide transition-colors',
-              activeLeague === 'engine'
-                ? 'bg-neon-lime text-black shadow-sm'
-                : 'bg-transparent text-muted-foreground hover:text-foreground'
-            )}
-          >
-            ENGINE
-          </button>
-          <button
-            type="button"
-            onClick={() => {
-              haptic('light');
-              setActiveLeague('run');
-            }}
-            className={cn(
-              'flex-1 rounded-lg px-4 py-3 font-sans text-sm font-semibold tracking-wide transition-colors',
-              activeLeague === 'run'
-                ? 'bg-electric-cyan text-black shadow-sm'
-                : 'bg-transparent text-muted-foreground hover:text-foreground'
-            )}
-          >
-            RUN
-          </button>
-        </div>
+      <div className="flex rounded-xl bg-muted/90 p-1">
+        <button
+          type="button"
+          onClick={() => {
+            haptic('light');
+            setActiveLeague('engine');
+          }}
+          className={cn(
+            'flex-1 rounded-lg px-4 py-3 font-sans text-sm font-semibold tracking-wide transition-colors',
+            activeLeague === 'engine'
+              ? 'bg-neon-lime text-black shadow-sm'
+              : 'bg-transparent text-muted-foreground hover:text-foreground',
+          )}
+        >
+          ENGINE
+        </button>
+        <button
+          type="button"
+          onClick={() => {
+            haptic('light');
+            setActiveLeague('run');
+          }}
+          className={cn(
+            'flex-1 rounded-lg px-4 py-3 font-sans text-sm font-semibold tracking-wide transition-colors',
+            activeLeague === 'run'
+              ? 'bg-electric-cyan text-black shadow-sm'
+              : 'bg-transparent text-muted-foreground hover:text-foreground',
+          )}
+        >
+          RUN
+        </button>
+      </div>
 
-        {/* Secondary scope tabs */}
-        <div className="rounded-xl border border-border/60 bg-[hsla(0,0%,10%,1)] p-1">
-          <div className="grid grid-cols-3 gap-0.5">
-            {scopeTabs.map((t) => (
-              <button
-                key={t.id}
-                type="button"
-                onClick={() => {
-                  haptic('light');
-                  setScopeTab(t.id);
-                }}
-                className={cn(
-                  'rounded-lg py-2.5 text-center text-xs font-semibold transition-colors',
-                  scopeTab === t.id
-                    ? 'bg-muted text-foreground shadow-sm'
-                    : 'text-muted-foreground hover:text-foreground/90',
-                )}
-              >
-                {t.label}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        {/* Filter row */}
-        <div className="flex gap-2">
-            {seasonOptions.length > 0 && selectedSeasonId ? (
-              <LeaderboardFilterSelect
-                aria-label="Season"
-                value={selectedSeasonId}
-                onValueChange={(id) => {
-                  haptic('light');
-                  setSelectedSeasonId(id);
-                }}
-                options={seasonOptions}
-              />
-            ) : (
-              <div
-                className="flex flex-1 items-center justify-center rounded-lg border border-border bg-[hsla(0,0%,8%,1)] px-2 py-2.5 text-xs font-medium text-foreground sm:px-3"
-                aria-label="Season"
-              >
-                {seasonLabel}
-              </div>
-            )}
-            <LeaderboardFilterSelect
-              aria-label="Country"
-              icon={Globe}
-              value={countryFilter}
-              onValueChange={(v) => {
+      <div className="rounded-xl border border-border/60 bg-[hsla(0,0%,10%,1)] p-1">
+        <div className="grid grid-cols-3 gap-0.5">
+          {scopeTabs.map((t) => (
+            <button
+              key={t.id}
+              type="button"
+              onClick={() => {
                 haptic('light');
-                setCountryFilter(v);
+                setScopeTab(t.id);
               }}
-              options={countryOptions}
-            />
-            <LeaderboardFilterSelect
-              aria-label="Gender"
-              icon={Users}
-              value={genderFilter}
-              onValueChange={(v) => {
-                haptic('light');
-                setGenderFilter(v as GenderFilter);
-              }}
-              options={GENDER_OPTIONS}
-            />
-          </div>
+              className={cn(
+                'rounded-lg py-2.5 text-center text-xs font-semibold transition-colors',
+                scopeTab === t.id
+                  ? 'bg-muted text-foreground shadow-sm'
+                  : 'text-muted-foreground hover:text-foreground/90',
+              )}
+            >
+              {t.label}
+            </button>
+          ))}
+        </div>
+      </div>
 
-        <p className="text-center text-xs text-muted-foreground">{scopeSubtitle}</p>
-
-        {error && (
-          <p className="rounded-xl border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">
-            {error}
-          </p>
-        )}
-
-        {loading ? (
-          <LeaderboardSkeleton />
-        ) : scopeTab === 'friends' ? (
-          <PremiumGate
-            title="Friends leaderboard"
-            description="Compare scores with athletes you've added as friends."
-            previewContent={friendIds.size === 0 ? <FriendsPreview /> : undefined}
-          >
-            {friendIds.size === 0 ? (
-              <div className="rounded-xl border border-border bg-[hsla(0,0%,10%,1)] px-4 py-8 text-center">
-                <p className="font-medium text-foreground">No friends yet</p>
-                <p className="mt-2 text-sm text-muted-foreground">
-                  Add friends from Social → Friends to see them ranked here.
-                </p>
-              </div>
-            ) : rows.length === 0 ? (
-              <p className="rounded-xl border border-border bg-[hsla(0,0%,10%,1)] px-4 py-10 text-center text-sm text-muted-foreground">
-                No scored friends for this scoring type yet
-              </p>
-            ) : (
-              <LeaderboardRows
-                rows={rows}
-                league={activeLeague}
-                currentUserId={currentUserId}
-              />
-            )}
-          </PremiumGate>
-        ) : !error && rows.length === 0 ? (
-          <p className="rounded-xl border border-border bg-[hsla(0,0%,10%,1)] px-4 py-10 text-center text-sm text-muted-foreground">
-            {merged.length === 0
-              ? 'No athletes ranked yet'
-              : 'No athletes match these filters'}
-          </p>
+      <div className="flex gap-2">
+        {seasonOptions.length > 0 && selectedSeasonId ? (
+          <LeaderboardFilterSelect
+            aria-label="Season"
+            value={selectedSeasonId}
+            onValueChange={(id) => {
+              haptic('light');
+              setSelectedSeasonId(id);
+            }}
+            options={seasonOptions}
+          />
         ) : (
-          !error && (
-            <LeaderboardRows
-              rows={rows}
-              league={activeLeague}
-              currentUserId={currentUserId}
-            />
-          )
+          <div
+            className="flex flex-1 items-center justify-center rounded-lg border border-border bg-[hsla(0,0%,8%,1)] px-2 py-2.5 text-xs font-medium text-foreground sm:px-3"
+            aria-label="Season"
+          >
+            {seasonLabel}
+          </div>
         )}
+        <LeaderboardFilterSelect
+          aria-label="Country"
+          icon={Globe}
+          value={countryFilter}
+          onValueChange={(v) => {
+            haptic('light');
+            setCountryFilter(v);
+          }}
+          options={countryOptions}
+        />
+        <LeaderboardFilterSelect
+          aria-label="Gender"
+          icon={Users}
+          value={genderFilter}
+          onValueChange={(v) => {
+            haptic('light');
+            setGenderFilter(v as GenderFilter);
+          }}
+          options={GENDER_OPTIONS}
+        />
+      </div>
 
-      </section>
+      <p className="text-center text-xs text-muted-foreground">{scopeSubtitle}</p>
+      {scopeTab === 'overall' ? (
+        <p className="text-center text-[11px] text-muted-foreground/80">
+          Overall is browse-only. Promotion and relegation use your {myDivision} division board.
+        </p>
+      ) : null}
+
+      {error && (
+        <p className="rounded-xl border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+          {error}
+        </p>
+      )}
+
+      {loading ? (
+        <LeaderboardSkeleton />
+      ) : scopeTab === 'friends' ? (
+        <PremiumGate
+          title="Friends leaderboard"
+          description="Compare season scores with athletes you've added as friends."
+          previewContent={friendIds.size === 0 ? <FriendsPreview /> : undefined}
+        >
+          {friendIds.size === 0 ? (
+            <div className="rounded-xl border border-border bg-[hsla(0,0%,10%,1)] px-4 py-8 text-center">
+              <p className="font-medium text-foreground">No friends yet</p>
+              <p className="mt-2 text-sm text-muted-foreground">
+                Add friends from Social → Friends to see them ranked here.
+              </p>
+            </div>
+          ) : rows.length === 0 ? (
+            <p className="rounded-xl border border-border bg-[hsla(0,0%,10%,1)] px-4 py-10 text-center text-sm text-muted-foreground">
+              No scored friends for this scoring type yet
+            </p>
+          ) : (
+            <LeaderboardRows rows={rows} league={activeLeague} currentUserId={currentUserId} />
+          )}
+        </PremiumGate>
+      ) : !error && rows.length === 0 ? (
+        <p className="rounded-xl border border-border bg-[hsla(0,0%,10%,1)] px-4 py-10 text-center text-sm text-muted-foreground">
+          {merged.length === 0 ? 'No athletes ranked yet' : 'No athletes match these filters'}
+        </p>
+      ) : (
+        !error && (
+          <LeaderboardRows rows={rows} league={activeLeague} currentUserId={currentUserId} />
+        )
+      )}
+    </section>
   );
 }

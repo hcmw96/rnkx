@@ -1,7 +1,7 @@
-import { Award, BarChart3 } from 'lucide-react';
+import { Award, BarChart3, TrendingUp } from 'lucide-react';
 import { AchievementBadge } from '@/components/profile/AchievementBadge';
 import type { AchievementState } from '@/lib/achievements';
-import type { ProfileCareerStats } from '@/lib/profileStats';
+import type { ProfileCareerStats, PromotionTimelineItem } from '@/lib/profileStats';
 import { formatScore, formatScorePts } from '@/lib/formatScore';
 import { AthleteAvatarImg } from '@/components/AthleteAvatarImg';
 import type { LeagueKind } from '@/lib/leagueAvatars';
@@ -160,7 +160,7 @@ function ProfileSeasonSection({
         </div>
         <div className="h-2 overflow-hidden rounded-full bg-muted">
           <div
-            className="h-full rounded-full bg-gradient-to-r from-cyan-500 via-neon-lime to-amber-400 transition-all"
+            className="h-full rounded-full bg-gradient-to-r from-neon-lime to-secondary transition-all"
             style={{ width: `${standingPercent}%` }}
           />
         </div>
@@ -258,6 +258,66 @@ export function ProfileProgressCard({ careerStats, achievements }: ProfileProgre
           ))}
         </div>
       </div>
+    </article>
+  );
+}
+
+function timelineAction(item: PromotionTimelineItem): string {
+  if (item.result === 'promoted') return `Promoted to ${item.toDivision}`;
+  if (item.result === 'relegated') return `Relegated to ${item.toDivision}`;
+  return `Held in ${item.toDivision}`;
+}
+
+function leagueLabel(league: 'engine' | 'run'): string {
+  return league === 'run' ? 'Run' : 'Engine';
+}
+
+type ProfileDivisionTimelineProps = {
+  items: PromotionTimelineItem[];
+  loading?: boolean;
+};
+
+export function ProfileDivisionTimeline({ items, loading = false }: ProfileDivisionTimelineProps) {
+  return (
+    <article className="space-y-4 rounded-xl border border-border bg-card p-4 shadow-sm">
+      <div className="flex items-center gap-2 border-b border-border/60 pb-3">
+        <TrendingUp className="h-5 w-5 text-neon-lime" aria-hidden />
+        <h2 className="type-section-label">Division timeline</h2>
+      </div>
+
+      {loading ? (
+        <p className="text-sm text-muted-foreground">Loading timeline…</p>
+      ) : items.length === 0 ? (
+        <p className="text-sm text-muted-foreground">
+          No promotions or relegations yet. Your division path will show here after each season reset.
+        </p>
+      ) : (
+        <ol className="space-y-3">
+          {items.map((item) => {
+            const line = `${item.seasonLabel} — ${timelineAction(item)}`;
+            return (
+              <li
+                key={item.id}
+                className="flex items-start justify-between gap-3 border-b border-border/40 pb-3 last:border-0 last:pb-0"
+              >
+                <div className="min-w-0 space-y-1">
+                  <p
+                    className={cn(
+                      'type-stat text-base leading-snug',
+                      item.result === 'promoted' && 'text-neon-lime',
+                      item.result === 'relegated' && 'text-zinc-300',
+                      item.result === 'held' && 'text-muted-foreground',
+                    )}
+                  >
+                    {line}
+                  </p>
+                  <p className="type-stat-unit">{leagueLabel(item.league)} League</p>
+                </div>
+              </li>
+            );
+          })}
+        </ol>
+      )}
     </article>
   );
 }

@@ -8,7 +8,18 @@ import {
   XAxis,
   YAxis,
 } from 'recharts';
-import { ENGINE_CHART_COLOR, RUN_CHART_COLOR } from '@/components/dashboard/MomentumChart';
+import {
+  AREA_FLOOR_OPACITY,
+  AREA_PEAK_OPACITY,
+  CHART_ACTIVE_DOT_STROKE,
+  CHART_AXIS_TICK,
+  CHART_CURSOR_STROKE,
+  CHART_GRID_STROKE,
+  CHART_STROKE_WIDTH,
+  CHART_TOOLTIP_CLASS,
+  ENGINE_CHART_COLOR,
+  RUN_CHART_COLOR,
+} from '@/lib/chartTheme';
 import { cn } from '@/lib/utils';
 import { formatScore } from '@/lib/formatScore';
 
@@ -72,6 +83,7 @@ function buildYAxisScale(
   return { domain: [0, niceMax], ticks };
 }
 
+/** Max of each series independently — overlapping areas, not stacked totals. */
 function chartMaxValue(
   data: Record<string, string | number>[],
   engineKey: string,
@@ -82,9 +94,9 @@ function chartMaxValue(
   for (const row of data) {
     const engine = Number(row[engineKey]) || 0;
     const run = Number(row[runKey]) || 0;
-    const total =
-      singleLeague === 'engine' ? engine : singleLeague === 'run' ? run : engine + run;
-    max = Math.max(max, total);
+    if (singleLeague === 'engine') max = Math.max(max, engine);
+    else if (singleLeague === 'run') max = Math.max(max, run);
+    else max = Math.max(max, engine, run);
   }
   return max;
 }
@@ -123,7 +135,7 @@ function ChartTooltip({
   if (!visible.length) return null;
 
   return (
-    <div className="rounded-lg border border-border/80 bg-[hsla(0,0%,8%,0.95)] px-3 py-2 shadow-xl backdrop-blur-sm">
+    <div className={CHART_TOOLTIP_CLASS}>
       <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{label}</p>
       <ul className="mt-1 space-y-0.5">
         {visible.map((entry) => (
@@ -141,6 +153,7 @@ function ChartTooltip({
   );
 }
 
+/** Dual overlapping area chart (SCORE style) — Engine + Run from a shared zero baseline. */
 export function WeeklyStackedAreaChart({
   data,
   stack,
@@ -151,16 +164,13 @@ export function WeeklyStackedAreaChart({
   showTooltip = true,
   singleLeague,
 }: WeeklyStackedAreaChartProps) {
-  const engineFillId = useId();
-  const runFillId = useId();
+  const gradientPrefix = useId().replace(/:/g, '');
+  const engineFillId = `${gradientPrefix}-engine`;
+  const runFillId = `${gradientPrefix}-run`;
   const showAllTicks = data.length <= 7;
   const showEngine = !singleLeague || singleLeague === 'engine';
   const showRun = !singleLeague || singleLeague === 'run';
   const allowDecimals = valueSuffix === ' ppm';
-  const stackId = singleLeague ? undefined : 'week';
-  const isStacked = stackId != null;
-  // Step curves avoid monotone bleed between leagues on zero days while still rendering isolated run/engine days.
-  const areaCurve = isStacked ? 'stepAfter' : 'monotone';
 
   const yAxis = useMemo(() => {
     const maxValue = chartMaxValue(data, stack.engineKey, stack.runKey, singleLeague);
@@ -184,25 +194,25 @@ export function WeeklyStackedAreaChart({
         >
           <defs>
             <linearGradient id={engineFillId} x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor={ENGINE_CHART_COLOR} stopOpacity={0.45} />
-              <stop offset="95%" stopColor={ENGINE_CHART_COLOR} stopOpacity={0.05} />
+              <stop offset="0%" stopColor={ENGINE_CHART_COLOR} stopOpacity={AREA_PEAK_OPACITY} />
+              <stop offset="100%" stopColor={ENGINE_CHART_COLOR} stopOpacity={AREA_FLOOR_OPACITY} />
             </linearGradient>
             <linearGradient id={runFillId} x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor={RUN_CHART_COLOR} stopOpacity={0.45} />
-              <stop offset="95%" stopColor={RUN_CHART_COLOR} stopOpacity={0.05} />
+              <stop offset="0%" stopColor={RUN_CHART_COLOR} stopOpacity={AREA_PEAK_OPACITY} />
+              <stop offset="100%" stopColor={RUN_CHART_COLOR} stopOpacity={AREA_FLOOR_OPACITY} />
             </linearGradient>
           </defs>
-          <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="hsla(0,0%,100%,0.06)" />
+          <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={CHART_GRID_STROKE} />
           <XAxis
             dataKey="dayLabel"
-            tick={{ fill: 'hsl(0 0% 55%)', fontSize: 10 }}
+            tick={CHART_AXIS_TICK}
             axisLine={false}
             tickLine={false}
             interval={showAllTicks ? 0 : 'preserveStartEnd'}
             minTickGap={showAllTicks ? 0 : 12}
           />
           <YAxis
-            tick={{ fill: 'hsl(0 0% 55%)', fontSize: 10 }}
+            tick={CHART_AXIS_TICK}
             axisLine={false}
             tickLine={false}
             width={yAxisWidth}
@@ -215,41 +225,43 @@ export function WeeklyStackedAreaChart({
           {showTooltip ? (
             <Tooltip
               content={<ChartTooltip valueSuffix={valueSuffix} formatValue={formatValue} />}
-              cursor={{ stroke: 'hsla(0,0%,100%,0.12)', strokeWidth: 1 }}
+              cursor={{ stroke: CHART_CURSOR_STROKE, strokeWidth: 1 }}
             />
           ) : null}
           {showEngine ? (
             <Area
-              type={areaCurve}
+              type="monotone"
               dataKey={stack.engineKey}
               name="Engine"
-              stackId={stackId}
               stroke={ENGINE_CHART_COLOR}
-              strokeWidth={isStacked ? 1.5 : 2}
+              strokeWidth={CHART_STROKE_WIDTH}
               fill={`url(#${engineFillId})`}
+              fillOpacity={1}
               dot={false}
               activeDot={
-                isStacked
-                  ? false
-                  : { r: 3, fill: ENGINE_CHART_COLOR, stroke: '#0a0a0a', strokeWidth: 1.5 }
+                showTooltip
+                  ? { r: 4, fill: ENGINE_CHART_COLOR, stroke: CHART_ACTIVE_DOT_STROKE, strokeWidth: 2 }
+                  : false
               }
+              isAnimationActive={false}
             />
           ) : null}
           {showRun ? (
             <Area
-              type={areaCurve}
+              type="monotone"
               dataKey={stack.runKey}
               name="Run"
-              stackId={stackId}
               stroke={RUN_CHART_COLOR}
-              strokeWidth={isStacked ? 1.5 : 2}
+              strokeWidth={CHART_STROKE_WIDTH}
               fill={`url(#${runFillId})`}
+              fillOpacity={1}
               dot={false}
               activeDot={
-                isStacked
-                  ? false
-                  : { r: 3, fill: RUN_CHART_COLOR, stroke: '#0a0a0a', strokeWidth: 1.5 }
+                showTooltip
+                  ? { r: 4, fill: RUN_CHART_COLOR, stroke: CHART_ACTIVE_DOT_STROKE, strokeWidth: 2 }
+                  : false
               }
+              isAnimationActive={false}
             />
           ) : null}
         </AreaChart>
@@ -276,7 +288,7 @@ export function WeeklyTrendLineChart({
   height = 200,
   valueSuffix = '',
 }: WeeklyTrendLineChartProps) {
-  const fillId = useId();
+  const fillId = useId().replace(/:/g, '');
 
   return (
     <div className="w-full" style={{ height }}>
@@ -284,21 +296,21 @@ export function WeeklyTrendLineChart({
         <AreaChart data={data} margin={{ top: 8, right: 8, left: -16, bottom: 0 }}>
           <defs>
             <linearGradient id={fillId} x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor={color} stopOpacity={0.45} />
-              <stop offset="95%" stopColor={color} stopOpacity={0.05} />
+              <stop offset="0%" stopColor={color} stopOpacity={AREA_PEAK_OPACITY} />
+              <stop offset="100%" stopColor={color} stopOpacity={AREA_FLOOR_OPACITY} />
             </linearGradient>
           </defs>
-          <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="hsla(0,0%,100%,0.06)" />
+          <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={CHART_GRID_STROKE} />
           <XAxis
             dataKey="dayLabel"
-            tick={{ fill: 'hsl(0 0% 55%)', fontSize: 11 }}
+            tick={CHART_AXIS_TICK}
             axisLine={false}
             tickLine={false}
             interval="preserveStartEnd"
             minTickGap={12}
           />
           <YAxis
-            tick={{ fill: 'hsl(0 0% 45%)', fontSize: 11 }}
+            tick={CHART_AXIS_TICK}
             axisLine={false}
             tickLine={false}
             width={36}
@@ -312,16 +324,18 @@ export function WeeklyTrendLineChart({
                 formatValue={(v) => (valueSuffix === ' min' ? String(Math.round(v)) : formatScore(v))}
               />
             }
-            cursor={{ stroke: 'hsla(0,0%,100%,0.12)', strokeWidth: 1 }}
+            cursor={{ stroke: CHART_CURSOR_STROKE, strokeWidth: 1 }}
           />
           <Area
             type="monotone"
             dataKey={dataKey}
             stroke={color}
-            strokeWidth={2}
+            strokeWidth={CHART_STROKE_WIDTH}
             fill={`url(#${fillId})`}
+            fillOpacity={1}
             dot={false}
-            activeDot={{ r: 4, fill: color, stroke: '#0a0a0a', strokeWidth: 2 }}
+            activeDot={{ r: 4, fill: color, stroke: CHART_ACTIVE_DOT_STROKE, strokeWidth: 2 }}
+            isAnimationActive={false}
           />
         </AreaChart>
       </ResponsiveContainer>
@@ -342,8 +356,9 @@ export function WeeklyDualTrendLineChart({
   height?: number;
   valueSuffix?: string;
 }) {
-  const engineFillId = useId();
-  const runFillId = useId();
+  const gradientPrefix = useId().replace(/:/g, '');
+  const engineFillId = `${gradientPrefix}-engine`;
+  const runFillId = `${gradientPrefix}-run`;
 
   return (
     <div className="w-full" style={{ height }}>
@@ -351,25 +366,25 @@ export function WeeklyDualTrendLineChart({
         <AreaChart data={data} margin={{ top: 8, right: 8, left: -16, bottom: 0 }}>
           <defs>
             <linearGradient id={engineFillId} x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor={ENGINE_CHART_COLOR} stopOpacity={0.4} />
-              <stop offset="95%" stopColor={ENGINE_CHART_COLOR} stopOpacity={0.05} />
+              <stop offset="0%" stopColor={ENGINE_CHART_COLOR} stopOpacity={AREA_PEAK_OPACITY} />
+              <stop offset="100%" stopColor={ENGINE_CHART_COLOR} stopOpacity={AREA_FLOOR_OPACITY} />
             </linearGradient>
             <linearGradient id={runFillId} x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor={RUN_CHART_COLOR} stopOpacity={0.4} />
-              <stop offset="95%" stopColor={RUN_CHART_COLOR} stopOpacity={0.05} />
+              <stop offset="0%" stopColor={RUN_CHART_COLOR} stopOpacity={AREA_PEAK_OPACITY} />
+              <stop offset="100%" stopColor={RUN_CHART_COLOR} stopOpacity={AREA_FLOOR_OPACITY} />
             </linearGradient>
           </defs>
-          <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="hsla(0,0%,100%,0.06)" />
+          <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={CHART_GRID_STROKE} />
           <XAxis
             dataKey="dayLabel"
-            tick={{ fill: 'hsl(0 0% 55%)', fontSize: 11 }}
+            tick={CHART_AXIS_TICK}
             axisLine={false}
             tickLine={false}
             interval="preserveStartEnd"
             minTickGap={12}
           />
           <YAxis
-            tick={{ fill: 'hsl(0 0% 45%)', fontSize: 11 }}
+            tick={CHART_AXIS_TICK}
             axisLine={false}
             tickLine={false}
             width={36}
@@ -378,27 +393,41 @@ export function WeeklyDualTrendLineChart({
           />
           <Tooltip
             content={<ChartTooltip valueSuffix={valueSuffix} />}
-            cursor={{ stroke: 'hsla(0,0%,100%,0.12)', strokeWidth: 1 }}
+            cursor={{ stroke: CHART_CURSOR_STROKE, strokeWidth: 1 }}
           />
           <Area
             type="monotone"
             dataKey={engineKey}
             name="Engine"
             stroke={ENGINE_CHART_COLOR}
-            strokeWidth={2}
+            strokeWidth={CHART_STROKE_WIDTH}
             fill={`url(#${engineFillId})`}
+            fillOpacity={1}
             dot={false}
-            activeDot={{ r: 4, fill: ENGINE_CHART_COLOR, stroke: '#0a0a0a', strokeWidth: 2 }}
+            activeDot={{
+              r: 4,
+              fill: ENGINE_CHART_COLOR,
+              stroke: CHART_ACTIVE_DOT_STROKE,
+              strokeWidth: 2,
+            }}
+            isAnimationActive={false}
           />
           <Area
             type="monotone"
             dataKey={runKey}
             name="Run"
             stroke={RUN_CHART_COLOR}
-            strokeWidth={2}
+            strokeWidth={CHART_STROKE_WIDTH}
             fill={`url(#${runFillId})`}
+            fillOpacity={1}
             dot={false}
-            activeDot={{ r: 4, fill: RUN_CHART_COLOR, stroke: '#0a0a0a', strokeWidth: 2 }}
+            activeDot={{
+              r: 4,
+              fill: RUN_CHART_COLOR,
+              stroke: CHART_ACTIVE_DOT_STROKE,
+              strokeWidth: 2,
+            }}
+            isAnimationActive={false}
           />
         </AreaChart>
       </ResponsiveContainer>

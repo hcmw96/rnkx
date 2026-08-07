@@ -410,6 +410,27 @@ verify_jwt = true
 [functions.notify-sync-reminder]
 verify_jwt = false
 
+[functions.notify-season-starting]
+verify_jwt = false
+
+[functions.notify-season-ending]
+verify_jwt = false
+
+[functions.notify-new-season]
+verify_jwt = false
+
+[functions.notify-weekly-update]
+verify_jwt = false
+
+[functions.notify-bonus-unlocked]
+verify_jwt = false
+
+[functions.notify-promotion]
+verify_jwt = false
+
+[functions.notify-relegation]
+verify_jwt = false
+
 [functions.notify-workout-scored]
 verify_jwt = false
 

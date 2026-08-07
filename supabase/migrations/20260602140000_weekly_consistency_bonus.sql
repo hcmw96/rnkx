@@ -25,6 +25,8 @@ create index if not exists weekly_consistency_bonuses_athlete_idx
 -- RLS: athletes can read their own bonuses
 alter table public.weekly_consistency_bonuses enable row level security;
 
+drop policy if exists "wcb_select_own" on public.weekly_consistency_bonuses;
+
 create policy "wcb_select_own"
   on public.weekly_consistency_bonuses for select
   using (

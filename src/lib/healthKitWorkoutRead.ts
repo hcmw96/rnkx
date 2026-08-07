@@ -40,6 +40,20 @@ export function extractHealthkitWorkoutsArray(
   return Array.isArray(raw) ? raw : [];
 }
 
+/**
+ * Apple Watch *connect* probe — identical URL both Settings and onboarding used inline.
+ * days=1 + HR-only; triggers the HealthKit permission sheet when needed.
+ * Throws on bridge failure (callers keep their own try/catch / messaging).
+ */
+export function appleWatchConnectHealthKitCommand(): string {
+  return `healthkit://workouts?days=1&included=${SYNC_INCLUDED_HR}`;
+}
+
+export async function requestAppleWatchHealthKitConnect(): Promise<Record<string, unknown> | null> {
+  const result = await despia(appleWatchConnectHealthKitCommand(), ['healthkitWorkouts']);
+  return (result as Record<string, unknown> | null) ?? null;
+}
+
 export interface SyncHealthKitReadResult {
   merged: unknown[];
   phases: { hr: { count: number } };

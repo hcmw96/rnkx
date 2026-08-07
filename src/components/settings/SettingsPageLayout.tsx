@@ -600,7 +600,7 @@ export function SettingsPageLayout(props: SettingsPageLayoutProps) {
               </DialogContent>
             </Dialog>
 
-            <div className="space-y-2">
+            <div className="space-y-2" id="devices">
               <SettingsSectionHeader icon={RefreshCw} label="Devices & sync" />
               <SettingsGroup>
                 <div className="p-3 pb-0">
@@ -685,7 +685,9 @@ export function SettingsPageLayout(props: SettingsPageLayoutProps) {
                   icon={Plus}
                   title="Connect new device"
                   titleClassName="text-neon-lime"
-                  subtitle={terraConnecting ? 'Opening…' : 'Garmin'}
+                  subtitle={
+                    terraConnecting ? 'Opening…' : 'Garmin, Polar, COROS, Fitbit, Strava'
+                  }
                   onClick={onConnectDevice}
                   disabled={terraConnecting}
                 />

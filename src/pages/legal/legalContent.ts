@@ -20,7 +20,7 @@ export const PRIVACY_POLICY_SECTIONS: LegalSection[] = [
       'Account data: email address, authentication identifiers, and credentials managed through our auth provider.',
       'Profile data: display name, username, country, avatar, league selections, privacy preferences, and subscription status.',
       'Workout and performance data: activity type, duration, timestamps, distance, pace, heart rate, scores, league assignments, and related metrics used for rankings and fair-play checks.',
-      'Device and wearable data: connected device types (e.g. Apple Watch, WHOOP, Garmin, Coros, Polar, Fitbit, Oura, Samsung, Strava integrations via our partners), sync timestamps, and data you authorise us to receive from third-party health or fitness APIs.',
+      'Device and wearable data: connected device types (e.g. Apple Watch, WHOOP, Garmin, Polar, COROS, Fitbit, Strava integrations via our partners), sync timestamps, and data you authorise us to receive from third-party health or fitness APIs.',
       'Social and communications data: friend connections, club memberships, direct and group messages you send in the app, and support messages you submit.',
       'Technical data: app version, device type, IP address, log data, and similar information needed to operate and secure the Service.',
       'Purchase data: subscription status and transaction identifiers from Apple App Store or other platforms (we do not receive your full payment card details).',

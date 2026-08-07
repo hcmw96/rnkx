@@ -1,8 +1,12 @@
 import { useState, useEffect, type ComponentType } from 'react';
-import { Loader2, Lock } from 'lucide-react';
+import { ExternalLink, Loader2, Lock } from 'lucide-react';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
-import { useWearableConnect } from '@/hooks/useWearableConnect';
+import {
+  connectAppleHealthKit,
+  queueOpenDevicesAfterOnboarding,
+  type WearableProvider,
+} from '@/hooks/useWearableConnect';
 import {
   ConnectBadge,
   SettingsGroup,
@@ -16,17 +20,7 @@ import {
   GarminLogo,
 } from '@/components/BrandLogos';
 
-export type WearableProvider =
-  | 'strava'
-  | 'whoop'
-  | 'garmin'
-  | 'apple'
-  | 'polar'
-  | 'coros'
-  | 'fitbit'
-  | 'oura'
-  | 'samsung'
-  | 'myzone';
+export type { WearableProvider };
 
 export type LeagueSupport = 'run' | 'engine' | 'both' | 'recovery';
 
@@ -38,9 +32,6 @@ const nameMap: Record<WearableProvider, string> = {
   polar: 'Polar',
   coros: 'COROS',
   fitbit: 'Fitbit',
-  oura: 'Oura',
-  samsung: 'Samsung',
-  myzone: 'Myzone',
 };
 
 const supportMap: Record<WearableProvider, LeagueSupport> = {
@@ -51,9 +42,6 @@ const supportMap: Record<WearableProvider, LeagueSupport> = {
   polar: 'both',
   coros: 'both',
   fitbit: 'both',
-  oura: 'engine',
-  samsung: 'both',
-  myzone: 'engine',
 };
 
 type WearableRow = {
@@ -62,37 +50,43 @@ type WearableRow = {
   subtitle: string;
   Logo: ComponentType<{ className?: string }>;
   leagueSupport: LeagueSupport;
+  /** Real HealthKit connect in onboarding vs deferred to Settings. */
+  mode: 'apple' | 'settings_later';
 };
 
-/** Display order: Apple → Garmin → WHOOP → Strava */
+/** Display order: Apple → Garmin (Terra list) → WHOOP → Strava */
 const WEARABLE_ROWS: WearableRow[] = [
   {
     provider: 'apple',
     name: 'Apple Watch',
-    subtitle: 'Manual sync',
+    subtitle: 'Connect via Apple Health',
     Logo: AppleLogo,
     leagueSupport: 'both',
+    mode: 'apple',
   },
   {
     provider: 'garmin',
     name: 'Garmin',
-    subtitle: 'Automatic sync',
+    subtitle: 'Connect in Settings after setup',
     Logo: GarminLogo,
     leagueSupport: 'both',
+    mode: 'settings_later',
   },
   {
     provider: 'whoop',
     name: 'WHOOP',
-    subtitle: 'Automatic sync',
+    subtitle: 'Connect in Settings after setup',
     Logo: WhoopLogo,
     leagueSupport: 'engine',
+    mode: 'settings_later',
   },
   {
     provider: 'strava',
     name: 'Strava',
-    subtitle: 'Run activities',
+    subtitle: 'Connect in Settings after setup',
     Logo: StravaLogo,
     leagueSupport: 'run',
+    mode: 'settings_later',
   },
 ];
 
@@ -109,9 +103,6 @@ export const getWearablesForLeague = (league: 'run' | 'engine') => {
     { provider: 'polar', leagueSupport: 'both' },
     { provider: 'coros', leagueSupport: 'both' },
     { provider: 'fitbit', leagueSupport: 'both' },
-    { provider: 'oura', leagueSupport: 'engine' },
-    { provider: 'samsung', leagueSupport: 'both' },
-    { provider: 'myzone', leagueSupport: 'engine' },
   ];
   return all.filter((w) => w.leagueSupport === 'both' || w.leagueSupport === league);
 };
@@ -161,54 +152,60 @@ const OnboardingWearables = ({
   onSkip,
   onContinue,
 }: OnboardingWearablesProps) => {
-  const [connected, setConnected] = useState<WearableProvider[]>(initialConnected);
-
-  const { connect, loading } = useWearableConnect({
-    onSuccess: (provider) => {
-      setConnected((prev) => {
-        if (prev.includes(provider)) return prev;
-        return [...prev, provider];
-      });
-      toast.success(`${nameMap[provider]} connected`);
-    },
-  });
+  /** Only providers with a real successful connection (Apple HealthKit today). */
+  const [connected, setConnected] = useState<WearableProvider[]>(
+    initialConnected.filter((p) => p === 'apple'),
+  );
+  const [appleLoading, setAppleLoading] = useState(false);
 
   useEffect(() => {
-    setConnected(initialConnected);
+    setConnected(initialConnected.filter((p) => p === 'apple'));
   }, [initialConnected]);
 
   useEffect(() => {
     onConnectionsChange?.(connected);
   }, [connected, onConnectionsChange]);
 
-  const handleConnect = async (provider: WearableProvider) => {
-    if (connected.includes(provider)) return;
-    await connect(provider);
+  const handleAppleConnect = async () => {
+    if (connected.includes('apple') || appleLoading) return;
+    setAppleLoading(true);
+    try {
+      const { result, message } = await connectAppleHealthKit();
+      if (result === 'connected') {
+        setConnected((prev) => (prev.includes('apple') ? prev : [...prev, 'apple']));
+        toast.success('Apple Watch connected');
+        return;
+      }
+      if (result === 'denied') {
+        toast.message('Apple Health not connected', {
+          description: message ?? 'You can enable access later in Settings.',
+        });
+        return;
+      }
+      if (result === 'unavailable') {
+        toast.message(message ?? 'Apple Watch connects in the RNKX iPhone app.');
+        return;
+      }
+      toast.error(message ?? 'Could not connect Apple Watch.');
+    } finally {
+      setAppleLoading(false);
+    }
   };
 
-  const isConnected = (provider: WearableProvider) => {
-    if (provider === 'garmin') {
-      return connected.some((p) =>
-        ['garmin', 'polar', 'coros', 'fitbit', 'oura', 'samsung', 'myzone'].includes(p),
-      );
-    }
-    return connected.includes(provider);
-  };
-
-  const isLoading = (provider: WearableProvider) => {
-    if (provider === 'garmin') {
-      return loading === 'garmin' && !isConnected('garmin');
-    }
-    return loading === provider && !isConnected(provider);
+  const handleSettingsLater = (provider: WearableProvider) => {
+    queueOpenDevicesAfterOnboarding();
+    toast.message(`Connect ${nameMap[provider]} after setup`, {
+      description: 'Finish onboarding, then open Settings → Devices & sync.',
+    });
   };
 
   return (
     <div className="space-y-4">
       <SettingsGroup>
         {WEARABLE_ROWS.map((row, index) => {
-          const active = isConnected(row.provider);
-          const rowLoading = isLoading(row.provider);
           const Logo = row.Logo;
+          const appleConnected = row.mode === 'apple' && connected.includes('apple');
+          const rowLoading = row.mode === 'apple' && appleLoading;
 
           return (
             <div key={row.provider}>
@@ -221,16 +218,26 @@ const OnboardingWearables = ({
                 }
                 title={row.name}
                 subtitle={row.subtitle}
-                chevron={false}
+                chevron={row.mode === 'settings_later'}
                 disabled={rowLoading}
-                onClick={() => void handleConnect(row.provider)}
+                onClick={() => {
+                  if (row.mode === 'apple') {
+                    void handleAppleConnect();
+                    return;
+                  }
+                  handleSettingsLater(row.provider);
+                }}
                 trailing={
                   <div className="flex items-center gap-2">
                     <LeagueBadges support={row.leagueSupport} />
-                    {rowLoading ? (
-                      <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" aria-hidden />
+                    {row.mode === 'apple' ? (
+                      rowLoading ? (
+                        <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" aria-hidden />
+                      ) : (
+                        <ConnectBadge connected={appleConnected} />
+                      )
                     ) : (
-                      <ConnectBadge connected={active} />
+                      <ExternalLink className="h-3.5 w-3.5 text-muted-foreground" aria-hidden />
                     )}
                   </div>
                 }
@@ -239,6 +246,10 @@ const OnboardingWearables = ({
           );
         })}
       </SettingsGroup>
+
+      <p className="px-1 text-xs leading-relaxed text-muted-foreground">
+        Polar, COROS, and Fitbit are also supported — connect them in Settings after setup.
+      </p>
 
       {connected.length > 0 && onContinue ? (
         <button

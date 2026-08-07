@@ -1,5 +1,6 @@
 -- Send + list messages using conversation_messages.content (not body).
-
+-- DROP required: prior migration returned OUT col "body"; cannot OR REPLACE to "content".
+drop function if exists public.list_conversation_messages(uuid, int);
 create or replace function public.list_conversation_messages(
   p_conversation_id uuid,
   p_limit int default 200

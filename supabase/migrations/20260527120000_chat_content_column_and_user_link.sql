@@ -69,6 +69,8 @@ revoke all on function public.ensure_athlete_user_id(uuid) from public;
 grant execute on function public.ensure_athlete_user_id(uuid) to authenticated;
 
 -- 4) Chat RPCs (content column, return content not body).
+-- DROP required: prior migration returned OUT col "body"; cannot OR REPLACE to "content".
+drop function if exists public.list_conversation_messages(uuid, int);
 create or replace function public.list_conversation_messages(
   p_conversation_id uuid,
   p_limit int default 200
