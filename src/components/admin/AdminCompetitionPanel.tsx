@@ -33,6 +33,19 @@ type PromoSettings = {
   min_workouts_for_promotion: number;
 };
 
+type AthleteJoin = { display_name: string | null; username: string | null };
+
+/**
+ * Supabase embedded `athletes(...)` can arrive as a single object or an array
+ * depending on relationship inference. Normalize to one row for the UI.
+ */
+function firstAthleteJoin(
+  athletes: AthleteJoin | AthleteJoin[] | null | undefined,
+): AthleteJoin | null {
+  if (athletes == null) return null;
+  return Array.isArray(athletes) ? (athletes[0] ?? null) : athletes;
+}
+
 type HistoryRow = {
   id: string;
   athlete_id: string;
@@ -44,7 +57,7 @@ type HistoryRow = {
   final_rank: number;
   final_points: number;
   created_at: string;
-  athletes?: { display_name: string | null; username: string | null } | null;
+  athletes?: AthleteJoin | null;
 };
 
 type SnapshotRow = {
@@ -56,8 +69,60 @@ type SnapshotRow = {
   rank: number;
   points: number;
   created_at: string;
-  athletes?: { display_name: string | null; username: string | null } | null;
+  athletes?: AthleteJoin | null;
 };
+
+function mapHistoryRow(row: {
+  id: string;
+  athlete_id: string;
+  season_id: string;
+  league: string;
+  from_division: string;
+  to_division: string;
+  result: string;
+  final_rank: number;
+  final_points: number;
+  created_at: string;
+  athletes: AthleteJoin | AthleteJoin[] | null;
+}): HistoryRow {
+  return {
+    id: row.id,
+    athlete_id: row.athlete_id,
+    season_id: row.season_id,
+    league: row.league,
+    from_division: row.from_division,
+    to_division: row.to_division,
+    result: row.result,
+    final_rank: row.final_rank,
+    final_points: row.final_points,
+    created_at: row.created_at,
+    athletes: firstAthleteJoin(row.athletes),
+  };
+}
+
+function mapSnapshotRow(row: {
+  id: string;
+  athlete_id: string;
+  season_id: string;
+  league: string;
+  division: string;
+  rank: number;
+  points: number;
+  created_at: string;
+  athletes: AthleteJoin | AthleteJoin[] | null;
+}): SnapshotRow {
+  return {
+    id: row.id,
+    athlete_id: row.athlete_id,
+    season_id: row.season_id,
+    league: row.league,
+    division: row.division,
+    rank: row.rank,
+    points: row.points,
+    created_at: row.created_at,
+    athletes: firstAthleteJoin(row.athletes),
+  };
+}
 
 type DryRunPromotion = {
   display_name?: string;
@@ -117,7 +182,7 @@ function formatLondonInstant(iso: string | undefined): string {
 }
 
 function athleteLabel(row: {
-  athletes?: { display_name: string | null; username: string | null } | null;
+  athletes?: AthleteJoin | null;
   athlete_id: string;
   display_name?: string;
 }): string {
@@ -141,7 +206,6 @@ export function AdminCompetitionPanel({ enabled }: Props) {
 
   const [seasons, setSeasons] = useState<SeasonRow[]>([]);
   const [rules, setRules] = useState<DivisionRule[]>([]);
-  const [tiers, setTiers] = useState<ConsistencyTier[]>([]);
   const [promoSettings, setPromoSettings] = useState<PromoSettings | null>(null);
 
   const [editId, setEditId] = useState<string | null>(null);
@@ -199,7 +263,6 @@ export function AdminCompetitionPanel({ enabled }: Props) {
     const seasonList = payload.seasons ?? [];
     setSeasons(seasonList);
     setRules(payload.division_rules ?? []);
-    setTiers(payload.consistency_bonus_tiers ?? []);
     setPromoSettings(payload.promotion_settings ?? null);
     setMinWorkoutsDraft(String(payload.promotion_settings?.min_workouts_for_promotion ?? 3));
     const drafts: Record<string, DivisionRule> = {};
@@ -452,8 +515,8 @@ export function AdminCompetitionPanel({ enabled }: Props) {
       setError(snapRes.error.message);
       return;
     }
-    setHistoryRows((histRes.data as HistoryRow[]) ?? []);
-    setSnapshotRows((snapRes.data as SnapshotRow[]) ?? []);
+    setHistoryRows((histRes.data ?? []).map(mapHistoryRow));
+    setSnapshotRows((snapRes.data ?? []).map(mapSnapshotRow));
   }
 
   useEffect(() => {

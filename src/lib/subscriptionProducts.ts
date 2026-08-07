@@ -87,7 +87,12 @@ function lengthFromPeriod(period: unknown): { label: SubscriptionLength; periodM
   return null;
 }
 
-function titleFor(productId: string, rawTitle: string | null, lengthLabel: string): string {
+/**
+ * Display title from store title + billing cadence.
+ * productId is intentionally not used: cadence already comes from period/package
+ * parsing, and store titles are preferred over opaque store SKUs for the paywall line.
+ */
+function titleFor(rawTitle: string | null, lengthLabel: string): string {
   if (rawTitle && !/^product$/i.test(rawTitle)) {
     // Prefer store title when it already includes cadence
     if (/month|year|annual|weekly/i.test(rawTitle)) return rawTitle;
@@ -100,16 +105,95 @@ function titleFor(productId: string, rawTitle: string | null, lengthLabel: strin
   return `RNKX Premium — ${cadence}`;
 }
 
+/** Narrow shapes we actually read from Despia / RevenueCat product payloads. */
+type StoreSubscriptionShape = {
+  duration?: unknown;
+};
+
+type StoreProductShape = {
+  productId?: unknown;
+  productIdentifier?: unknown;
+  identifier?: unknown;
+  store_identifier?: unknown;
+  platform_product_identifier?: unknown;
+  packageType?: unknown;
+  packageIdentifier?: unknown;
+  subscriptionPeriod?: unknown;
+  /** Some RC / StoreKit bridges nest period under subscription.duration */
+  subscription?: StoreSubscriptionShape | null;
+  period?: unknown;
+  displayPrice?: unknown;
+  localizedPrice?: unknown;
+  localizedPriceString?: unknown;
+  priceString?: unknown;
+  price_string?: unknown;
+  price?: unknown;
+  priceAmount?: unknown;
+  price_amount?: unknown;
+  currencyCode?: unknown;
+  currency_code?: unknown;
+  currency?: unknown;
+  title?: unknown;
+  localizedTitle?: unknown;
+  displayName?: unknown;
+  display_name?: unknown;
+  storeProduct?: unknown;
+  product?: unknown;
+  rcBillingProduct?: unknown;
+  webBillingProduct?: unknown;
+};
+
+function asStoreProduct(value: unknown): StoreProductShape | null {
+  const rec = asRecord(value);
+  if (!rec) return null;
+  return {
+    productId: rec.productId,
+    productIdentifier: rec.productIdentifier,
+    identifier: rec.identifier,
+    store_identifier: rec.store_identifier,
+    platform_product_identifier: rec.platform_product_identifier,
+    packageType: rec.packageType,
+    packageIdentifier: rec.packageIdentifier,
+    subscriptionPeriod: rec.subscriptionPeriod,
+    subscription: asRecord(rec.subscription),
+    period: rec.period,
+    displayPrice: rec.displayPrice,
+    localizedPrice: rec.localizedPrice,
+    localizedPriceString: rec.localizedPriceString,
+    priceString: rec.priceString,
+    price_string: rec.price_string,
+    price: rec.price,
+    priceAmount: rec.priceAmount,
+    price_amount: rec.price_amount,
+    currencyCode: rec.currencyCode,
+    currency_code: rec.currency_code,
+    currency: rec.currency,
+    title: rec.title,
+    localizedTitle: rec.localizedTitle,
+    displayName: rec.displayName,
+    display_name: rec.display_name,
+    storeProduct: rec.storeProduct,
+    product: rec.product,
+    rcBillingProduct: rec.rcBillingProduct,
+    webBillingProduct: rec.webBillingProduct,
+  };
+}
+
+function subscriptionDuration(subscription: StoreSubscriptionShape | null | undefined): unknown {
+  if (!subscription || typeof subscription !== 'object') return null;
+  return 'duration' in subscription ? subscription.duration : null;
+}
+
 function normalizeOne(raw: unknown): PaywallProduct | null {
-  const rec = asRecord(raw);
+  const rec = asStoreProduct(raw);
   if (!rec) return null;
 
   // Unwrap nested storeProduct / product
   const nested =
-    asRecord(rec.storeProduct) ??
-    asRecord(rec.product) ??
-    asRecord(rec.rcBillingProduct) ??
-    asRecord(rec.webBillingProduct) ??
+    asStoreProduct(rec.storeProduct) ??
+    asStoreProduct(rec.product) ??
+    asStoreProduct(rec.rcBillingProduct) ??
+    asStoreProduct(rec.webBillingProduct) ??
     rec;
 
   const productId = readString(
@@ -127,10 +211,9 @@ function normalizeOne(raw: unknown): PaywallProduct | null {
   const packageId = readString(rec.packageType, rec.packageIdentifier, rec.identifier, productId) ?? productId;
   const fromPeriod =
     lengthFromPeriod(nested.subscriptionPeriod) ??
-    lengthFromPeriod(nested.subscription?.duration) ??
+    lengthFromPeriod(subscriptionDuration(nested.subscription)) ??
     lengthFromPeriod(nested.period) ??
     lengthFromPackageId(packageId);
-
   const displayPrice = readString(
     nested.displayPrice,
     nested.localizedPrice,
@@ -155,7 +238,7 @@ function normalizeOne(raw: unknown): PaywallProduct | null {
 
   return {
     productId,
-    title: titleFor(productId, rawTitle, fromPeriod.label),
+    title: titleFor(rawTitle, fromPeriod.label),
     lengthLabel: fromPeriod.label,
     displayPrice,
     price,
