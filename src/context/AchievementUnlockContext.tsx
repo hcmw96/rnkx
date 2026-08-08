@@ -127,11 +127,14 @@ export function AchievementUnlockProvider({ children, authUserId, enabled }: Ach
     [runSync],
   );
 
-  const handleDismiss = useCallback(async () => {
-    if (current && athleteId) {
-      await markAchievementsCelebrated(athleteId, [current.id]);
-    }
+  const handleDismiss = useCallback(() => {
+    const celebrating = current;
+    const aid = athleteId;
+    // Advance the queue immediately so a hung write cannot leave the overlay up.
     presentNext();
+    if (celebrating && aid) {
+      void markAchievementsCelebrated(aid, [celebrating.id]);
+    }
   }, [athleteId, current, presentNext]);
 
   useEffect(() => {
