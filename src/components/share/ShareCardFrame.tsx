@@ -15,6 +15,8 @@ type ShareCardFrameProps = {
   photoTransform?: SharePhotoTransform;
   /** League accent for the RNKX gradient (defaults to Engine lime). */
   accentColor?: string;
+  /** Top wordmark — hide when the card places the mark in the stats row. */
+  showLogo?: boolean;
   children: ReactNode;
   className?: string;
 };
@@ -26,15 +28,15 @@ function RnkxGradientBackground({ accentColor }: { accentColor: string }) {
         style={{
           position: 'absolute',
           inset: 0,
-          background: '#050505',
+          background: '#000000',
         }}
       />
       <div
         style={{
           position: 'absolute',
           inset: 0,
-          background:
-            'linear-gradient(180deg, rgba(0,0,0,0.55) 0%, rgba(0,0,0,0.2) 28%, transparent 52%)',
+          background: `radial-gradient(ellipse 95% 55% at 50% 108%, ${accentColor} 0%, transparent 62%)`,
+          opacity: 0.55,
           pointerEvents: 'none',
         }}
       />
@@ -42,17 +44,8 @@ function RnkxGradientBackground({ accentColor }: { accentColor: string }) {
         style={{
           position: 'absolute',
           inset: 0,
-          background: `radial-gradient(ellipse 120% 70% at 50% 115%, ${accentColor} 0%, transparent 58%)`,
-          opacity: 0.42,
-          pointerEvents: 'none',
-        }}
-      />
-      <div
-        style={{
-          position: 'absolute',
-          inset: 0,
-          background: `linear-gradient(0deg, ${accentColor} 0%, transparent 42%)`,
-          opacity: 0.14,
+          background: `linear-gradient(0deg, ${accentColor} 0%, transparent 38%)`,
+          opacity: 0.18,
           pointerEvents: 'none',
         }}
       />
@@ -90,7 +83,7 @@ function PhotoBackground({
         position: 'absolute',
         inset: 0,
         overflow: 'hidden',
-        background: '#050505',
+        background: '#000000',
       }}
     >
       <img
@@ -123,6 +116,7 @@ export function ShareCardFrame({
   backgroundImageUrl,
   photoTransform = DEFAULT_SHARE_PHOTO_TRANSFORM,
   accentColor = ENGINE_CHART_COLOR,
+  showLogo = true,
   children,
   className,
 }: ShareCardFrameProps) {
@@ -137,7 +131,7 @@ export function ShareCardFrame({
         position: 'relative',
         overflow: 'hidden',
         fontFamily: 'Inter, system-ui, sans-serif',
-        color: '#f4f4f5',
+        color: '#ffffff',
       }}
     >
       {usingPhoto && backgroundImageUrl ? (
@@ -167,22 +161,24 @@ export function ShareCardFrame({
           display: 'flex',
           flexDirection: 'column',
           alignItems: 'center',
-          padding: '96px 72px 120px',
+          padding: showLogo ? '96px 72px 120px' : '160px 64px 120px',
           boxSizing: 'border-box',
           pointerEvents: 'none',
         }}
       >
-        <img
-          src={rnkxLogo}
-          alt="RNKX"
-          crossOrigin="anonymous"
-          style={{
-            height: 64,
-            width: 'auto',
-            flexShrink: 0,
-            filter: usingPhoto ? 'drop-shadow(0 2px 10px rgba(0,0,0,0.45))' : undefined,
-          }}
-        />
+        {showLogo ? (
+          <img
+            src={rnkxLogo}
+            alt="RNKX"
+            crossOrigin="anonymous"
+            style={{
+              height: 64,
+              width: 'auto',
+              flexShrink: 0,
+              filter: usingPhoto ? 'drop-shadow(0 2px 10px rgba(0,0,0,0.45))' : undefined,
+            }}
+          />
+        ) : null}
         <div
           style={{
             flex: 1,

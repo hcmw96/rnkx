@@ -6,6 +6,7 @@ import {
   type SharePhotoTransform,
 } from '@/lib/sharePhotoTransform';
 import type { WorkoutSharePayload } from '@/types/shareCards';
+import rnkxSymbol from '@/assets/rnkx-symbol.png';
 
 type WorkoutShareCardProps = {
   payload: WorkoutSharePayload;
@@ -13,7 +14,20 @@ type WorkoutShareCardProps = {
   photoTransform?: SharePhotoTransform;
 };
 
-/** V1 card: logo, league, score, rank, division — nothing else. */
+function Divider() {
+  return (
+    <div
+      style={{
+        width: 2,
+        alignSelf: 'stretch',
+        background: 'rgba(255, 255, 255, 0.92)',
+        flexShrink: 0,
+      }}
+    />
+  );
+}
+
+/** V1 card: division pill + logo / points / rank — matches social share mock. */
 export function WorkoutShareCard({
   payload,
   backgroundImageUrl,
@@ -24,113 +38,183 @@ export function WorkoutShareCard({
   const rankText = payload.seasonRank != null ? `#${payload.seasonRank}` : '—';
   const usingPhoto = Boolean(backgroundImageUrl);
   const textShadow = usingPhoto ? '0 2px 14px rgba(0,0,0,0.55)' : undefined;
+  const divisionText = `${payload.division.toUpperCase()} DIVISION`;
 
   return (
     <ShareCardFrame
       backgroundImageUrl={backgroundImageUrl}
       photoTransform={photoTransform}
       accentColor={accent}
+      showLogo={false}
     >
       <div
         style={{
           display: 'flex',
           flexDirection: 'column',
           alignItems: 'center',
-          justifyContent: 'center',
+          justifyContent: 'flex-start',
           flex: 1,
           width: '100%',
-          gap: 0,
         }}
       >
-        <p
+        <div
           style={{
-            margin: '80px 0 0',
-            fontSize: 28,
-            fontWeight: 700,
-            letterSpacing: '0.28em',
-            textTransform: 'uppercase',
-            color: accent,
-            textShadow,
+            display: 'inline-flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: '18px 40px',
+            borderRadius: 999,
+            border: `2.5px solid ${accent}`,
+            boxShadow: usingPhoto ? '0 2px 14px rgba(0,0,0,0.45)' : undefined,
           }}
         >
-          {leagueLabel}
-        </p>
-
-        <p
-          className="font-sans font-bold tabular-nums"
-          style={{
-            margin: '36px 0 0',
-            fontSize: 168,
-            lineHeight: 1,
-            color: accent,
-            textShadow,
-          }}
-        >
-          +{formatScore(payload.pointsScored)}
-        </p>
+          <p
+            style={{
+              margin: 0,
+              fontSize: 26,
+              fontWeight: 700,
+              letterSpacing: '0.16em',
+              textTransform: 'uppercase',
+              color: '#ffffff',
+              textShadow,
+              whiteSpace: 'nowrap',
+            }}
+          >
+            {divisionText}
+          </p>
+        </div>
 
         <div
           style={{
-            marginTop: 96,
+            marginTop: 56,
             display: 'flex',
-            flexDirection: 'column',
             alignItems: 'center',
-            gap: 48,
+            justifyContent: 'center',
+            width: '100%',
+            maxWidth: 920,
+            gap: 0,
           }}
         >
-          <div style={{ textAlign: 'center' }}>
+          {/* Brand / league */}
+          <div
+            style={{
+              flex: 1,
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: 18,
+              minWidth: 0,
+              padding: '8px 28px',
+            }}
+          >
+            <img
+              src={rnkxSymbol}
+              alt=""
+              crossOrigin="anonymous"
+              style={{
+                height: 96,
+                width: 96,
+                objectFit: 'contain',
+                filter: usingPhoto ? 'drop-shadow(0 2px 10px rgba(0,0,0,0.45))' : undefined,
+              }}
+            />
             <p
               style={{
                 margin: 0,
-                fontSize: 24,
-                letterSpacing: '0.18em',
+                fontSize: 28,
+                fontWeight: 700,
+                letterSpacing: '0.14em',
                 textTransform: 'uppercase',
-                color: usingPhoto ? 'rgba(244, 244, 245, 0.72)' : 'rgba(244, 244, 245, 0.55)',
-                fontWeight: 600,
+                color: '#ffffff',
                 textShadow,
               }}
             >
-              Rank
+              {leagueLabel}
             </p>
+          </div>
+
+          <Divider />
+
+          {/* Points */}
+          <div
+            style={{
+              flex: 1,
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: 18,
+              minWidth: 0,
+              padding: '8px 28px',
+            }}
+          >
             <p
               className="font-sans font-bold tabular-nums"
               style={{
-                margin: '14px 0 0',
-                fontSize: 72,
+                margin: 0,
+                fontSize: 92,
                 lineHeight: 1,
-                color: '#f4f4f5',
+                color: '#ffffff',
+                textShadow,
+              }}
+            >
+              {formatScore(payload.pointsScored)}
+            </p>
+            <p
+              style={{
+                margin: 0,
+                fontSize: 28,
+                fontWeight: 700,
+                letterSpacing: '0.14em',
+                textTransform: 'uppercase',
+                color: '#ffffff',
+                textShadow,
+              }}
+            >
+              POINTS
+            </p>
+          </div>
+
+          <Divider />
+
+          {/* Rank */}
+          <div
+            style={{
+              flex: 1,
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: 18,
+              minWidth: 0,
+              padding: '8px 28px',
+            }}
+          >
+            <p
+              className="font-sans font-bold tabular-nums"
+              style={{
+                margin: 0,
+                fontSize: 92,
+                lineHeight: 1,
+                color: accent,
                 textShadow,
               }}
             >
               {rankText}
             </p>
-          </div>
-
-          <div style={{ textAlign: 'center' }}>
             <p
               style={{
                 margin: 0,
-                fontSize: 24,
-                letterSpacing: '0.18em',
+                fontSize: 28,
+                fontWeight: 700,
+                letterSpacing: '0.14em',
                 textTransform: 'uppercase',
-                color: usingPhoto ? 'rgba(244, 244, 245, 0.72)' : 'rgba(244, 244, 245, 0.55)',
-                fontWeight: 600,
+                color: '#ffffff',
                 textShadow,
               }}
             >
-              Division
-            </p>
-            <p
-              className="font-sans font-bold"
-              style={{
-                margin: '14px 0 0',
-                fontSize: 56,
-                lineHeight: 1.1,
-                color: '#f4f4f5',
-                textShadow,
-              }}
-            >
-              {payload.division}
+              RANK
             </p>
           </div>
         </div>
