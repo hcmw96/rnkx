@@ -8,9 +8,12 @@ import {
   subscribePremiumCache,
 } from '@/lib/premiumCache';
 import { supabase } from '@/services/supabase';
+import { REVENUECAT_ENTITLEMENT_ID } from '../../supabase/functions/_shared/revenuecat';
 
 /** RevenueCat offering identifier — must match dashboard exactly. */
 export const REVENUECAT_OFFERING_ID = 'RNKXPREMIUM_MONTHLY';
+
+export { REVENUECAT_ENTITLEMENT_ID };
 
 export async function checkPremium(): Promise<boolean> {
   const userId = await getAuthUserId();
@@ -32,7 +35,7 @@ export async function checkEntitlements(): Promise<boolean> {
     const active = ((data as { restoredData?: { isActive?: boolean; entitlementId?: string }[] }).restoredData ?? []).filter(
       (p) => p.isActive,
     );
-    return active.some((p) => p.entitlementId === 'premium');
+    return active.some((p) => p.entitlementId === REVENUECAT_ENTITLEMENT_ID);
   } catch {
     return false;
   }

@@ -1,5 +1,6 @@
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import { REVENUECAT_ENTITLEMENT_ID } from '../_shared/revenuecat.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -38,7 +39,7 @@ async function isPremiumForAppUserId(
     const body = (await rcRes.json()) as Record<string, unknown>;
     const subscriber = body['subscriber'] as Record<string, unknown> | undefined;
     const entitlements = subscriber?.['entitlements'] as Record<string, unknown> | undefined;
-    const premium = entitlements?.['premium'] as Record<string, unknown> | undefined;
+    const premium = entitlements?.[REVENUECAT_ENTITLEMENT_ID] as Record<string, unknown> | undefined;
     return isPremiumEntitlementActive(premium);
   }
 
