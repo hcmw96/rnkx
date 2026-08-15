@@ -70,12 +70,17 @@ function PhotoBackground({
     img.src = url;
   }, [url]);
 
-  const w = natural?.w ?? SHARE_CARD_WIDTH;
-  const h = natural?.h ?? SHARE_CARD_HEIGHT;
-  const clamped = clampSharePhotoTransform(transform, w, h);
-  const base = coverFitScale(w, h);
-  const renderedW = w * base * clamped.scale;
-  const renderedH = h * base * clamped.scale;
+  const w = natural?.w ?? 0;
+  const h = natural?.h ?? 0;
+  const hasSize = w > 0 && h > 0;
+  const clamped = hasSize
+    ? clampSharePhotoTransform(transform, w, h)
+    : transform;
+  const base = hasSize ? coverFitScale(w, h) : 1;
+  const renderedW = hasSize ? w * base * clamped.scale : SHARE_CARD_WIDTH;
+  const renderedH = hasSize ? h * base * clamped.scale : SHARE_CARD_HEIGHT;
+  const left = (SHARE_CARD_WIDTH - renderedW) / 2 + (hasSize ? clamped.x : 0);
+  const top = (SHARE_CARD_HEIGHT - renderedH) / 2 + (hasSize ? clamped.y : 0);
 
   return (
     <div
@@ -91,15 +96,21 @@ function PhotoBackground({
         alt=""
         crossOrigin="anonymous"
         draggable={false}
+        onLoad={(e) => {
+          const img = e.currentTarget;
+          if (img.naturalWidth > 0 && img.naturalHeight > 0) {
+            setNatural({ w: img.naturalWidth, h: img.naturalHeight });
+          }
+        }}
         style={{
           position: 'absolute',
-          left: '50%',
-          top: '50%',
+          left,
+          top,
           width: renderedW,
           height: renderedH,
           maxWidth: 'none',
-          transform: `translate(calc(-50% + ${clamped.x}px), calc(-50% + ${clamped.y}px))`,
-          transformOrigin: 'center center',
+          objectFit: 'cover',
+          objectPosition: 'center center',
           userSelect: 'none',
           pointerEvents: 'none',
         }}
@@ -128,8 +139,11 @@ export function ShareCardFrame({
       style={{
         width: SHARE_CARD_WIDTH,
         height: SHARE_CARD_HEIGHT,
+        minWidth: SHARE_CARD_WIDTH,
+        minHeight: SHARE_CARD_HEIGHT,
         position: 'relative',
         overflow: 'hidden',
+        background: '#000000',
         fontFamily: 'Inter, system-ui, sans-serif',
         color: '#ffffff',
       }}
@@ -155,14 +169,9 @@ export function ShareCardFrame({
 
       <div
         style={{
-          position: 'relative',
+          position: 'absolute',
+          inset: 0,
           zIndex: 1,
-          height: '100%',
-          display: 'flex',
-          flexDirection: 'column',
-          alignItems: 'center',
-          padding: showLogo ? '96px 72px 120px' : '160px 64px 120px',
-          boxSizing: 'border-box',
           pointerEvents: 'none',
         }}
       >
@@ -172,20 +181,23 @@ export function ShareCardFrame({
             alt="RNKX"
             crossOrigin="anonymous"
             style={{
+              position: 'absolute',
+              top: 96,
+              left: '50%',
+              transform: 'translateX(-50%)',
               height: 64,
               width: 'auto',
-              flexShrink: 0,
               filter: usingPhoto ? 'drop-shadow(0 2px 10px rgba(0,0,0,0.45))' : undefined,
             }}
           />
         ) : null}
         <div
           style={{
-            flex: 1,
-            width: '100%',
-            minHeight: 0,
+            position: 'absolute',
+            inset: 0,
             display: 'flex',
             flexDirection: 'column',
+            alignItems: 'center',
           }}
         >
           {children}

@@ -99,6 +99,8 @@ export function SeasonOverviewCard({ stats, backgroundImageUrl }: SeasonOverview
           justifyContent: 'flex-start',
           flex: 1,
           width: '100%',
+          padding: '160px 64px 120px',
+          boxSizing: 'border-box',
         }}
       >
         <div

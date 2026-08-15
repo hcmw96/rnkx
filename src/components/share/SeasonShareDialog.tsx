@@ -98,8 +98,11 @@ export function SeasonShareDialog({ open, onOpenChange, athleteId }: SeasonShare
               </div>
             </div>
 
-            <div className="pointer-events-none fixed left-[-10000px] top-0 opacity-0" aria-hidden>
-              <div ref={captureRef}>
+            <div className="pointer-events-none fixed left-[-10000px] top-0" aria-hidden>
+              <div
+                ref={captureRef}
+                style={{ width: 1080, height: 1920, overflow: 'hidden', background: '#000000' }}
+              >
                 <SeasonOverviewCard stats={stats} backgroundImageUrl={backgroundImageUrl} />
               </div>
             </div>
