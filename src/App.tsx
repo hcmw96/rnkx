@@ -12,7 +12,7 @@ import { RequireAuth } from '@/components/app/RequireAuth';
 import { SHOW_RECOVERY } from '@/lib/featureFlags';
 import { clearRouteCaches } from '@/lib/routeCaches';
 import { clearPremiumCache } from '@/lib/premiumCache';
-import { clearAthleteIdCache } from '@/lib/resolveAthleteId';
+import { clearAthleteIdCache, peekCachedHasSeenWelcome, resolveAthleteId } from '@/lib/resolveAthleteId';
 import { AthleteSessionProvider } from '@/context/AthleteSessionContext';
 import LeaderboardPage from './pages/app/LeaderboardPage';
 import ProfilePage from './pages/app/ProfilePage';
@@ -45,7 +45,6 @@ import {
 } from './pages/legal/StaticLegalPages';
 import { WelcomeModal } from '@/components/WelcomeModal';
 import { isDespiaNative, registerPushForAthlete } from './services/onesignal';
-import { resolveAthleteId } from './lib/resolveAthleteId';
 import {
   applyPremiumIfStoreHasEntitlement,
   pollCheckEntitlementUntilPremium,
@@ -66,16 +65,6 @@ function isAppleAuthCompletePath(): boolean {
   return typeof window !== 'undefined' && window.location.pathname === '/auth/apple/complete';
 }
 
-async function fetchAthleteProfileComplete(userId: string): Promise<boolean> {
-  const [byUserId, byId] = await Promise.all([
-    supabase.from('athletes').select('id').eq('user_id', userId).not('username', 'is', null).maybeSingle(),
-    supabase.from('athletes').select('id').eq('id', userId).not('username', 'is', null).maybeSingle(),
-  ]);
-
-  if (byUserId.error && byId.error) return false;
-  return !!(byUserId.data?.id ?? byId.data?.id);
-}
-
 function SessionRoutes() {
   const navigate = useNavigate();
   const [initialized, setInitialized] = useState(() => isAppleAuthCompletePath());
@@ -93,7 +82,7 @@ function SessionRoutes() {
       setSession(null);
       return false;
     }
-    const ok = await fetchAthleteProfileComplete(s.user.id);
+    const ok = !!(await resolveAthleteId(s.user.id));
     setSession(s);
     setProfileComplete(ok);
     return ok;
@@ -114,7 +103,7 @@ function SessionRoutes() {
           }
           return;
         }
-        const ok = await fetchAthleteProfileComplete(s.user.id);
+        const ok = !!(await resolveAthleteId(s.user.id));
         if (!cancelled) {
           setSession(s);
           setProfileComplete(ok);
@@ -173,37 +162,17 @@ function SessionRoutes() {
 
     let cancelled = false;
     void (async () => {
-      const [byUserId, byId] = await Promise.all([
-        supabase
-          .from('athletes')
-          .select('id, has_seen_welcome')
-          .eq('user_id', uid)
-          .not('username', 'is', null)
-          .maybeSingle(),
-        supabase
-          .from('athletes')
-          .select('id, has_seen_welcome')
-          .eq('id', uid)
-          .not('username', 'is', null)
-          .maybeSingle(),
-      ]);
-
-      type Row = {
-        id: string;
-        has_seen_welcome: boolean | null;
-      };
-
-      const row = (byUserId.data as Row | null) ?? (byId.data as Row | null);
+      const athleteId = await resolveAthleteId(uid);
       if (cancelled) return;
 
-      if (!row?.id) {
+      if (!athleteId) {
         setWelcomeAthleteId(null);
         setShowWelcomeOverlay(false);
         return;
       }
 
-      setWelcomeAthleteId(row.id);
-      setShowWelcomeOverlay(row.has_seen_welcome !== true);
+      setWelcomeAthleteId(athleteId);
+      setShowWelcomeOverlay(peekCachedHasSeenWelcome(uid) !== true);
     })();
 
     return () => {

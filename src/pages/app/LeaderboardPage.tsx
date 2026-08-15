@@ -179,19 +179,22 @@ function LeaderboardSkeleton() {
 
 const SEASON_BOARD_COLUMNS = 'id,display_name,season_score,rank,division,league,recorded_at';
 const ATHLETE_ENRICH_COLUMNS = 'id,username,country,avatar_url,gender';
+const BOARD_PAGE_SIZE = 100;
 
 async function fetchSeasonBoard(
   view: 'season_division_leaderboard' | 'season_overall_leaderboard',
   seasonId: string,
   league: League,
   division?: Division | null,
+  offset = 0,
 ): Promise<{ merged: MergedAthlete[]; error: string | null }> {
   let q = supabase
     .from(view)
     .select(SEASON_BOARD_COLUMNS)
     .eq('season_id', seasonId)
     .eq('league', league)
-    .order('rank', { ascending: true });
+    .order('rank', { ascending: true })
+    .range(offset, offset + BOARD_PAGE_SIZE - 1);
 
   if (view === 'season_division_leaderboard' && division) {
     q = q.eq('division', division);
@@ -248,6 +251,8 @@ export default function LeaderboardPage() {
   const [myAthleteId, setMyAthleteId] = useState<string | null>(cached?.myAthleteId ?? null);
   const [friendIds, setFriendIds] = useState<Set<string>>(new Set(cached?.friendIds ?? []));
   const [myDivision, setMyDivision] = useState<Division>((cached?.myDivision as Division) ?? 'Open');
+  const [hasMore, setHasMore] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
 
   const loadAll = useCallback(
     async (options?: { silent?: boolean }) => {
@@ -289,6 +294,7 @@ export default function LeaderboardPage() {
 
       if (!seasonId) {
         setMerged([]);
+        setHasMore(false);
         setLoading(false);
         return;
       }
@@ -313,8 +319,10 @@ export default function LeaderboardPage() {
       if (pack.error) {
         setError(pack.error);
         setMerged([]);
+        setHasMore(false);
       } else {
         setMerged(pack.merged);
+        setHasMore(pack.merged.length === BOARD_PAGE_SIZE);
       }
 
       setLoading(false);
@@ -323,8 +331,32 @@ export default function LeaderboardPage() {
   );
 
   useEffect(() => {
+    if (selectedSeasonId) return;
+    let cancelled = false;
+    void (async () => {
+      const { data: seasonRows } = await supabase
+        .from('seasons')
+        .select('id,name,is_active')
+        .order('starts_at', { ascending: false });
+      if (cancelled) return;
+      const list = (seasonRows ?? []) as SeasonOption[];
+      setSeasons(list);
+      const active = list.find((s) => s.is_active) ?? list[0];
+      if (active) {
+        setSelectedSeasonId(active.id);
+      } else {
+        setLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedSeasonId]);
+
+  useEffect(() => {
+    if (!selectedSeasonId) return;
     void loadAll({ silent: !!getLeaderboardCache() });
-  }, [loadAll]);
+  }, [loadAll, selectedSeasonId]);
 
   useEffect(() => {
     if (loading) return;
@@ -358,11 +390,32 @@ export default function LeaderboardPage() {
     error,
   ]);
 
-  useEffect(() => {
-    if (selectedSeasonId || seasons.length === 0) return;
-    const active = seasons.find((s) => s.is_active) ?? seasons[0];
-    if (active) setSelectedSeasonId(active.id);
-  }, [seasons, selectedSeasonId]);
+  const loadMore = useCallback(async () => {
+    if (!selectedSeasonId || loadingMore || !hasMore) return;
+    setLoadingMore(true);
+    const view =
+      scopeTab === 'open' ? 'season_division_leaderboard' : 'season_overall_leaderboard';
+    const pack = await fetchSeasonBoard(
+      view,
+      selectedSeasonId,
+      activeLeague,
+      scopeTab === 'open' ? myDivision : null,
+      merged.length,
+    );
+    if (!pack.error) {
+      setMerged((prev) => [...prev, ...pack.merged]);
+      setHasMore(pack.merged.length === BOARD_PAGE_SIZE);
+    }
+    setLoadingMore(false);
+  }, [
+    selectedSeasonId,
+    loadingMore,
+    hasMore,
+    scopeTab,
+    activeLeague,
+    myDivision,
+    merged.length,
+  ]);
 
   const { isRefreshing, pullDistance, pullHandlers } = usePullToRefresh(loadAll);
 
@@ -656,6 +709,17 @@ export default function LeaderboardPage() {
           <LeaderboardRows rows={rows} league={activeLeague} currentUserId={currentUserId} />
         )
       )}
+
+      {!loading && !error && hasMore ? (
+        <button
+          type="button"
+          className="mx-auto rounded-lg border border-border bg-[hsla(0,0%,10%,1)] px-4 py-2.5 text-sm font-medium text-foreground disabled:opacity-50"
+          disabled={loadingMore}
+          onClick={() => void loadMore()}
+        >
+          {loadingMore ? 'Loading…' : 'Load more'}
+        </button>
+      ) : null}
     </section>
   );
 }
