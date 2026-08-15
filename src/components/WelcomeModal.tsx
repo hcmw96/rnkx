@@ -84,14 +84,14 @@ export function WelcomeModal({ athleteId, onDismiss }: WelcomeModalProps) {
       <button
         type="button"
         onClick={dismiss}
-        className="absolute right-[max(0.75rem,env(safe-area-inset-right,0px))] top-[max(0.75rem,env(safe-area-inset-top,0px))] z-20 flex h-11 w-11 items-center justify-center rounded-full border border-white/15 bg-black/60 text-white backdrop-blur-sm hover:bg-black/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-neon-lime"
+        className="absolute right-[max(0.75rem,env(safe-area-inset-right,0px))] top-[calc(0.75rem+env(safe-area-inset-top,0px))] z-20 flex h-11 w-11 items-center justify-center rounded-full border border-white/15 bg-black/60 text-white backdrop-blur-sm hover:bg-black/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-neon-lime"
         aria-label="Close welcome"
       >
         <X className="h-5 w-5" aria-hidden />
       </button>
 
       <div className="flex min-h-0 flex-1 flex-col overflow-y-auto overscroll-contain [-webkit-overflow-scrolling:touch]">
-        <div className="flex min-h-0 flex-1 flex-col px-5 pb-3 pt-[calc(2.75rem+env(safe-area-inset-top,0px))] sm:px-6">
+        <div className="my-auto px-5 pb-3 pt-[calc(3.5rem+env(safe-area-inset-top,0px))] sm:px-6">
           <header className="flex shrink-0 flex-col items-center text-center">
             <RNKXLogo size="md" />
             <p id="welcome-modal-title" className="mt-4 font-sans text-base font-semibold text-white">
