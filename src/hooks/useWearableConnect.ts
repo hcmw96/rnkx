@@ -33,20 +33,15 @@ export async function connectAppleHealthKit(): Promise<{
     };
   }
 
-  try {
-    await requestAppleWatchHealthKitConnect();
-  } catch (err) {
-    const message =
-      err instanceof Error ? err.message : 'Could not access Apple Health.';
-    const denied =
-      /denied|authoriz|permission|not.?determin|cancel/i.test(message) ||
-      /denied|authoriz|permission/i.test(String(err));
+  const hk = await requestAppleWatchHealthKitConnect();
+  if (hk === 'no_permission') {
     return {
-      result: denied ? 'denied' : 'error',
-      message: denied
-        ? 'Apple Health access was denied. You can enable it later in Settings.'
-        : message,
+      result: 'denied',
+      message: 'Apple Health access was denied. You can enable it later in Settings.',
     };
+  }
+  if (hk !== 'granted') {
+    return { result: 'error', message: 'Could not access Apple Health.' };
   }
 
   const authUserId = await getAuthUserId();

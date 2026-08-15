@@ -1,5 +1,5 @@
 import { useState, useEffect, type ComponentType } from 'react';
-import { ExternalLink, Loader2, Lock } from 'lucide-react';
+import { Loader2, Lock } from 'lucide-react';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import {
@@ -67,7 +67,7 @@ const WEARABLE_ROWS: WearableRow[] = [
   {
     provider: 'garmin',
     name: 'Garmin',
-    subtitle: 'Connect in Settings after setup',
+    subtitle: 'Connect in Settings',
     Logo: GarminLogo,
     leagueSupport: 'both',
     mode: 'settings_later',
@@ -75,7 +75,7 @@ const WEARABLE_ROWS: WearableRow[] = [
   {
     provider: 'whoop',
     name: 'WHOOP',
-    subtitle: 'Connect in Settings after setup',
+    subtitle: 'Connect in Settings',
     Logo: WhoopLogo,
     leagueSupport: 'engine',
     mode: 'settings_later',
@@ -83,7 +83,7 @@ const WEARABLE_ROWS: WearableRow[] = [
   {
     provider: 'strava',
     name: 'Strava',
-    subtitle: 'Connect in Settings after setup',
+    subtitle: 'Connect in Settings',
     Logo: StravaLogo,
     leagueSupport: 'run',
     mode: 'settings_later',
@@ -218,6 +218,7 @@ const OnboardingWearables = ({
                 }
                 title={row.name}
                 subtitle={row.subtitle}
+                subtitleClassName="line-clamp-2"
                 chevron={row.mode === 'settings_later'}
                 disabled={rowLoading}
                 onClick={() => {
@@ -236,9 +237,7 @@ const OnboardingWearables = ({
                       ) : (
                         <ConnectBadge connected={appleConnected} />
                       )
-                    ) : (
-                      <ExternalLink className="h-3.5 w-3.5 text-muted-foreground" aria-hidden />
-                    )}
+                    ) : null}
                   </div>
                 }
               />

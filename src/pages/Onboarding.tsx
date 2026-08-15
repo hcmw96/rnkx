@@ -301,7 +301,7 @@ export default function Onboarding() {
             <OnboardingStep
               key="s7"
               title="Connect Your Wearable"
-              subtitle="Apple Watch can connect now. Garmin, WHOOP, and Strava connect in Settings after setup."
+              subtitle="Apple Watch can connect now. Garmin, WHOOP and others connect in Settings after sign up."
             >
               <OnboardingWearables
                 initialConnected={wearables}

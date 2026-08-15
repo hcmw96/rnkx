@@ -40,18 +40,50 @@ export function extractHealthkitWorkoutsArray(
   return Array.isArray(raw) ? raw : [];
 }
 
-/**
- * Apple Watch *connect* probe — identical URL both Settings and onboarding used inline.
- * days=1 + HR-only; triggers the HealthKit permission sheet when needed.
- * Throws on bridge failure (callers keep their own try/catch / messaging).
- */
-export function appleWatchConnectHealthKitCommand(): string {
-  return `healthkit://workouts?days=1&included=${SYNC_INCLUDED_HR}`;
+export type AppleWatchHealthKitConnectResult = 'granted' | 'no_permission' | 'error';
+
+const CONNECT_PROBE_TIMEOUT_MS = 15_000;
+
+function withTimeout<T>(promise: Promise<T>, ms: number, message: string): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const id = window.setTimeout(() => reject(new Error(message)), ms);
+    promise.then(
+      (value) => {
+        window.clearTimeout(id);
+        resolve(value);
+      },
+      (err: unknown) => {
+        window.clearTimeout(id);
+        reject(err);
+      },
+    );
+  });
 }
 
-export async function requestAppleWatchHealthKitConnect(): Promise<Record<string, unknown> | null> {
-  const result = await despia(appleWatchConnectHealthKitCommand(), ['healthkitWorkouts']);
-  return (result as Record<string, unknown> | null) ?? null;
+/**
+ * Apple Watch *connect* probe. Despia has no permission-only command — the first
+ * HealthKit read shows the authorisation sheet. Omit `included` so we do not fetch
+ * HR samples; `days` defaults to 1 on the native side.
+ */
+export function appleWatchConnectHealthKitCommand(): string {
+  return 'healthkit://workouts';
+}
+
+export async function requestAppleWatchHealthKitConnect(): Promise<AppleWatchHealthKitConnectResult> {
+  try {
+    const raw = await withTimeout(
+      despia(appleWatchConnectHealthKitCommand(), ['healthkitWorkouts']),
+      CONNECT_PROBE_TIMEOUT_MS,
+      'HealthKit connect timed out',
+    );
+    const result = (raw as Record<string, unknown> | null) ?? null;
+    if (result == null || !('healthkitWorkouts' in result)) {
+      return 'no_permission';
+    }
+    return 'granted';
+  } catch {
+    return 'error';
+  }
 }
 
 export interface SyncHealthKitReadResult {

@@ -548,7 +548,19 @@ export default function SettingsPage() {
     setAppleConnecting(true);
     setAppleError(null);
     try {
-      await requestAppleWatchHealthKitConnect();
+      const hk = await requestAppleWatchHealthKitConnect();
+      if (hk === 'no_permission') {
+        const message = 'Apple Health access was denied. You can enable it later in Settings.';
+        setAppleError(message);
+        toast.error(message);
+        return;
+      }
+      if (hk !== 'granted') {
+        const message = 'Could not connect Apple Watch.';
+        setAppleError(message);
+        toast.error(message);
+        return;
+      }
 
       const current = athlete.wearables ?? [];
       const nextWearables = Array.from(new Set([...current, 'apple_watch']));

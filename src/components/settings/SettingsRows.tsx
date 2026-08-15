@@ -60,6 +60,7 @@ type SettingsRowProps = {
   chevron?: boolean;
   disabled?: boolean;
   titleClassName?: string;
+  subtitleClassName?: string;
   className?: string;
   compact?: boolean;
 };
@@ -74,6 +75,7 @@ export function SettingsRow({
   chevron,
   disabled,
   titleClassName,
+  subtitleClassName,
   className,
   compact,
 }: SettingsRowProps) {
@@ -100,6 +102,7 @@ export function SettingsRow({
           trailing={trailing}
           showChevron={showChevron}
           titleClassName={titleClassName}
+          subtitleClassName={subtitleClassName}
           compact={compact}
         />
       </button>
@@ -116,6 +119,7 @@ export function SettingsRow({
         trailing={trailing}
         showChevron={showChevron}
         titleClassName={titleClassName}
+        subtitleClassName={subtitleClassName}
         compact={compact}
       />
     </div>
@@ -130,6 +134,7 @@ function SettingsRowContent({
   trailing,
   showChevron,
   titleClassName,
+  subtitleClassName,
   compact,
 }: {
   Icon?: ComponentType<{ className?: string }>;
@@ -139,6 +144,7 @@ function SettingsRowContent({
   trailing?: ReactNode;
   showChevron: boolean;
   titleClassName?: string;
+  subtitleClassName?: string;
   compact?: boolean;
 }) {
   return (
@@ -155,7 +161,9 @@ function SettingsRowContent({
       ) : null}
       <div className="min-w-0 flex-1">
         <p className={cn('font-medium text-foreground', compact ? 'text-[13px]' : 'text-sm', titleClassName)}>{title}</p>
-        {subtitle ? <p className="truncate text-xs text-muted-foreground">{subtitle}</p> : null}
+        {subtitle ? (
+          <p className={cn('text-xs text-muted-foreground', subtitleClassName ?? 'truncate')}>{subtitle}</p>
+        ) : null}
       </div>
       <div className="flex shrink-0 items-center gap-2">
         {trailing}
