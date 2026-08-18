@@ -1,8 +1,15 @@
 import { isDespia } from '@/services/despia';
-import { requestAppleWatchHealthKitConnect } from '@/lib/healthKitWorkoutRead';
+import { insertAppleConnectDebugLog } from '@/lib/appleConnectDebugLog';
+import {
+  appleWatchConnectHealthKitCommand,
+  requestAppleWatchHealthKitConnect,
+} from '@/lib/healthKitWorkoutRead';
 import { resolveAthleteId } from '@/lib/resolveAthleteId';
 import { getAuthUserId } from '@/lib/authSession';
 import { supabase } from '@/services/supabase';
+
+/** TEMPORARY: tag debug_logs.detail so this function's rows can be removed with the table. */
+const DEBUG_FN = 'connectAppleHealthKit';
 
 export type WearableProvider =
   | 'strava'
@@ -27,21 +34,31 @@ export async function connectAppleHealthKit(): Promise<{
   message?: string;
 }> {
   if (!isDespia()) {
+    const result = 'unavailable' as const;
+    // TEMPORARY diagnostics — remove with debug_logs / appleConnectDebugLog.
+    insertAppleConnectDebugLog('result', { fn: DEBUG_FN, result });
     return {
-      result: 'unavailable',
+      result,
       message: 'Apple Watch connects in the RNKX iPhone app.',
     };
   }
 
+  const command = appleWatchConnectHealthKitCommand();
+  insertAppleConnectDebugLog('probe_start', { fn: DEBUG_FN, command });
+
   const hk = await requestAppleWatchHealthKitConnect();
   if (hk === 'no_permission') {
+    const result = 'denied' as const;
+    insertAppleConnectDebugLog('result', { fn: DEBUG_FN, result });
     return {
-      result: 'denied',
+      result,
       message: 'Apple Health access was denied. You can enable it later in Settings.',
     };
   }
   if (hk !== 'granted') {
-    return { result: 'error', message: 'Could not access Apple Health.' };
+    const result = 'error' as const;
+    insertAppleConnectDebugLog('result', { fn: DEBUG_FN, result });
+    return { result, message: 'Could not access Apple Health.' };
   }
 
   const authUserId = await getAuthUserId();
@@ -61,11 +78,13 @@ export async function connectAppleHealthKit(): Promise<{
         .update({ wearables: nextWearables })
         .eq('id', row.id);
       if (error) {
+        insertAppleConnectDebugLog('result', { fn: DEBUG_FN, result: 'error' });
         return { result: 'error', message: error.message };
       }
     }
   }
 
+  insertAppleConnectDebugLog('result', { fn: DEBUG_FN, result: 'connected' });
   return { result: 'connected' };
 }
 
