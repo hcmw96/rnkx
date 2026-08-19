@@ -43,7 +43,8 @@ export function extractHealthkitWorkoutsArray(
 
 export type AppleWatchHealthKitConnectResult = 'granted' | 'no_permission' | 'error';
 
-const CONNECT_PROBE_TIMEOUT_MS = 15_000;
+/** TEMPORARY: 300s while diagnosing HealthKit connect hangs. Restore to 15_000. */
+const CONNECT_PROBE_TIMEOUT_MS = 300_000;
 const CONNECT_PROBE_TIMEOUT_MESSAGE = 'HealthKit connect timed out';
 /** TEMPORARY: tag debug_logs.detail so this function's rows can be removed with the table. */
 const DEBUG_FN = 'requestAppleWatchHealthKitConnect';
