@@ -171,7 +171,7 @@ export function SettingsPageLayout(props: SettingsPageLayoutProps) {
     disconnectingId,
     terraConnecting,
     syncing,
-    hasConnectedSyncDevice,
+    hasConnectedSyncDevice: _hasConnectedSyncDevice,
     selectedLeagues,
     maxHrDisplay,
     settingsBusy,
@@ -604,18 +604,15 @@ export function SettingsPageLayout(props: SettingsPageLayoutProps) {
               <SettingsSectionHeader icon={RefreshCw} label="Devices & sync" />
               <SettingsGroup>
                 <div className="p-3 pb-0">
+                  {/* TEMPORARY: Sync workouts always shown/enabled. Restore `|| !hasConnectedSyncDevice` and the "Connect a device to sync" label. */}
                   <Button
                     type="button"
                     className="w-full gap-2 bg-neon-lime font-semibold text-black hover:bg-neon-lime/90"
-                    disabled={syncing || !hasConnectedSyncDevice}
+                    disabled={syncing}
                     onClick={onSync}
                   >
                     <RefreshCw className={cn('h-4 w-4', syncing && 'animate-spin')} aria-hidden />
-                    {!hasConnectedSyncDevice
-                      ? 'Connect a device to sync'
-                      : syncing
-                        ? 'Syncing…'
-                        : 'Sync workouts'}
+                    {syncing ? 'Syncing…' : 'Sync workouts'}
                   </Button>
                 </div>
 
