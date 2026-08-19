@@ -5,14 +5,7 @@
 import { getAuthUserId } from '@/lib/authSession';
 import { supabase } from '@/services/supabase';
 
-export function insertAppleConnectDebugLog(
-  event: string,
-  detail: Record<string, unknown>,
-): void {
-  void insertAppleConnectDebugLogAsync(event, detail);
-}
-
-async function insertAppleConnectDebugLogAsync(
+export async function insertAppleConnectDebugLog(
   event: string,
   detail: Record<string, unknown>,
 ): Promise<void> {

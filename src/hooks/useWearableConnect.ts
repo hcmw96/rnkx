@@ -1,6 +1,7 @@
 import { isDespia } from '@/services/despia';
 import { insertAppleConnectDebugLog } from '@/lib/appleConnectDebugLog';
 import {
+  APPLE_HEALTH_NO_PERMISSION_MESSAGE,
   appleWatchConnectHealthKitCommand,
   requestAppleWatchHealthKitConnect,
 } from '@/lib/healthKitWorkoutRead';
@@ -36,7 +37,7 @@ export async function connectAppleHealthKit(): Promise<{
   if (!isDespia()) {
     const result = 'unavailable' as const;
     // TEMPORARY diagnostics — remove with debug_logs / appleConnectDebugLog.
-    insertAppleConnectDebugLog('result', { fn: DEBUG_FN, result });
+    void insertAppleConnectDebugLog('result', { fn: DEBUG_FN, result });
     return {
       result,
       message: 'Apple Watch connects in the RNKX iPhone app.',
@@ -44,20 +45,20 @@ export async function connectAppleHealthKit(): Promise<{
   }
 
   const command = appleWatchConnectHealthKitCommand();
-  insertAppleConnectDebugLog('probe_start', { fn: DEBUG_FN, command });
+  void insertAppleConnectDebugLog('probe_start', { fn: DEBUG_FN, command });
 
   const hk = await requestAppleWatchHealthKitConnect();
   if (hk === 'no_permission') {
     const result = 'denied' as const;
-    insertAppleConnectDebugLog('result', { fn: DEBUG_FN, result });
+    void insertAppleConnectDebugLog('result', { fn: DEBUG_FN, result });
     return {
       result,
-      message: 'Apple Health access was denied. You can enable it later in Settings.',
+      message: APPLE_HEALTH_NO_PERMISSION_MESSAGE,
     };
   }
   if (hk !== 'granted') {
     const result = 'error' as const;
-    insertAppleConnectDebugLog('result', { fn: DEBUG_FN, result });
+    void insertAppleConnectDebugLog('result', { fn: DEBUG_FN, result });
     return { result, message: 'Could not access Apple Health.' };
   }
 
@@ -78,13 +79,13 @@ export async function connectAppleHealthKit(): Promise<{
         .update({ wearables: nextWearables })
         .eq('id', row.id);
       if (error) {
-        insertAppleConnectDebugLog('result', { fn: DEBUG_FN, result: 'error' });
+        void insertAppleConnectDebugLog('result', { fn: DEBUG_FN, result: 'error' });
         return { result: 'error', message: error.message };
       }
     }
   }
 
-  insertAppleConnectDebugLog('result', { fn: DEBUG_FN, result: 'connected' });
+  void insertAppleConnectDebugLog('result', { fn: DEBUG_FN, result: 'connected' });
   return { result: 'connected' };
 }
 

@@ -178,7 +178,9 @@ const OnboardingWearables = ({
       }
       if (result === 'denied') {
         toast.message('Apple Health not connected', {
-          description: message ?? 'You can enable access later in Settings.',
+          description:
+            message ??
+            'Enable access in iOS Settings → Privacy & Security → Health → RNKX.',
         });
         return;
       }

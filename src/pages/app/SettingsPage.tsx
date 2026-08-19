@@ -33,6 +33,7 @@ import {
 import { providerLabel } from '@/components/terra/TerraWearableProviders';
 import { isDespiaIphoneUa } from '@/lib/despiaPlatform';
 import {
+  APPLE_HEALTH_NO_PERMISSION_MESSAGE,
   extractHealthkitWorkoutsArray,
   readHealthKitWorkouts,
   requestAppleWatchHealthKitConnect,
@@ -550,7 +551,7 @@ export default function SettingsPage() {
     try {
       const hk = await requestAppleWatchHealthKitConnect();
       if (hk === 'no_permission') {
-        const message = 'Apple Health access was denied. You can enable it later in Settings.';
+        const message = APPLE_HEALTH_NO_PERMISSION_MESSAGE;
         setAppleError(message);
         toast.error(message);
         return;
