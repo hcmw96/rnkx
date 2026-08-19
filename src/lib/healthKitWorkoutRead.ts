@@ -7,8 +7,8 @@ export const HEALTHKIT_WORKOUT_INCLUDED_FULL =
 
 const PROBE_INCLUDED = 'HKQuantityTypeIdentifierHeartRateAverage';
 
-/** days=7 + all metrics in one call has hung ~60s and killed the WebView on some devices. */
-export const SYNC_DAYS = 5;
+/** Wider window re-reads history; process_activity dedups on source_id. */
+export const SYNC_DAYS = 30;
 
 /** Proven safe on devices where RunningSpeed / Distance aggregates kill the WebView. */
 export const SYNC_INCLUDED_HR =

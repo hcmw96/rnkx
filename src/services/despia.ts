@@ -57,7 +57,7 @@ export async function fetchRecentWorkouts(): Promise<DespiaSyncResult> {
 
   try {
     const result = await despia(
-      'healthkit://workouts?days=7&included=HKQuantityTypeIdentifierHeartRateAverage,HKQuantityTypeIdentifierHeartRateMax,HKQuantityTypeIdentifierRunningSpeedAverage',
+      'healthkit://workouts?days=30&included=HKQuantityTypeIdentifierHeartRateAverage,HKQuantityTypeIdentifierHeartRateMax,HKQuantityTypeIdentifierRunningSpeedAverage',
       ['healthkitWorkouts'],
     );
 
