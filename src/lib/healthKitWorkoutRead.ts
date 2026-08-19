@@ -66,11 +66,11 @@ function withTimeout<T>(promise: Promise<T>, ms: number, message: string): Promi
 
 /**
  * Apple Watch *connect* probe. Despia has no permission-only command — the first
- * HealthKit read shows the authorisation sheet. Omit `included` so we do not fetch
- * HR samples; keep `days=1` so the native side has an explicit window.
+ * HealthKit read shows the authorisation sheet. days=1 with the proven-safe HR
+ * included types (no RunningSpeed / Distance aggregates).
  */
 export function appleWatchConnectHealthKitCommand(): string {
-  return 'healthkit://workouts?days=1';
+  return `healthkit://workouts?days=1&included=${SYNC_INCLUDED_HR}`;
 }
 
 export async function requestAppleWatchHealthKitConnect(): Promise<AppleWatchHealthKitConnectResult> {
