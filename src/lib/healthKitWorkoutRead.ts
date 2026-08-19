@@ -89,6 +89,15 @@ export function appleWatchConnectHealthKitCommand(): string {
   return `healthkit://workouts?days=30&included=${SYNC_INCLUDED_HR}`;
 }
 
+/** TEMPORARY: JSON.stringify(undefined) is undefined — String() so the jsonb field is kept. */
+function debugJsonString(value: unknown): string {
+  try {
+    return String(JSON.stringify(value));
+  } catch (err) {
+    return `stringify_error:${err instanceof Error ? err.message : String(err)}`;
+  }
+}
+
 /** TEMPORARY: flatten probe_response so JSON `{}` is not mistaken for a missing array. */
 function probeResponseDebugDetail(raw: unknown, elapsed_ms: number): Record<string, unknown> {
   const rec =
@@ -103,6 +112,10 @@ function probeResponseDebugDetail(raw: unknown, elapsed_ms: number): Record<stri
   const nestedWorkouts = nested?.healthkitWorkouts;
   const isArray = Array.isArray(workouts);
   const nestedIsArray = Array.isArray(nestedWorkouts);
+  const hkObj =
+    workouts != null && typeof workouts === 'object'
+      ? (workouts as object)
+      : null;
   return {
     fn: DEBUG_FN,
     elapsed_ms,
@@ -116,6 +129,15 @@ function probeResponseDebugDetail(raw: unknown, elapsed_ms: number): Record<stri
     data_healthkitWorkouts_is_array: nestedIsArray,
     data_healthkitWorkouts_length: nestedIsArray ? nestedWorkouts.length : null,
     data_healthkitWorkouts_first_two: nestedIsArray ? nestedWorkouts.slice(0, 2) : null,
+    hk_typeof: typeof workouts,
+    hk_is_null: workouts === null,
+    hk_is_undefined: workouts === undefined,
+    hk_stringified: debugJsonString(workouts),
+    hk_constructor:
+      (workouts as { constructor?: { name?: string } } | null | undefined)?.constructor
+        ?.name ?? null,
+    hk_own_keys: hkObj ? Object.keys(hkObj).slice(0, 20) : null,
+    raw_stringified: debugJsonString(raw).slice(0, 2000),
   };
 }
 
