@@ -1,5 +1,6 @@
 import despia from 'despia-native';
 import { insertAppleConnectDebugLog } from '@/lib/appleConnectDebugLog';
+import type { WorkoutObject } from '@/services/despia';
 
 /** Used at connect time (days=1) — not for manual sync fetch. */
 export const HEALTHKIT_WORKOUT_INCLUDED_FULL =
@@ -181,7 +182,7 @@ export interface SyncHealthKitReadResult {
 /**
  * Manual sync: single HealthKit read (HR only). Kirsty's trace showed HR returns
  * instantly but a 2nd call for distance/speed kills the WebView before JS runs again.
- * Distance/pace are taken from workout metadata in normaliseWorkouts when present.
+ * Distance/pace are taken from workout metadata in mapHealthKitWorkoutsForSync.
  */
 export async function readHealthKitWorkoutsForSync(): Promise<SyncHealthKitReadResult> {
   const days = SYNC_DAYS;
@@ -193,4 +194,51 @@ export async function readHealthKitWorkoutsForSync(): Promise<SyncHealthKitReadR
     merged: hrWorkouts,
     phases: { hr: { count: hrWorkouts.length } },
   };
+}
+
+const HK_HR_AVG = 'HKQuantityTypeIdentifierHeartRateAverage';
+const HK_HR_MAX = 'HKQuantityTypeIdentifierHeartRateMax';
+
+/** Despia docs: sample value "0" means the signal was not recorded. */
+function hkRecordedNumber(value: unknown): number | null {
+  const n = Number(value);
+  if (!Number.isFinite(n) || n === 0) return null;
+  return n;
+}
+
+function hkSampleNumber(samples: unknown, key: string): number | null {
+  if (!Array.isArray(samples)) return null;
+  const hit = samples.find(
+    (s) => s != null && typeof s === 'object' && (s as { key?: unknown }).key === key,
+  ) as { value?: unknown } | undefined;
+  return hit ? hkRecordedNumber(hit.value) : null;
+}
+
+/** Map healthkit://workouts elements to the sync-activities WorkoutObject payload. */
+export function mapHealthKitWorkoutsForSync(raw: unknown[]): WorkoutObject[] {
+  return raw.map((item) => {
+    const w = item != null && typeof item === 'object' ? (item as Record<string, unknown>) : {};
+    const date = String(w.date ?? '');
+    const activityType = String(w.activityType ?? 'unknown');
+    const durationSec = Number(w.duration);
+    const durationMin = Number.isFinite(durationSec) ? durationSec / 60 : 0;
+    const distanceM = hkRecordedNumber(w.distance);
+    const roundedDuration = Math.round(Number.isFinite(durationSec) ? durationSec : 0);
+
+    let avgPacePerKm: number | null = null;
+    if (distanceM != null && distanceM > 0 && Number.isFinite(durationSec) && durationSec > 0) {
+      avgPacePerKm = Math.round(durationSec / (distanceM / 1000));
+    }
+
+    return {
+      sourceId: `apple_${date}_${activityType}_${roundedDuration}`,
+      startedAt: date,
+      durationMin,
+      activityType,
+      avgHr: hkSampleNumber(w.samples, HK_HR_AVG),
+      peakHr: hkSampleNumber(w.samples, HK_HR_MAX),
+      distanceM,
+      avgPacePerKm,
+    };
+  });
 }

@@ -3,9 +3,12 @@ import {
   nextProfileMaxHrFromApple,
   shouldApplyAppleMaxHrToProfile,
 } from '@/lib/appleMaxHr';
-import { waitForHealthKitIdle } from '@/lib/healthKitSync';
+import { waitForHealthKitIdle, releaseHealthKit, tryAcquireHealthKit } from '@/lib/healthKitSync';
+import {
+  mapHealthKitWorkoutsForSync,
+  readHealthKitWorkoutsForSync,
+} from '@/lib/healthKitWorkoutRead';
 import { syncAppleWorkoutsToDatabase } from '@/lib/syncActivitiesApple';
-import { fetchRecentWorkouts } from '@/services/despia';
 import type { WorkoutObject } from '@/services/despia';
 import { supabase } from '@/services/supabase';
 import type { ProcessActivityRpcResult } from '@/types/shareCards';
@@ -57,18 +60,17 @@ export async function runAppleWorkoutSync(
       return empty('HealthKit is busy — wait a moment and try again');
     }
 
-    let syncData: Awaited<ReturnType<typeof fetchRecentWorkouts>>;
+    if (!tryAcquireHealthKit('sync')) {
+      return empty('HealthKit read already in progress — try again in a few seconds');
+    }
     try {
-      syncData = await fetchRecentWorkouts();
+      const { merged } = await readHealthKitWorkoutsForSync();
+      workouts = mapHealthKitWorkoutsForSync(merged);
     } catch (err) {
       return empty(String(err));
+    } finally {
+      releaseHealthKit('sync');
     }
-
-    if (syncData.error) {
-      return empty(syncData.error);
-    }
-
-    workouts = syncData.workouts;
   }
   const { processed, results, error } = await syncAppleWorkoutsToDatabase(athleteId, workouts);
   if (error) {

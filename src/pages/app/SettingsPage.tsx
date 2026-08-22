@@ -35,7 +35,9 @@ import { isDespiaIphoneUa } from '@/lib/despiaPlatform';
 import {
   APPLE_HEALTH_NO_PERMISSION_MESSAGE,
   extractHealthkitWorkoutsArray,
+  mapHealthKitWorkoutsForSync,
   readHealthKitWorkouts,
+  readHealthKitWorkoutsForSync,
   requestAppleWatchHealthKitConnect,
 } from '@/lib/healthKitWorkoutRead';
 import {
@@ -48,7 +50,6 @@ import { useAchievementUnlock } from '@/context/AchievementUnlockContext';
 import { useScoreSharePrompt } from '@/context/ScoreSharePromptContext';
 import { runAppleWorkoutSync } from '@/lib/runAppleWorkoutSync';
 import { insertAppleConnectDebugLog } from '@/lib/appleConnectDebugLog';
-import { fetchRecentWorkouts } from '@/services/despia';
 import { launchNativePaywall, restoreInAppPurchasesAndApplyPremium } from '@/services/revenuecat';
 import { supabase } from '@/services/supabase';
 
@@ -376,9 +377,31 @@ export default function SettingsPage() {
 
         toast.message('Sync: reading HealthKit...');
 
-        let syncData: Awaited<ReturnType<typeof fetchRecentWorkouts>>;
+        let workouts: ReturnType<typeof mapHealthKitWorkoutsForSync> = [];
         try {
-          syncData = await fetchRecentWorkouts();
+          if (!tryAcquireHealthKit('sync')) {
+            void insertAppleConnectDebugLog('sync_error', {
+              fn: debugFn,
+              error: 'HealthKit read already in progress',
+              elapsed_ms: elapsed(),
+            });
+            toast.error('HealthKit read already in progress — try again in a few seconds');
+            return;
+          }
+          try {
+            const { merged } = await readHealthKitWorkoutsForSync();
+            workouts = mapHealthKitWorkoutsForSync(merged);
+            void insertAppleConnectDebugLog('sync_fetch', {
+              fn: debugFn,
+              workout_count: workouts.length,
+              first_mapped: workouts[0] ?? null,
+              raw_count: merged.length,
+              error: null,
+              elapsed_ms: elapsed(),
+            });
+          } finally {
+            releaseHealthKit('sync');
+          }
         } catch (err) {
           void insertAppleConnectDebugLog('sync_error', {
             fn: debugFn,
@@ -388,23 +411,6 @@ export default function SettingsPage() {
           toast.error('Step 1 failed: ' + String(err));
           return;
         }
-        void insertAppleConnectDebugLog('sync_fetch', {
-          fn: debugFn,
-          workout_count: syncData.workouts.length,
-          error: syncData.error ?? null,
-          elapsed_ms: elapsed(),
-        });
-        if (syncData.error) {
-          void insertAppleConnectDebugLog('sync_error', {
-            fn: debugFn,
-            error: syncData.error,
-            elapsed_ms: elapsed(),
-          });
-          toast.error('fetchRecentWorkouts failed: ' + syncData.error);
-          return;
-        }
-
-        const workouts = syncData.workouts;
         toast.message('HealthKit OK', { description: `${workouts.length} workouts found` });
         toast.message('Sync: uploading ' + workouts.length + ' workouts...');
 
