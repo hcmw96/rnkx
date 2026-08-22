@@ -49,7 +49,6 @@ import {
 import { useAchievementUnlock } from '@/context/AchievementUnlockContext';
 import { useScoreSharePrompt } from '@/context/ScoreSharePromptContext';
 import { runAppleWorkoutSync } from '@/lib/runAppleWorkoutSync';
-import { insertAppleConnectDebugLog } from '@/lib/appleConnectDebugLog';
 import { launchNativePaywall, restoreInAppPurchasesAndApplyPremium } from '@/services/revenuecat';
 import { supabase } from '@/services/supabase';
 
@@ -351,26 +350,12 @@ export default function SettingsPage() {
 
     const wearsApple = athleteWearsApple(athlete.wearables ?? null);
     const despiaIphone = isDespiaIphoneUa();
-    const startedAt = Date.now();
-    const debugFn = 'handleSync';
-    // TEMPORARY diagnostics — remove with debug_logs / appleConnectDebugLog.
-    const elapsed = () => Date.now() - startedAt;
-    void insertAppleConnectDebugLog('sync_start', {
-      fn: debugFn,
-      wearsApple,
-      despiaIphone,
-    });
 
     setSyncing(true);
     try {
       if (wearsApple && despiaIphone) {
         const idle = await waitForHealthKitIdle(15_000);
         if (!idle) {
-          void insertAppleConnectDebugLog('sync_error', {
-            fn: debugFn,
-            error: 'HealthKit is busy',
-            elapsed_ms: elapsed(),
-          });
           toast.error('HealthKit is busy — wait a moment and try again');
           return;
         }
@@ -380,34 +365,16 @@ export default function SettingsPage() {
         let workouts: ReturnType<typeof mapHealthKitWorkoutsForSync> = [];
         try {
           if (!tryAcquireHealthKit('sync')) {
-            void insertAppleConnectDebugLog('sync_error', {
-              fn: debugFn,
-              error: 'HealthKit read already in progress',
-              elapsed_ms: elapsed(),
-            });
             toast.error('HealthKit read already in progress — try again in a few seconds');
             return;
           }
           try {
             const { merged } = await readHealthKitWorkoutsForSync();
             workouts = mapHealthKitWorkoutsForSync(merged);
-            void insertAppleConnectDebugLog('sync_fetch', {
-              fn: debugFn,
-              workout_count: workouts.length,
-              first_mapped: workouts[0] ?? null,
-              raw_count: merged.length,
-              error: null,
-              elapsed_ms: elapsed(),
-            });
           } finally {
             releaseHealthKit('sync');
           }
         } catch (err) {
-          void insertAppleConnectDebugLog('sync_error', {
-            fn: debugFn,
-            error: String(err),
-            elapsed_ms: elapsed(),
-          });
           toast.error('Step 1 failed: ' + String(err));
           return;
         }
@@ -422,14 +389,6 @@ export default function SettingsPage() {
             { max_hr: athlete.max_hr, max_hr_source: athlete.max_hr_source },
             { workouts },
           );
-          void insertAppleConnectDebugLog('sync_activities_response', {
-            fn: debugFn,
-            ok: syncOutcome.ok,
-            processed: syncOutcome.processed,
-            error: syncOutcome.error,
-            results: syncOutcome.results,
-            elapsed_ms: elapsed(),
-          });
           if (!syncOutcome.ok) {
             toast.error('Step 2 failed: ' + (syncOutcome.error ?? 'Sync failed'));
             return;
@@ -437,11 +396,6 @@ export default function SettingsPage() {
           processed = syncOutcome.processed;
           syncResults = syncOutcome.results;
         } catch (err) {
-          void insertAppleConnectDebugLog('sync_error', {
-            fn: debugFn,
-            error: String(err),
-            elapsed_ms: elapsed(),
-          });
           toast.error('Step 2 failed: ' + String(err));
           return;
         }
@@ -464,11 +418,6 @@ export default function SettingsPage() {
       }
 
       if (whoopConnection != null || athleteWearsWhoop(athlete.wearables ?? null)) {
-        void insertAppleConnectDebugLog('sync_error', {
-          fn: debugFn,
-          error: 'whoop_webhook_only',
-          elapsed_ms: elapsed(),
-        });
         toast.message('WHOOP syncs automatically via webhook — no manual sync needed.');
         return;
       }
@@ -476,12 +425,6 @@ export default function SettingsPage() {
       if (terraConnections.length > 0) {
         const provider = terraConnections[0].provider;
         const isGarmin = String(provider).toUpperCase() === 'GARMIN';
-        void insertAppleConnectDebugLog('sync_error', {
-          fn: debugFn,
-          error: 'terra_webhook_only',
-          provider,
-          elapsed_ms: elapsed(),
-        });
         toast.message(
           isGarmin
             ? 'Garmin syncs automatically via webhook — no manual sync needed.'
@@ -491,27 +434,12 @@ export default function SettingsPage() {
       }
 
       if (wearsApple && !despiaIphone) {
-        void insertAppleConnectDebugLog('sync_error', {
-          fn: debugFn,
-          error: 'apple_not_despia_iphone',
-          elapsed_ms: elapsed(),
-        });
         toast.message('Apple Watch sync is available in the RNKX iPhone app with Health access.');
         return;
       }
 
-      void insertAppleConnectDebugLog('sync_error', {
-        fn: debugFn,
-        error: 'no_device_connected',
-        elapsed_ms: elapsed(),
-      });
       toast.error('No device connected. Please connect a wearable first.');
     } catch (err) {
-      void insertAppleConnectDebugLog('sync_error', {
-        fn: debugFn,
-        error: String(err),
-        elapsed_ms: elapsed(),
-      });
       toast.error('Sync crashed: ' + String(err));
       console.error('[handleSync] crash:', err);
     } finally {

@@ -3,7 +3,6 @@ import {
   FitbitLogo,
   GarminLogo,
   PolarLogo,
-  StravaLogo,
 } from '@/components/BrandLogos';
 
 /** Providers offered in the Terra widget (must match terra-widget-session). */
@@ -12,7 +11,6 @@ export const TERRA_WIDGET_PROVIDERS = [
   { id: 'POLAR', label: 'Polar', Logo: PolarLogo },
   { id: 'COROS', label: 'COROS', Logo: CorosLogo },
   { id: 'FITBIT', label: 'Fitbit', Logo: FitbitLogo },
-  { id: 'STRAVA', label: 'Strava', Logo: StravaLogo },
 ] as const;
 
 /** Labels for Terra widget providers plus legacy / native codes still shown on connected rows. */

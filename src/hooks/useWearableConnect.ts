@@ -1,16 +1,11 @@
 import { isDespia } from '@/services/despia';
-import { insertAppleConnectDebugLog } from '@/lib/appleConnectDebugLog';
 import {
   APPLE_HEALTH_NO_PERMISSION_MESSAGE,
-  appleWatchConnectHealthKitCommand,
   requestAppleWatchHealthKitConnect,
 } from '@/lib/healthKitWorkoutRead';
 import { resolveAthleteId } from '@/lib/resolveAthleteId';
 import { getAuthUserId } from '@/lib/authSession';
 import { supabase } from '@/services/supabase';
-
-/** TEMPORARY: tag debug_logs.detail so this function's rows can be removed with the table. */
-const DEBUG_FN = 'connectAppleHealthKit';
 
 export type WearableProvider =
   | 'strava'
@@ -35,31 +30,21 @@ export async function connectAppleHealthKit(): Promise<{
   message?: string;
 }> {
   if (!isDespia()) {
-    const result = 'unavailable' as const;
-    // TEMPORARY diagnostics — remove with debug_logs / appleConnectDebugLog.
-    void insertAppleConnectDebugLog('result', { fn: DEBUG_FN, result });
     return {
-      result,
+      result: 'unavailable' as const,
       message: 'Apple Watch connects in the RNKX iPhone app.',
     };
   }
 
-  const command = appleWatchConnectHealthKitCommand();
-  void insertAppleConnectDebugLog('probe_start', { fn: DEBUG_FN, command });
-
   const hk = await requestAppleWatchHealthKitConnect();
   if (hk === 'no_permission') {
-    const result = 'denied' as const;
-    void insertAppleConnectDebugLog('result', { fn: DEBUG_FN, result });
     return {
-      result,
+      result: 'denied' as const,
       message: APPLE_HEALTH_NO_PERMISSION_MESSAGE,
     };
   }
   if (hk !== 'granted') {
-    const result = 'error' as const;
-    void insertAppleConnectDebugLog('result', { fn: DEBUG_FN, result });
-    return { result, message: 'Could not access Apple Health.' };
+    return { result: 'error' as const, message: 'Could not access Apple Health.' };
   }
 
   const authUserId = await getAuthUserId();
@@ -79,13 +64,11 @@ export async function connectAppleHealthKit(): Promise<{
         .update({ wearables: nextWearables })
         .eq('id', row.id);
       if (error) {
-        void insertAppleConnectDebugLog('result', { fn: DEBUG_FN, result: 'error' });
         return { result: 'error', message: error.message };
       }
     }
   }
 
-  void insertAppleConnectDebugLog('result', { fn: DEBUG_FN, result: 'connected' });
   return { result: 'connected' };
 }
 

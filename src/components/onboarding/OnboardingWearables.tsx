@@ -14,7 +14,6 @@ import {
   SettingsRowDivider,
 } from '@/components/settings/SettingsRows';
 import {
-  StravaLogo,
   WhoopLogo,
   AppleLogo,
   GarminLogo,
@@ -54,7 +53,7 @@ type WearableRow = {
   mode: 'apple' | 'settings_later';
 };
 
-/** Display order: Apple → Garmin (Terra list) → WHOOP → Strava */
+/** Display order: Apple → Garmin (Terra list) → WHOOP */
 const WEARABLE_ROWS: WearableRow[] = [
   {
     provider: 'apple',
@@ -78,14 +77,6 @@ const WEARABLE_ROWS: WearableRow[] = [
     subtitle: 'Connect in Settings',
     Logo: WhoopLogo,
     leagueSupport: 'engine',
-    mode: 'settings_later',
-  },
-  {
-    provider: 'strava',
-    name: 'Strava',
-    subtitle: 'Connect in Settings',
-    Logo: StravaLogo,
-    leagueSupport: 'run',
     mode: 'settings_later',
   },
 ];

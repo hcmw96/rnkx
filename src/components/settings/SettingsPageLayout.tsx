@@ -683,7 +683,7 @@ export function SettingsPageLayout(props: SettingsPageLayoutProps) {
                   title="Connect new device"
                   titleClassName="text-neon-lime"
                   subtitle={
-                    terraConnecting ? 'Opening…' : 'Garmin, Polar, COROS, Fitbit, Strava'
+                    terraConnecting ? 'Opening…' : 'Garmin, Polar, COROS, Fitbit'
                   }
                   onClick={onConnectDevice}
                   disabled={terraConnecting}

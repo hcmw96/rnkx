@@ -1,5 +1,4 @@
 import despia from 'despia-native';
-import { insertAppleConnectDebugLog } from '@/lib/appleConnectDebugLog';
 import type { WorkoutObject } from '@/services/despia';
 
 /** Used at connect time (days=1) — not for manual sync fetch. */
@@ -59,11 +58,8 @@ function classifyConnectProbeResponse(raw: unknown): AppleWatchHealthKitConnectR
   return 'granted';
 }
 
-/** TEMPORARY: 300s while diagnosing HealthKit connect hangs. Restore to 15_000. */
-const CONNECT_PROBE_TIMEOUT_MS = 300_000;
+const CONNECT_PROBE_TIMEOUT_MS = 90_000;
 const CONNECT_PROBE_TIMEOUT_MESSAGE = 'HealthKit connect timed out';
-/** TEMPORARY: tag debug_logs.detail so this function's rows can be removed with the table. */
-const DEBUG_FN = 'requestAppleWatchHealthKitConnect';
 
 function withTimeout<T>(promise: Promise<T>, ms: number, message: string): Promise<T> {
   return new Promise<T>((resolve, reject) => {
@@ -90,63 +86,8 @@ export function appleWatchConnectHealthKitCommand(): string {
   return `healthkit://workouts?days=30&included=${SYNC_INCLUDED_HR}`;
 }
 
-/** TEMPORARY: JSON.stringify(undefined) is undefined — String() so the jsonb field is kept. */
-function debugJsonString(value: unknown): string {
-  try {
-    return String(JSON.stringify(value));
-  } catch (err) {
-    return `stringify_error:${err instanceof Error ? err.message : String(err)}`;
-  }
-}
-
-/** TEMPORARY: flatten probe_response so JSON `{}` is not mistaken for a missing array. */
-function probeResponseDebugDetail(raw: unknown, elapsed_ms: number): Record<string, unknown> {
-  const rec =
-    raw != null && typeof raw === 'object' && !Array.isArray(raw)
-      ? (raw as Record<string, unknown>)
-      : null;
-  const nested =
-    rec?.data != null && typeof rec.data === 'object' && !Array.isArray(rec.data)
-      ? (rec.data as Record<string, unknown>)
-      : null;
-  const workouts = rec?.healthkitWorkouts;
-  const nestedWorkouts = nested?.healthkitWorkouts;
-  const isArray = Array.isArray(workouts);
-  const nestedIsArray = Array.isArray(nestedWorkouts);
-  const hkObj =
-    workouts != null && typeof workouts === 'object'
-      ? (workouts as object)
-      : null;
-  return {
-    fn: DEBUG_FN,
-    elapsed_ms,
-    raw,
-    healthkitWorkouts_is_array: isArray,
-    healthkitWorkouts_length: isArray ? workouts.length : null,
-    healthkitWorkouts_first_two: isArray ? workouts.slice(0, 2) : null,
-    raw_keys: rec ? Object.keys(rec) : Array.isArray(raw) ? ['(array)'] : [],
-    raw_is_array: Array.isArray(raw),
-    data_keys: nested ? Object.keys(nested) : null,
-    data_healthkitWorkouts_is_array: nestedIsArray,
-    data_healthkitWorkouts_length: nestedIsArray ? nestedWorkouts.length : null,
-    data_healthkitWorkouts_first_two: nestedIsArray ? nestedWorkouts.slice(0, 2) : null,
-    hk_typeof: typeof workouts,
-    hk_is_null: workouts === null,
-    hk_is_undefined: workouts === undefined,
-    hk_stringified: debugJsonString(workouts),
-    hk_constructor:
-      (workouts as { constructor?: { name?: string } } | null | undefined)?.constructor
-        ?.name ?? null,
-    hk_own_keys: hkObj ? Object.keys(hkObj).slice(0, 20) : null,
-    raw_stringified: debugJsonString(raw).slice(0, 2000),
-  };
-}
-
 export async function requestAppleWatchHealthKitConnect(): Promise<AppleWatchHealthKitConnectResult> {
   const command = appleWatchConnectHealthKitCommand();
-  const startedAt = Date.now();
-  // TEMPORARY diagnostics — remove with debug_logs / appleConnectDebugLog.
-  void insertAppleConnectDebugLog('probe_start', { fn: DEBUG_FN, command });
 
   try {
     const raw = await withTimeout(
@@ -154,22 +95,8 @@ export async function requestAppleWatchHealthKitConnect(): Promise<AppleWatchHea
       CONNECT_PROBE_TIMEOUT_MS,
       CONNECT_PROBE_TIMEOUT_MESSAGE,
     );
-    await insertAppleConnectDebugLog(
-      'probe_response',
-      probeResponseDebugDetail(raw, Date.now() - startedAt),
-    );
-    const outcome = classifyConnectProbeResponse(raw);
-    await insertAppleConnectDebugLog('result', { fn: DEBUG_FN, result: outcome });
-    return outcome;
-  } catch (err: unknown) {
-    const elapsed_ms = Date.now() - startedAt;
-    const message = err instanceof Error ? err.message : String(err);
-    if (message === CONNECT_PROBE_TIMEOUT_MESSAGE) {
-      await insertAppleConnectDebugLog('probe_timeout', { fn: DEBUG_FN, elapsed_ms });
-    } else {
-      await insertAppleConnectDebugLog('probe_error', { fn: DEBUG_FN, message, elapsed_ms });
-    }
-    await insertAppleConnectDebugLog('result', { fn: DEBUG_FN, result: 'error' });
+    return classifyConnectProbeResponse(raw);
+  } catch {
     return 'error';
   }
 }
