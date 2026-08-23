@@ -195,9 +195,6 @@ export function ShareCardFrame({
           style={{
             position: 'absolute',
             inset: 0,
-            display: 'flex',
-            flexDirection: 'column',
-            alignItems: 'center',
           }}
         >
           {children}

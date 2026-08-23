@@ -93,11 +93,12 @@ export function SeasonOverviewCard({ stats, backgroundImageUrl }: SeasonOverview
     >
       <div
         style={{
+          position: 'absolute',
+          inset: 0,
           display: 'flex',
           flexDirection: 'column',
           alignItems: 'center',
           justifyContent: 'flex-start',
-          flex: 1,
           width: '100%',
           padding: '160px 64px 120px',
           boxSizing: 'border-box',
