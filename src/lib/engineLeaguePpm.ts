@@ -1,5 +1,6 @@
 import {
   cappedScoringDurationMinutes,
+  sessionDurationQualifiesForScoring,
 } from '@/lib/scoringSessionRules';
 import {
   ENGINE_PPM_BY_HR_TENTHS,
@@ -29,13 +30,25 @@ export function enginePointsPerMinute(hrPct: number): number {
 /** @deprecated Use {@link enginePointsPerMinute}. */
 export const enginePpmFromHrPercent = enginePointsPerMinute;
 
-/** Engine League session score (1 decimal place, mirrors server). */
+/**
+ * Engine League session score (1 decimal place, mirrors server).
+ * Optional pace applies process_activity's implausible_pace_hr_combo rule.
+ */
 export function engineLeagueSessionScore(
   hrPercent: number | null,
   durationMinutes: number,
+  paceSecondsPerKm?: number | null,
 ): number {
-  if (!Number.isFinite(durationMinutes) || durationMinutes < 15) return 0;
+  if (!sessionDurationQualifiesForScoring(durationMinutes)) return 0;
   if (hrPercent == null || !Number.isFinite(hrPercent)) return 0;
+  if (
+    paceSecondsPerKm != null &&
+    Number.isFinite(paceSecondsPerKm) &&
+    paceSecondsPerKm < 240 &&
+    hrPercent < 60
+  ) {
+    return 0;
+  }
 
   const ppm = enginePointsPerMinute(hrPercent);
   if (ppm <= 0) return 0;

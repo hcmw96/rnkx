@@ -9,7 +9,7 @@ export function activitySessionScore(
   avgPaceSeconds: number | null,
 ): number {
   if (leagueType === 'engine') {
-    return engineLeagueSessionScore(avgHrPercent, durationMinutes);
+    return engineLeagueSessionScore(avgHrPercent, durationMinutes, avgPaceSeconds);
   }
 
   if (leagueType === 'run') {
