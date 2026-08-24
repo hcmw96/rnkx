@@ -8,13 +8,20 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-import { captureElementAsPng, sharePngBlob } from '@/lib/shareCardImage';
+import {
+  captureElementAsPng,
+  SHARE_CARD_HEIGHT,
+  SHARE_CARD_PREVIEW_SCALE,
+  SHARE_CARD_WIDTH,
+  sharePngBlob,
+} from '@/lib/shareCardImage';
 import { fetchSeasonShareStats, type SeasonShareStats } from '@/lib/seasonShareStats';
 import { Loader2, Share2 } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { toast } from 'sonner';
 
-const PREVIEW_SCALE = 0.28;
+const PREVIEW_SCALE = SHARE_CARD_PREVIEW_SCALE;
 
 type SeasonShareDialogProps = {
   open: boolean;
@@ -59,7 +66,8 @@ export function SeasonShareDialog({ open, onOpenChange, athleteId }: SeasonShare
     }
   }
 
-  const previewHeight = Math.round(1920 * PREVIEW_SCALE);
+  const previewWidth = SHARE_CARD_WIDTH * PREVIEW_SCALE;
+  const previewHeight = SHARE_CARD_HEIGHT * PREVIEW_SCALE;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -84,28 +92,50 @@ export function SeasonShareDialog({ open, onOpenChange, athleteId }: SeasonShare
           <div className="flex flex-col gap-5">
             <div
               className="relative mx-auto overflow-hidden rounded-xl border border-border/80 bg-black shadow-inner"
-              style={{ height: previewHeight, width: '100%', maxWidth: 1080 * PREVIEW_SCALE }}
+              style={{ height: previewHeight, width: previewWidth }}
             >
               <div
-                className="absolute left-1/2 top-0 origin-top"
                 style={{
-                  transform: `translateX(-50%) scale(${PREVIEW_SCALE})`,
-                  width: 1080,
-                  height: 1920,
+                  width: SHARE_CARD_WIDTH,
+                  height: SHARE_CARD_HEIGHT,
+                  transform: `scale(${PREVIEW_SCALE})`,
+                  transformOrigin: 'top left',
                 }}
               >
                 <SeasonOverviewCard stats={stats} backgroundImageUrl={backgroundImageUrl} />
               </div>
             </div>
 
-            <div className="pointer-events-none fixed left-[-10000px] top-0" aria-hidden>
-              <div
-                ref={captureRef}
-                style={{ width: 1080, height: 1920, overflow: 'hidden', background: '#000000' }}
-              >
-                <SeasonOverviewCard stats={stats} backgroundImageUrl={backgroundImageUrl} />
-              </div>
-            </div>
+            {open
+              ? createPortal(
+                  <div
+                    className="pointer-events-none"
+                    aria-hidden
+                    style={{
+                      position: 'fixed',
+                      left: -10000,
+                      top: 0,
+                      width: SHARE_CARD_WIDTH,
+                      height: SHARE_CARD_HEIGHT,
+                      overflow: 'hidden',
+                      background: '#000000',
+                    }}
+                  >
+                    <div
+                      ref={captureRef}
+                      style={{
+                        width: SHARE_CARD_WIDTH,
+                        height: SHARE_CARD_HEIGHT,
+                        overflow: 'hidden',
+                        background: '#000000',
+                      }}
+                    >
+                      <SeasonOverviewCard stats={stats} backgroundImageUrl={backgroundImageUrl} />
+                    </div>
+                  </div>,
+                  document.body,
+                )
+              : null}
 
             <ShareBackgroundPicker
               backgroundImageUrl={backgroundImageUrl}

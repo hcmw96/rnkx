@@ -1,7 +1,12 @@
 import { ShareCardFrame } from '@/components/share/ShareCardFrame';
 import { ENGINE_CHART_COLOR, RUN_CHART_COLOR } from '@/lib/chartTheme';
 import { formatScore } from '@/lib/formatScore';
-import { SHARE_CARD_HEIGHT, SHARE_CARD_WIDTH } from '@/lib/shareCardImage';
+import {
+  SHARE_CARD_STAT_BLOCK_LEFT,
+  SHARE_CARD_STAT_CELL_WIDTH,
+  SHARE_CARD_STAT_RULE_WIDTH,
+  SHARE_CARD_WIDTH,
+} from '@/lib/shareCardImage';
 import {
   DEFAULT_SHARE_PHOTO_TRANSFORM,
   type SharePhotoTransform,
@@ -18,28 +23,22 @@ type WorkoutShareCardProps = {
 const FIGURE_H = 92;
 const CAPTION_GAP = 18;
 const CAPTION_H = 34;
-const CELL_W = 300;
-const RULE_W = 2;
-const COL_COUNT = 3;
-const STAT_BLOCK_W = CELL_W * COL_COUNT + RULE_W * (COL_COUNT - 1);
-const STAT_BLOCK_LEFT = Math.round((SHARE_CARD_WIDTH - STAT_BLOCK_W) / 2);
-const ICON_INSET = Math.round((CELL_W - FIGURE_H) / 2);
+const CELL_W = SHARE_CARD_STAT_CELL_WIDTH;
+const RULE_W = SHARE_CARD_STAT_RULE_WIDTH;
+const ICON_INSET = (CELL_W - FIGURE_H) / 2;
 const PILL_H = 62;
 const GAP_PILL_TO_STATS = 56;
-const STATS_H = FIGURE_H + CAPTION_GAP + CAPTION_H;
-const GROUP_H = PILL_H + GAP_PILL_TO_STATS + STATS_H;
-const STAT_CENTER_Y = Math.round(SHARE_CARD_HEIGHT * 0.28);
-const GROUP_TOP = STAT_CENTER_Y - Math.round(GROUP_H / 2);
-const PILL_TOP = GROUP_TOP;
-const FIGURE_TOP = GROUP_TOP + PILL_H + GAP_PILL_TO_STATS;
+/** Pixel Y of the figure row on the 1080×1920 canvas — not a % of any box. */
+const FIGURE_TOP = 525;
 const CAPTION_TOP = FIGURE_TOP + FIGURE_H + CAPTION_GAP;
+const PILL_TOP = FIGURE_TOP - GAP_PILL_TO_STATS - PILL_H;
 
 function Caption({ text, textShadow }: { text: string; textShadow?: string }) {
   return (
     <p
       style={{
         margin: 0,
-        width: '100%',
+        width: CELL_W,
         fontSize: 28,
         fontWeight: 700,
         letterSpacing: '0.14em',
@@ -58,7 +57,7 @@ function Caption({ text, textShadow }: { text: string; textShadow?: string }) {
 }
 
 function cellLeft(index: number): number {
-  return STAT_BLOCK_LEFT + index * (CELL_W + RULE_W);
+  return SHARE_CARD_STAT_BLOCK_LEFT + index * (CELL_W + RULE_W);
 }
 
 /** V1 card: division pill + logo / points / rank — matches social share mock. */
@@ -88,12 +87,13 @@ export function WorkoutShareCard({
           top: PILL_TOP,
           width: SHARE_CARD_WIDTH,
           height: PILL_H,
-          textAlign: 'center',
+          display: 'flex',
+          justifyContent: 'center',
+          alignItems: 'center',
         }}
       >
         <div
           style={{
-            display: 'inline-block',
             padding: '18px 40px',
             borderRadius: 999,
             border: `2.5px solid ${accent}`,
@@ -187,6 +187,7 @@ export function WorkoutShareCard({
           textAlign: 'center',
           overflow: 'hidden',
           whiteSpace: 'nowrap',
+          fontVariantNumeric: 'tabular-nums',
         }}
       >
         {formatScore(payload.pointsScored)}
@@ -219,6 +220,7 @@ export function WorkoutShareCard({
           textAlign: 'center',
           overflow: 'hidden',
           whiteSpace: 'nowrap',
+          fontVariantNumeric: 'tabular-nums',
         }}
       >
         {rankText}

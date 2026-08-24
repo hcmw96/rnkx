@@ -9,7 +9,13 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { useSharePhotoGestures } from '@/hooks/useSharePhotoGestures';
-import { captureElementAsPng, sharePngBlob } from '@/lib/shareCardImage';
+import {
+  captureElementAsPng,
+  SHARE_CARD_HEIGHT,
+  SHARE_CARD_PREVIEW_SCALE,
+  SHARE_CARD_WIDTH,
+  sharePngBlob,
+} from '@/lib/shareCardImage';
 import {
   DEFAULT_SHARE_PHOTO_TRANSFORM,
   type SharePhotoTransform,
@@ -17,9 +23,10 @@ import {
 import type { WorkoutSharePayload } from '@/types/shareCards';
 import { Loader2, Share2 } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { toast } from 'sonner';
 
-const PREVIEW_SCALE = 0.28;
+const PREVIEW_SCALE = SHARE_CARD_PREVIEW_SCALE;
 
 type WorkoutShareDialogProps = {
   open: boolean;
@@ -84,7 +91,8 @@ export function WorkoutShareDialog({ open, onOpenChange, payload }: WorkoutShare
     if (!url) setPhotoTransform(DEFAULT_SHARE_PHOTO_TRANSFORM);
   }
 
-  const previewHeight = Math.round(1920 * PREVIEW_SCALE);
+  const previewWidth = SHARE_CARD_WIDTH * PREVIEW_SCALE;
+  const previewHeight = SHARE_CARD_HEIGHT * PREVIEW_SCALE;
   const usingPhoto = Boolean(backgroundImageUrl);
 
   if (!payload) return null;
@@ -111,17 +119,16 @@ export function WorkoutShareDialog({ open, onOpenChange, payload }: WorkoutShare
           className="relative mx-auto overflow-hidden rounded-xl border border-border bg-zinc-950 touch-none"
           style={{
             height: previewHeight,
-            width: '100%',
-            maxWidth: 1080 * PREVIEW_SCALE,
+            width: previewWidth,
             cursor: usingPhoto ? (photoGestures.dragging ? 'grabbing' : 'grab') : 'default',
           }}
         >
           <div
-            className="absolute left-1/2 top-0 origin-top"
             style={{
-              transform: `translateX(-50%) scale(${PREVIEW_SCALE})`,
-              width: 1080,
-              height: 1920,
+              width: SHARE_CARD_WIDTH,
+              height: SHARE_CARD_HEIGHT,
+              transform: `scale(${PREVIEW_SCALE})`,
+              transformOrigin: 'top left',
               pointerEvents: 'none',
             }}
           >
@@ -139,18 +146,40 @@ export function WorkoutShareDialog({ open, onOpenChange, payload }: WorkoutShare
           </p>
         ) : null}
 
-        <div className="pointer-events-none fixed left-[-10000px] top-0" aria-hidden>
-          <div
-            ref={captureRef}
-            style={{ width: 1080, height: 1920, overflow: 'hidden', background: '#000000' }}
-          >
-            <WorkoutShareCard
-              payload={payload}
-              backgroundImageUrl={backgroundImageUrl}
-              photoTransform={photoTransform}
-            />
-          </div>
-        </div>
+        {open
+          ? createPortal(
+              <div
+                className="pointer-events-none"
+                aria-hidden
+                style={{
+                  position: 'fixed',
+                  left: -10000,
+                  top: 0,
+                  width: SHARE_CARD_WIDTH,
+                  height: SHARE_CARD_HEIGHT,
+                  overflow: 'hidden',
+                  background: '#000000',
+                }}
+              >
+                <div
+                  ref={captureRef}
+                  style={{
+                    width: SHARE_CARD_WIDTH,
+                    height: SHARE_CARD_HEIGHT,
+                    overflow: 'hidden',
+                    background: '#000000',
+                  }}
+                >
+                  <WorkoutShareCard
+                    payload={payload}
+                    backgroundImageUrl={backgroundImageUrl}
+                    photoTransform={photoTransform}
+                  />
+                </div>
+              </div>,
+              document.body,
+            )
+          : null}
 
         <ShareBackgroundPicker
           backgroundImageUrl={backgroundImageUrl}

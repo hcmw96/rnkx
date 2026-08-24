@@ -3,6 +3,20 @@ import html2canvas from 'html2canvas';
 export const SHARE_CARD_WIDTH = 1080;
 export const SHARE_CARD_HEIGHT = 1920;
 
+/** CSS scale applied to the 1080×1920 layout in the in-app preview. */
+export const SHARE_CARD_PREVIEW_SCALE = 0.28;
+
+/** Equal-width stat cells; the block is centred on the 1080 canvas. */
+export const SHARE_CARD_STAT_CELL_WIDTH = 300;
+export const SHARE_CARD_STAT_RULE_WIDTH = 2;
+export const SHARE_CARD_STAT_COLUMNS = 3;
+export const SHARE_CARD_STAT_BLOCK_WIDTH =
+  SHARE_CARD_STAT_CELL_WIDTH * SHARE_CARD_STAT_COLUMNS +
+  SHARE_CARD_STAT_RULE_WIDTH * (SHARE_CARD_STAT_COLUMNS - 1);
+/** Left edge of the 3-cell block. Right margin equals this (88px). */
+export const SHARE_CARD_STAT_BLOCK_LEFT =
+  (SHARE_CARD_WIDTH - SHARE_CARD_STAT_BLOCK_WIDTH) / 2;
+
 function canvasToPngBlob(canvas: HTMLCanvasElement): Promise<Blob> {
   return new Promise((resolve, reject) => {
     canvas.toBlob(
@@ -16,27 +30,16 @@ function canvasToPngBlob(canvas: HTMLCanvasElement): Promise<Blob> {
   });
 }
 
-function coverDraw(
-  ctx: CanvasRenderingContext2D,
-  source: HTMLCanvasElement,
-  dw: number,
-  dh: number,
-): void {
-  ctx.fillStyle = '#000000';
-  ctx.fillRect(0, 0, dw, dh);
-  const scale = Math.max(dw / source.width, dh / source.height);
-  const w = source.width * scale;
-  const h = source.height * scale;
-  ctx.drawImage(source, (dw - w) / 2, (dh - h) / 2, w, h);
-}
-
-/** Ensure export is exactly 1080×1920; cover-crop and log if html2canvas drifts. */
-function assertShareCardDimensions(source: HTMLCanvasElement): HTMLCanvasElement {
+/**
+ * Map html2canvas output onto 1080×1920 from the top-left origin.
+ * Never cover-crop from the centre — that shifts the stat block.
+ */
+function pinToShareCardSize(source: HTMLCanvasElement): HTMLCanvasElement {
   if (source.width === SHARE_CARD_WIDTH && source.height === SHARE_CARD_HEIGHT) {
     return source;
   }
 
-  console.warn('[shareCardImage] html2canvas size mismatch — correcting', {
+  console.warn('[shareCardImage] html2canvas size mismatch — pinning top-left', {
     got: { width: source.width, height: source.height },
     expected: { width: SHARE_CARD_WIDTH, height: SHARE_CARD_HEIGHT },
   });
@@ -48,7 +51,15 @@ function assertShareCardDimensions(source: HTMLCanvasElement): HTMLCanvasElement
   if (!ctx) {
     throw new Error('Could not create correction canvas');
   }
-  coverDraw(ctx, source, SHARE_CARD_WIDTH, SHARE_CARD_HEIGHT);
+  ctx.fillStyle = '#000000';
+  ctx.fillRect(0, 0, SHARE_CARD_WIDTH, SHARE_CARD_HEIGHT);
+  const scaleX = SHARE_CARD_WIDTH / source.width;
+  const scaleY = SHARE_CARD_HEIGHT / source.height;
+  if (Math.abs(scaleX - scaleY) < 0.002) {
+    ctx.drawImage(source, 0, 0, SHARE_CARD_WIDTH, SHARE_CARD_HEIGHT);
+  } else {
+    ctx.drawImage(source, 0, 0);
+  }
   return corrected;
 }
 
@@ -87,6 +98,14 @@ async function logBlobDimensions(blob: Blob): Promise<void> {
 }
 
 function forceCaptureBox(el: HTMLElement): void {
+  el.style.position = 'relative';
+  el.style.left = '0px';
+  el.style.top = '0px';
+  el.style.right = 'auto';
+  el.style.bottom = 'auto';
+  el.style.margin = '0px';
+  el.style.transform = 'none';
+  el.style.zoom = '1';
   el.style.width = `${SHARE_CARD_WIDTH}px`;
   el.style.height = `${SHARE_CARD_HEIGHT}px`;
   el.style.minWidth = `${SHARE_CARD_WIDTH}px`;
@@ -96,6 +115,7 @@ function forceCaptureBox(el: HTMLElement): void {
   el.style.overflow = 'hidden';
   el.style.backgroundColor = '#000000';
   el.style.opacity = '1';
+  el.style.boxSizing = 'border-box';
 }
 
 async function waitForImages(root: HTMLElement): Promise<void> {
@@ -112,40 +132,52 @@ async function waitForImages(root: HTMLElement): Promise<void> {
 }
 
 export async function captureElementAsPng(element: HTMLElement): Promise<Blob> {
+  const previousStyle = element.getAttribute('style');
   forceCaptureBox(element);
-  await waitForImages(element);
-  await new Promise<void>((resolve) => {
-    requestAnimationFrame(() => requestAnimationFrame(() => resolve()));
-  });
+  try {
+    await waitForImages(element);
+    await new Promise<void>((resolve) => {
+      requestAnimationFrame(() => requestAnimationFrame(() => resolve()));
+    });
 
-  const canvas = document.createElement('canvas');
-  canvas.width = SHARE_CARD_WIDTH;
-  canvas.height = SHARE_CARD_HEIGHT;
+    const rendered = await html2canvas(element, {
+      width: SHARE_CARD_WIDTH,
+      height: SHARE_CARD_HEIGHT,
+      windowWidth: SHARE_CARD_WIDTH,
+      windowHeight: SHARE_CARD_HEIGHT,
+      x: 0,
+      y: 0,
+      scrollX: 0,
+      scrollY: 0,
+      scale: 1,
+      useCORS: true,
+      allowTaint: false,
+      backgroundColor: '#000000',
+      logging: false,
+      onclone: (clonedDoc, cloned) => {
+        clonedDoc.documentElement.style.margin = '0';
+        clonedDoc.documentElement.style.padding = '0';
+        clonedDoc.body.style.margin = '0';
+        clonedDoc.body.style.padding = '0';
+        clonedDoc.body.style.overflow = 'hidden';
+        forceCaptureBox(cloned);
+        cloned.style.position = 'absolute';
+        const frame = cloned.querySelector(':scope > *') as HTMLElement | null;
+        if (frame) {
+          forceCaptureBox(frame);
+          frame.style.position = 'relative';
+        }
+      },
+    });
 
-  const rendered = await html2canvas(element, {
-    canvas,
-    width: SHARE_CARD_WIDTH,
-    height: SHARE_CARD_HEIGHT,
-    windowWidth: SHARE_CARD_WIDTH,
-    windowHeight: SHARE_CARD_HEIGHT,
-    scrollX: 0,
-    scrollY: 0,
-    scale: 1,
-    useCORS: true,
-    allowTaint: false,
-    backgroundColor: '#000000',
-    logging: false,
-    onclone: (_doc, cloned) => {
-      forceCaptureBox(cloned);
-      const frame = cloned.querySelector(':scope > *') as HTMLElement | null;
-      if (frame) forceCaptureBox(frame);
-    },
-  });
-
-  const sized = assertShareCardDimensions(rendered);
-  const blob = await canvasToPngBlob(sized);
-  await logBlobDimensions(blob);
-  return blob;
+    const sized = pinToShareCardSize(rendered);
+    const blob = await canvasToPngBlob(sized);
+    await logBlobDimensions(blob);
+    return blob;
+  } finally {
+    if (previousStyle == null) element.removeAttribute('style');
+    else element.setAttribute('style', previousStyle);
+  }
 }
 
 export async function sharePngBlob(blob: Blob, filename: string, title: string): Promise<void> {

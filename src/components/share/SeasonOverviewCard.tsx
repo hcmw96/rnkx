@@ -1,6 +1,7 @@
 import { ShareCardFrame } from '@/components/share/ShareCardFrame';
 import { ENGINE_CHART_COLOR } from '@/lib/chartTheme';
 import { formatScore } from '@/lib/formatScore';
+import { SHARE_CARD_HEIGHT, SHARE_CARD_WIDTH } from '@/lib/shareCardImage';
 import type { SeasonShareStats } from '@/lib/seasonShareStats';
 import rnkxSymbol from '@/assets/rnkx-symbol.png';
 
@@ -94,12 +95,14 @@ export function SeasonOverviewCard({ stats, backgroundImageUrl }: SeasonOverview
       <div
         style={{
           position: 'absolute',
-          inset: 0,
+          left: 0,
+          top: 0,
+          width: SHARE_CARD_WIDTH,
+          height: SHARE_CARD_HEIGHT,
           display: 'flex',
           flexDirection: 'column',
           alignItems: 'center',
           justifyContent: 'flex-start',
-          width: '100%',
           padding: '160px 64px 120px',
           boxSizing: 'border-box',
         }}

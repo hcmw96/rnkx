@@ -7,7 +7,7 @@ import {
   type SharePhotoTransform,
 } from '@/lib/sharePhotoTransform';
 import rnkxLogo from '@/assets/rnkx-logo.svg';
-import type { ReactNode } from 'react';
+import type { CSSProperties, ReactNode } from 'react';
 import { useEffect, useState } from 'react';
 
 type ShareCardFrameProps = {
@@ -21,20 +21,26 @@ type ShareCardFrameProps = {
   className?: string;
 };
 
+const CANVAS_BOX: CSSProperties = {
+  position: 'absolute',
+  left: 0,
+  top: 0,
+  width: SHARE_CARD_WIDTH,
+  height: SHARE_CARD_HEIGHT,
+};
+
 function RnkxGradientBackground({ accentColor }: { accentColor: string }) {
   return (
     <>
       <div
         style={{
-          position: 'absolute',
-          inset: 0,
+          ...CANVAS_BOX,
           background: '#000000',
         }}
       />
       <div
         style={{
-          position: 'absolute',
-          inset: 0,
+          ...CANVAS_BOX,
           background: `radial-gradient(ellipse 95% 55% at 50% 108%, ${accentColor} 0%, transparent 62%)`,
           opacity: 0.55,
           pointerEvents: 'none',
@@ -42,8 +48,7 @@ function RnkxGradientBackground({ accentColor }: { accentColor: string }) {
       />
       <div
         style={{
-          position: 'absolute',
-          inset: 0,
+          ...CANVAS_BOX,
           background: `linear-gradient(0deg, ${accentColor} 0%, transparent 38%)`,
           opacity: 0.18,
           pointerEvents: 'none',
@@ -85,8 +90,7 @@ function PhotoBackground({
   return (
     <div
       style={{
-        position: 'absolute',
-        inset: 0,
+        ...CANVAS_BOX,
         overflow: 'hidden',
         background: '#000000',
       }}
@@ -146,6 +150,7 @@ export function ShareCardFrame({
         background: '#000000',
         fontFamily: 'Inter, system-ui, sans-serif',
         color: '#ffffff',
+        boxSizing: 'border-box',
       }}
     >
       {usingPhoto && backgroundImageUrl ? (
@@ -158,8 +163,7 @@ export function ShareCardFrame({
       {usingPhoto ? (
         <div
           style={{
-            position: 'absolute',
-            inset: 0,
+            ...CANVAS_BOX,
             background:
               'linear-gradient(180deg, rgba(0,0,0,0.38) 0%, rgba(0,0,0,0.12) 32%, rgba(0,0,0,0.18) 62%, rgba(0,0,0,0.42) 100%)',
             pointerEvents: 'none',
@@ -169,36 +173,37 @@ export function ShareCardFrame({
 
       <div
         style={{
-          position: 'absolute',
-          inset: 0,
+          ...CANVAS_BOX,
           zIndex: 1,
           pointerEvents: 'none',
         }}
       >
         {showLogo ? (
-          <img
-            src={rnkxLogo}
-            alt="RNKX"
-            crossOrigin="anonymous"
+          <div
             style={{
               position: 'absolute',
+              left: 0,
               top: 96,
-              left: '50%',
-              transform: 'translateX(-50%)',
+              width: SHARE_CARD_WIDTH,
               height: 64,
-              width: 'auto',
-              filter: usingPhoto ? 'drop-shadow(0 2px 10px rgba(0,0,0,0.45))' : undefined,
+              display: 'flex',
+              justifyContent: 'center',
+              alignItems: 'center',
             }}
-          />
+          >
+            <img
+              src={rnkxLogo}
+              alt="RNKX"
+              crossOrigin="anonymous"
+              style={{
+                height: 64,
+                width: 'auto',
+                filter: usingPhoto ? 'drop-shadow(0 2px 10px rgba(0,0,0,0.45))' : undefined,
+              }}
+            />
+          </div>
         ) : null}
-        <div
-          style={{
-            position: 'absolute',
-            inset: 0,
-          }}
-        >
-          {children}
-        </div>
+        <div style={CANVAS_BOX}>{children}</div>
       </div>
     </div>
   );
