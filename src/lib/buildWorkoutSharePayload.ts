@@ -1,5 +1,6 @@
 import { activitySessionScore } from '@/lib/activitySessionScore';
 import { fetchMyDivision } from '@/lib/athleteDivisions';
+import { computeCategoryRank, fetchLiveCategoryRank } from '@/lib/categoryRank';
 import type { Division } from '@/lib/division';
 import type { WorkoutObject } from '@/services/despia';
 import { supabase } from '@/services/supabase';
@@ -59,31 +60,27 @@ async function standingForLeague(
     ? await fetchMyDivision(athleteId, seasonId, leagueType)
     : 'Open';
 
-  let seasonStatsQuery = supabase
-    .from('athlete_stats')
-    .select('category, rank')
-    .eq('athlete_id', athleteId)
-    .eq('category', leagueType);
-
-  if (seasonId) {
-    seasonStatsQuery = seasonStatsQuery.eq('season_id', seasonId);
+  if (!seasonId) {
+    return { seasonRank: null, division };
   }
 
-  const [{ data: categoryRow }, { data: aggregated }] = await Promise.all([
-    seasonStatsQuery.maybeSingle(),
-    supabase
-      .from('athlete_stats')
-      .select('engine_rank, run_rank')
-      .eq('athlete_id', athleteId)
-      .maybeSingle(),
-  ]);
+  const liveRank = await fetchLiveCategoryRank(athleteId, seasonId, leagueType);
+  if (liveRank != null) {
+    return { seasonRank: liveRank, division };
+  }
 
-  const fromCategory = categoryRow?.rank != null ? num(categoryRow.rank) : 0;
-  const fromAgg =
-    leagueType === 'run' ? num(aggregated?.run_rank) : num(aggregated?.engine_rank);
-  const rank = fromCategory > 0 ? fromCategory : fromAgg > 0 ? fromAgg : null;
+  const { data: scoreRow } = await supabase
+    .from('athlete_stats')
+    .select('score')
+    .eq('athlete_id', athleteId)
+    .eq('season_id', seasonId)
+    .eq('category', leagueType)
+    .maybeSingle();
 
-  return { seasonRank: rank, division };
+  const score = num(scoreRow?.score);
+  const fallbackRank = score > 0 ? await computeCategoryRank(seasonId, leagueType, score) : null;
+
+  return { seasonRank: fallbackRank, division };
 }
 
 async function basePayload(

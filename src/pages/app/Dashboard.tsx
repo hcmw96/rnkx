@@ -30,7 +30,7 @@ import {
   type WeeklyInsightsData,
 } from '@/lib/dashboardWeeklyInsights';
 import { fetchMyDivisions } from '@/lib/athleteDivisions';
-import { computeCategoryRank } from '@/lib/categoryRank';
+import { computeCategoryRank, fetchLiveCategoryRank } from '@/lib/categoryRank';
 import { isDivision, type Division } from '@/lib/division';
 import {
   momentumPlacesFromDivisionStanding,
@@ -270,7 +270,7 @@ export default function Dashboard() {
           activeSeasonId
             ? supabase
                 .from('athlete_stats')
-                .select('category,score,rank')
+                .select('category,score')
                 .eq('athlete_id', userId)
                 .eq('season_id', activeSeasonId)
                 .in('category', ['engine', 'run'])
@@ -298,27 +298,31 @@ export default function Dashboard() {
         const rows = (statsRows ?? []) as {
           category: string | null;
           score: number | string | null;
-          rank: number | string | null;
         }[];
 
         let engineScore = 0;
         let runScore = 0;
-        let engineRank: number | null = null;
-        let runRank: number | null = null;
 
         for (const row of rows) {
           const pts = row.score != null ? Number(row.score) : 0;
-          const r = row.rank != null ? Number(row.rank) : null;
           if (row.category === 'engine') {
             engineScore = Number.isFinite(pts) ? pts : 0;
-            engineRank = r != null && Number.isFinite(r) && r > 0 ? Math.round(r) : null;
           } else if (row.category === 'run') {
             runScore = Number.isFinite(pts) ? pts : 0;
-            runRank = r != null && Number.isFinite(r) && r > 0 ? Math.round(r) : null;
           }
         }
 
+        const membershipAthleteId = (await resolveAthleteId(userId)) ?? userId;
+        let engineRank: number | null = null;
+        let runRank: number | null = null;
+
         if (activeSeasonId) {
+          const [liveEngineRank, liveRunRank] = await Promise.all([
+            fetchLiveCategoryRank(membershipAthleteId, activeSeasonId, 'engine'),
+            fetchLiveCategoryRank(membershipAthleteId, activeSeasonId, 'run'),
+          ]);
+          engineRank = liveEngineRank;
+          runRank = liveRunRank;
           const [computedEngineRank, computedRunRank] = await Promise.all([
             engineRank == null && engineScore > 0
               ? computeCategoryRank(activeSeasonId, 'engine', engineScore)
@@ -330,8 +334,6 @@ export default function Dashboard() {
           engineRank = computedEngineRank;
           runRank = computedRunRank;
         }
-
-        const membershipAthleteId = (await resolveAthleteId(userId)) ?? userId;
         let engineDivision: Division = 'Open';
         let runDivision: Division = 'Open';
         let engineDivisionRank: number | null = null;
