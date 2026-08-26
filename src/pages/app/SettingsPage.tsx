@@ -100,8 +100,8 @@ interface WhoopConnectionRow {
 
 /** WHOOP OAuth (production callback registered in WHOOP dashboard); append `&state=…` before redirect. */
 const WHOOP_OAUTH_AUTHORIZE_BASE =
-  'https://api.prod.whoop.com/oauth/oauth2/auth?client_id=35885b30-f053-4b61-813b-e63702f1c83a' +
-  '&redirect_uri=https://rnkx.netlify.app/auth/whoop/callback' +
+  `https://api.prod.whoop.com/oauth/oauth2/auth?client_id=${import.meta.env.VITE_WHOOP_CLIENT_ID}` +
+  `&redirect_uri=${import.meta.env.VITE_WHOOP_REDIRECT_URI}` +
   '&response_type=code' +
   '&scope=' +
   encodeURIComponent('read:workout read:recovery read:sleep read:profile read:body_measurement offline');

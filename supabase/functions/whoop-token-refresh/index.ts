@@ -2,7 +2,6 @@ import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
 const WHOOP_TOKEN_URL = 'https://api.prod.whoop.com/oauth/oauth2/token';
-const DEFAULT_CLIENT_ID = '35885b30-f053-4b61-813b-e63702f1c83a';
 const REFRESH_WINDOW_MS = 2 * 60 * 60 * 1000;
 
 const corsHeaders = {
@@ -94,7 +93,8 @@ serve(async (req) => {
     return json({ error: 'Unauthorized' }, 401);
   }
 
-  const clientId = Deno.env.get('WHOOP_CLIENT_ID')?.trim() || DEFAULT_CLIENT_ID;
+  const clientId = Deno.env.get('WHOOP_CLIENT_ID')?.trim();
+  if (!clientId) throw new Error('WHOOP_CLIENT_ID is not set');
   const clientSecret = Deno.env.get('WHOOP_CLIENT_SECRET')?.trim();
   if (!clientSecret) {
     console.error('[whoop-token-refresh] WHOOP_CLIENT_SECRET not set');

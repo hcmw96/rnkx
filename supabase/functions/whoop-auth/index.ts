@@ -78,9 +78,6 @@ async function syncHistoricMaxHrFromWhoop(
   if (upErr) console.error('whoop-auth: max_hr update', upErr);
 }
 
-const DEFAULT_CLIENT_ID = '35885b30-f053-4b61-813b-e63702f1c83a';
-const DEFAULT_REDIRECT_URI = 'https://rnkx.netlify.app/auth/whoop/callback';
-
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders });
@@ -115,7 +112,8 @@ serve(async (req) => {
     });
   }
 
-  const clientId = Deno.env.get('WHOOP_CLIENT_ID')?.trim() || DEFAULT_CLIENT_ID;
+  const clientId = Deno.env.get('WHOOP_CLIENT_ID')?.trim();
+  if (!clientId) throw new Error('WHOOP_CLIENT_ID is not set');
   const clientSecret = Deno.env.get('WHOOP_CLIENT_SECRET')?.trim();
   if (!clientSecret) {
     console.error('whoop-auth: WHOOP_CLIENT_SECRET not set');
@@ -125,7 +123,8 @@ serve(async (req) => {
     });
   }
 
-  const redirectUri = Deno.env.get('WHOOP_REDIRECT_URI')?.trim() || DEFAULT_REDIRECT_URI;
+  const redirectUri = Deno.env.get('WHOOP_REDIRECT_URI')?.trim();
+  if (!redirectUri) throw new Error('WHOOP_REDIRECT_URI is not set');
 
   const authHeader = req.headers.get('Authorization');
   const bearer = authHeader?.replace(/^Bearer\s+/i, '')?.trim() ?? '';

@@ -3,7 +3,6 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { scheduleActivityScoringPushes } from '../_shared/pushAfterActivityScored.ts';
 
 const WHOOP_TOKEN_URL = 'https://api.prod.whoop.com/oauth/oauth2/token';
-const DEFAULT_CLIENT_ID = '35885b30-f053-4b61-813b-e63702f1c83a';
 
 type WhoopWebhookPayload = {
   user_id?: string | number;
@@ -103,7 +102,8 @@ serve(async (req) => {
       });
     }
 
-    const clientId = Deno.env.get('WHOOP_CLIENT_ID')?.trim() || DEFAULT_CLIENT_ID;
+    const clientId = Deno.env.get('WHOOP_CLIENT_ID')?.trim();
+    if (!clientId) throw new Error('WHOOP_CLIENT_ID is not set');
     const clientSecret = Deno.env.get('WHOOP_CLIENT_SECRET')?.trim();
     if (!clientSecret) {
       console.error('[whoop-webhook] WHOOP_CLIENT_SECRET not set');
