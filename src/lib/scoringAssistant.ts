@@ -47,7 +47,7 @@ const ENTRIES: AssistantEntry[] = [
   {
     keywords: ['wearable', 'whoop', 'garmin', 'apple', 'watch', 'terra', 'sync', 'connect'],
     answer:
-      'Scores use data synced from your connected wearable (Apple Watch, WHOOP, Garmin, Polar, COROS, Fitbit, or Strava). Connect a device in Settings → Devices and sync regularly so workouts appear.',
+      'Scores use data synced from your connected wearable (Apple Watch, WHOOP, Garmin, Polar, COROS, or Fitbit). Connect a device in Settings → Devices and sync regularly so workouts appear.',
   },
   {
     keywords: ['max hr', 'maxhr', 'maximum heart', 'heart rate max'],

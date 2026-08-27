@@ -13,16 +13,11 @@ export const TERRA_WIDGET_PROVIDERS = [
   { id: 'FITBIT', label: 'Fitbit', Logo: FitbitLogo },
 ] as const;
 
-/** Labels for Terra widget providers plus legacy / native codes still shown on connected rows. */
 const PROVIDER_LABELS: Record<string, string> = {
   GARMIN: 'Garmin',
   POLAR: 'Polar',
   COROS: 'COROS',
   FITBIT: 'Fitbit',
-  STRAVA: 'Strava',
-  WHOOP: 'WHOOP',
-  OURA: 'Oura',
-  SAMSUNG: 'Samsung',
 };
 
 export function providerLabel(code: string): string {

@@ -29,7 +29,7 @@ serve(async (req) => {
       },
       body: JSON.stringify({
         reference_id,
-        providers: "GARMIN,POLAR,COROS,FITBIT,STRAVA",
+        providers: "GARMIN,POLAR,COROS,FITBIT",
         language: "en",
         auth_success_redirect_url: "rnkx://app/profile",
         auth_failure_redirect_url: "rnkx://app/profile",

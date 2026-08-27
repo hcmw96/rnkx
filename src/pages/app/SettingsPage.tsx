@@ -27,7 +27,6 @@ import {
   OuraLogo,
   PolarLogo,
   SamsungLogo,
-  StravaLogo,
   WhoopLogo,
 } from '@/components/BrandLogos';
 import { providerLabel } from '@/components/terra/TerraWearableProviders';
@@ -113,7 +112,6 @@ const WEARABLE_LOGO_BY_CODE: Record<string, ComponentType<{ className?: string }
   FITBIT: FitbitLogo,
   OURA: OuraLogo,
   SAMSUNG: SamsungLogo,
-  STRAVA: StravaLogo,
   WHOOP: WhoopLogo,
 };
 

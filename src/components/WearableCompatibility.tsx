@@ -13,7 +13,7 @@ type WearableDevice = {
   leagues: LeagueSupport;
 };
 
-/** Canonical supported set: Apple Watch, Garmin, WHOOP, Polar, COROS, Fitbit, Strava. */
+/** Canonical supported set: Apple Watch, Garmin, WHOOP, Polar, COROS, Fitbit. */
 const WEARABLE_DEVICES: WearableDevice[] = [
   {
     name: 'Apple Watch',
@@ -50,12 +50,6 @@ const WEARABLE_DEVICES: WearableDevice[] = [
     sync: 'automatic',
     description: 'Automatic. Connect via the device list in Settings.',
     leagues: 'both',
-  },
-  {
-    name: 'Strava',
-    sync: 'automatic',
-    description: 'Automatic. Run activities sync in the background.',
-    leagues: 'run',
   },
 ];
 

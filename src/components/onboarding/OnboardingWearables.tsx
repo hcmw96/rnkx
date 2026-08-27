@@ -24,7 +24,6 @@ export type { WearableProvider };
 export type LeagueSupport = 'run' | 'engine' | 'both' | 'recovery';
 
 const nameMap: Record<WearableProvider, string> = {
-  strava: 'Strava',
   whoop: 'WHOOP',
   apple: 'Apple Watch',
   garmin: 'Garmin',
@@ -34,7 +33,6 @@ const nameMap: Record<WearableProvider, string> = {
 };
 
 const supportMap: Record<WearableProvider, LeagueSupport> = {
-  strava: 'run',
   whoop: 'engine',
   apple: 'both',
   garmin: 'both',
@@ -87,7 +85,6 @@ export const getWearableConfig = (provider: WearableProvider) => {
 
 export const getWearablesForLeague = (league: 'run' | 'engine') => {
   const all: { provider: WearableProvider; leagueSupport: LeagueSupport }[] = [
-    { provider: 'strava', leagueSupport: 'run' },
     { provider: 'whoop', leagueSupport: 'engine' },
     { provider: 'apple', leagueSupport: 'both' },
     { provider: 'garmin', leagueSupport: 'both' },
@@ -239,7 +236,7 @@ const OnboardingWearables = ({
         })}
       </SettingsGroup>
 
-      <p className="px-1 text-xs leading-relaxed text-muted-foreground">
+      <p className="px-1 text-center text-xs leading-relaxed text-muted-foreground">
         Polar, COROS, and Fitbit are also supported — connect them in Settings after setup.
       </p>
 

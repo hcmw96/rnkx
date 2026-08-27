@@ -8,7 +8,6 @@ import { getAuthUserId } from '@/lib/authSession';
 import { supabase } from '@/services/supabase';
 
 export type WearableProvider =
-  | 'strava'
   | 'whoop'
   | 'garmin'
   | 'apple'

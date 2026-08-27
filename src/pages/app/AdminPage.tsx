@@ -204,7 +204,6 @@ function mapWearableToken(low: string): string | null {
   if (low === 'fitbit') return 'FITBIT';
   if (low === 'oura') return 'OURA';
   if (low === 'samsung') return 'SAMSUNG';
-  if (low === 'strava') return 'STRAVA';
   if (!low) return null;
   return low.toUpperCase();
 }

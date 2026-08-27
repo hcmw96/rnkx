@@ -1,5 +1,4 @@
 import { cn } from '@/lib/utils';
-import stravaImg from '@/assets/wearables/strava.png';
 import whoopImg from '@/assets/wearables/whoop.png';
 import appleImg from '@/assets/wearables/apple.png';
 import garminImg from '@/assets/wearables/garmin.png';
@@ -44,10 +43,6 @@ function BrandImgLogo({
       />
     </div>
   );
-}
-
-export function StravaLogo({ className }: { className?: string }) {
-  return <BrandImgLogo className={className} src={stravaImg} alt="Strava" />;
 }
 
 export function WhoopLogo({ className }: { className?: string }) {
