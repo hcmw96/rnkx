@@ -43,7 +43,7 @@ type ActivityRow = {
   avg_pace_seconds: number | string | null;
 };
 
-/** Current league rank + athlete_divisions membership for the share card. */
+/** Current league rank from season_division_leaderboard (id + league), plus division membership. */
 async function standingForLeague(
   athleteId: string,
   leagueType: 'engine' | 'run',

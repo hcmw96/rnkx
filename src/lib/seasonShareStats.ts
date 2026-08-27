@@ -1,5 +1,6 @@
 import { activitySessionScore } from '@/lib/activitySessionScore';
 import { fetchMyDivisions } from '@/lib/athleteDivisions';
+import { computeCategoryRank, fetchLiveCategoryRanks } from '@/lib/categoryRank';
 import { athleteAvatarDisplayUrl, leagueFromSelectedLeagues } from '@/lib/leagueAvatars';
 import { supabase } from '@/services/supabase';
 
@@ -47,7 +48,7 @@ function workoutPoints(
   return Math.round(activitySessionScore(league, duration, hrPct, pace));
 }
 
-type SeasonStatRow = { category: string; score: unknown; rank: unknown };
+type SeasonStatRow = { category: string; score: unknown };
 
 export async function fetchSeasonShareStats(athleteId: string): Promise<SeasonShareStats | null> {
   const weekAgo = new Date();
@@ -65,8 +66,9 @@ export async function fetchSeasonShareStats(athleteId: string): Promise<SeasonSh
 
   let seasonStatsQuery = supabase
     .from('athlete_stats')
-    .select('category, score, rank')
-    .eq('athlete_id', athleteId);
+    .select('category, score')
+    .eq('athlete_id', athleteId)
+    .in('category', ['engine', 'run']);
 
   if (seasonId) {
     seasonStatsQuery = seasonStatsQuery.eq('season_id', seasonId);
@@ -86,7 +88,7 @@ export async function fetchSeasonShareStats(athleteId: string): Promise<SeasonSh
     { data: athlete },
     { data: lb },
     { data: seasonStatRows },
-    { data: aggregatedStats, error: aggregatedErr },
+    liveRanks,
     { data: seasonWorkouts },
     { data: weekWorkouts },
     divisions,
@@ -98,13 +100,9 @@ export async function fetchSeasonShareStats(athleteId: string): Promise<SeasonSh
       .maybeSingle(),
     supabase.from('leaderboard').select('rank, total_score').eq('id', athleteId).maybeSingle(),
     seasonStatsQuery,
-    supabase
-      .from('athlete_stats')
-      .select(
-        'engine_rank, run_rank, engine_score, run_score, total_score, engine_weekly_change, run_weekly_change',
-      )
-      .eq('athlete_id', athleteId)
-      .maybeSingle(),
+    seasonId
+      ? fetchLiveCategoryRanks(athleteId, seasonId)
+      : Promise.resolve({ engine: null, run: null }),
     workoutsQuery,
     supabase
       .from('workouts')
@@ -134,13 +132,7 @@ export async function fetchSeasonShareStats(athleteId: string): Promise<SeasonSh
   const runScoreFromRows = num(runRow?.score);
   const totalFromCategoryRows = engineScoreFromRows + runScoreFromRows;
 
-  const agg = !aggregatedErr && aggregatedStats ? (aggregatedStats as Record<string, unknown>) : null;
-  const engineScoreAgg = num(agg?.engine_score);
-  const runScoreAgg = num(agg?.run_score);
-  const totalFromAgg = num(agg?.total_score) || engineScoreAgg + runScoreAgg;
-
   let totalPoints = totalFromCategoryRows;
-  if (totalPoints <= 0 && totalFromAgg > 0) totalPoints = totalFromAgg;
   if (totalPoints <= 0) totalPoints = num(lb?.total_score ?? athlete.total_score);
 
   let bestWorkoutScore = 0;
@@ -149,19 +141,22 @@ export async function fetchSeasonShareStats(athleteId: string): Promise<SeasonSh
     if (pts > bestWorkoutScore) bestWorkoutScore = pts;
   }
 
-  let weeklyPoints = num(agg?.engine_weekly_change) + num(agg?.run_weekly_change);
-  if (weeklyPoints <= 0) {
-    weeklyPoints = (weekWorkouts ?? []).reduce((sum, row) => sum + workoutPoints(row, maxHr), 0);
-  }
+  const weeklyPoints = (weekWorkouts ?? []).reduce((sum, row) => sum + workoutPoints(row, maxHr), 0);
 
-  const engineRank =
-    engineRow?.rank != null
-      ? num(engineRow.rank)
-      : agg?.engine_rank != null
-        ? num(agg.engine_rank)
-        : null;
-  const runRank =
-    runRow?.rank != null ? num(runRow.rank) : agg?.run_rank != null ? num(agg.run_rank) : null;
+  let engineRank = liveRanks.engine;
+  let runRank = liveRanks.run;
+  if (seasonId) {
+    const [fallbackEngine, fallbackRun] = await Promise.all([
+      engineRank == null && engineScoreFromRows > 0
+        ? computeCategoryRank(seasonId, 'engine', engineScoreFromRows)
+        : Promise.resolve(engineRank),
+      runRank == null && runScoreFromRows > 0
+        ? computeCategoryRank(seasonId, 'run', runScoreFromRows)
+        : Promise.resolve(runRank),
+    ]);
+    engineRank = fallbackEngine;
+    runRank = fallbackRun;
+  }
 
   let leagueName = 'RNKX League';
   let seasonRank: number | null = lb?.rank != null ? num(lb.rank) : null;
