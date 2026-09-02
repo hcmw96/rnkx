@@ -78,6 +78,7 @@ type SettingsDialog =
   | 'displayName'
   | 'username'
   | 'gender'
+  | 'country'
   | 'password'
   | 'leagues'
   | 'subscription'
@@ -159,9 +160,11 @@ export default function SettingsPage() {
   const [nameDraft, setNameDraft] = useState('');
   const [usernameDraft, setUsernameDraft] = useState('');
   const [genderDraft, setGenderDraft] = useState<AthleteProfileGender | null>(null);
+  const [countryDraft, setCountryDraft] = useState('');
   const [nameSaving, setNameSaving] = useState(false);
   const [usernameSaving, setUsernameSaving] = useState(false);
   const [genderSaving, setGenderSaving] = useState(false);
+  const [countrySaving, setCountrySaving] = useState(false);
   const [supportBody, setSupportBody] = useState('');
   const [supportSending, setSupportSending] = useState(false);
   const [restorePurchasing, setRestorePurchasing] = useState(false);
@@ -358,8 +361,6 @@ export default function SettingsPage() {
           return;
         }
 
-        toast.message('Sync: reading HealthKit...');
-
         let workouts: ReturnType<typeof mapHealthKitWorkoutsForSync> = [];
         try {
           if (!tryAcquireHealthKit('sync')) {
@@ -373,13 +374,10 @@ export default function SettingsPage() {
             releaseHealthKit('sync');
           }
         } catch (err) {
-          toast.error('Step 1 failed: ' + String(err));
+          toast.error(err instanceof Error ? err.message : 'Sync failed');
           return;
         }
-        toast.message('HealthKit OK', { description: `${workouts.length} workouts found` });
-        toast.message('Sync: uploading ' + workouts.length + ' workouts...');
 
-        let processed = 0;
         let syncResults: Awaited<ReturnType<typeof runAppleWorkoutSync>>['results'] = [];
         try {
           const syncOutcome = await runAppleWorkoutSync(
@@ -388,29 +386,21 @@ export default function SettingsPage() {
             { workouts },
           );
           if (!syncOutcome.ok) {
-            toast.error('Step 2 failed: ' + (syncOutcome.error ?? 'Sync failed'));
+            toast.error(syncOutcome.error ?? 'Sync failed');
             return;
           }
-          processed = syncOutcome.processed;
           syncResults = syncOutcome.results;
         } catch (err) {
-          toast.error('Step 2 failed: ' + String(err));
+          toast.error(err instanceof Error ? err.message : 'Sync failed');
           return;
         }
 
         try {
-          toast.success(`Synced ${processed} workout(s).`);
-
-          toast.message('Sync: refreshing profile...');
-          try {
-            await loadProfile();
-            await promptFromAppleSync(athlete.id, workouts, syncResults);
-            await refreshAchievements();
-          } catch {
-            // profile reload failed silently — sync was still successful
-          }
-        } catch (err) {
-          toast.error('Step 3 failed: ' + String(err));
+          await loadProfile();
+          await promptFromAppleSync(athlete.id, workouts, syncResults);
+          await refreshAchievements();
+        } catch {
+          // profile reload failed silently — sync was still successful
         }
         return;
       }
@@ -438,7 +428,7 @@ export default function SettingsPage() {
 
       toast.error('No device connected. Please connect a wearable first.');
     } catch (err) {
-      toast.error('Sync crashed: ' + String(err));
+      toast.error(err instanceof Error ? err.message : 'Sync failed');
       console.error('[handleSync] crash:', err);
     } finally {
       setSyncing(false);
@@ -729,6 +719,27 @@ export default function SettingsPage() {
     }
   }
 
+  async function saveCountryInline(): Promise<boolean> {
+    if (!athlete?.id) return false;
+    const next = countryDraft.trim() || null;
+    setCountrySaving(true);
+    try {
+      const { error } = await supabase
+        .from('athletes')
+        .update({ country: next })
+        .eq('id', athlete.id);
+      if (error) {
+        toast.error(error.message);
+        return false;
+      }
+      setAthlete((prev) => (prev ? { ...prev, country: next } : prev));
+      toast.success('Country updated.');
+      return true;
+    } finally {
+      setCountrySaving(false);
+    }
+  }
+
   function effectiveSelectedLeagues(): string[] {
     const s = athlete?.selected_leagues;
     if (s == null || s.length === 0) return ['engine', 'run'];
@@ -873,6 +884,9 @@ export default function SettingsPage() {
       const g = athlete.gender;
       setGenderDraft(g === 'male' || g === 'female' ? g : null);
     }
+    if (dialog === 'country') {
+      setCountryDraft(athlete.country ?? '');
+    }
     setSettingsDialog(dialog);
   }
 
@@ -935,6 +949,8 @@ export default function SettingsPage() {
       usernameSaving={usernameSaving}
       genderDraft={genderDraft}
       genderSaving={genderSaving}
+      countryDraft={countryDraft}
+      countrySaving={countrySaving}
       supportBody={supportBody}
       supportSending={supportSending}
       restorePurchasing={restorePurchasing}
@@ -966,6 +982,12 @@ export default function SettingsPage() {
       onGenderDraftChange={setGenderDraft}
       onSaveGender={() =>
         void saveGenderInline().then((ok) => {
+          if (ok) closeSettingsDialog();
+        })
+      }
+      onCountryDraftChange={setCountryDraft}
+      onSaveCountry={() =>
+        void saveCountryInline().then((ok) => {
           if (ok) closeSettingsDialog();
         })
       }

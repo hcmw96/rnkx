@@ -56,6 +56,8 @@ import {
   SettingsSectionHeader,
 } from '@/components/settings/SettingsRows';
 import { ProfileGenderSelect } from '@/components/settings/ProfileGenderSelect';
+import CountrySelect from '@/components/onboarding/CountrySelect';
+import { getCountryByName } from '@/data/countries';
 import { athleteProfileGenderLabel, type AthleteProfileGender } from '@/lib/clubGender';
 import { formatLeaguesSubtitle, formatSyncAgo, maxHrSourceLabel } from '@/lib/settingsFormat';
 import { cn } from '@/lib/utils';
@@ -73,6 +75,7 @@ type SettingsDialog =
   | 'displayName'
   | 'username'
   | 'gender'
+  | 'country'
   | 'password'
   | 'leagues'
   | 'subscription'
@@ -97,6 +100,7 @@ export type SettingsPageLayoutProps = {
     last_synced: string | null;
     user_id: string | null;
     gender: string | null;
+    country: string | null;
   } | null;
   userEmail: string | null;
   terraConnections: TerraConnectionRow[];
@@ -120,6 +124,8 @@ export type SettingsPageLayoutProps = {
   usernameSaving: boolean;
   genderDraft: AthleteProfileGender | null;
   genderSaving: boolean;
+  countryDraft: string;
+  countrySaving: boolean;
   supportBody: string;
   supportSending: boolean;
   restorePurchasing: boolean;
@@ -142,6 +148,8 @@ export type SettingsPageLayoutProps = {
   onSaveUsername: () => void;
   onGenderDraftChange: (value: AthleteProfileGender) => void;
   onSaveGender: () => void;
+  onCountryDraftChange: (value: string) => void;
+  onSaveCountry: () => void;
   onPasswordReset: () => void;
   onToggleLeague: (league: 'engine' | 'run') => void;
   onHealthDataChange: (value: boolean) => void;
@@ -155,6 +163,13 @@ export type SettingsPageLayoutProps = {
   onDeleteAccountClose: (open: boolean) => void;
   onDeleteAccountConfirm: () => void;
 };
+
+function countryRowSubtitle(country: string | null): string {
+  const trimmed = country?.trim();
+  if (!trimmed) return 'Not set';
+  const meta = getCountryByName(trimmed);
+  return meta ? `${meta.flag} ${meta.name}` : trimmed;
+}
 
 export function SettingsPageLayout(props: SettingsPageLayoutProps) {
   const navigate = useNavigate();
@@ -183,6 +198,8 @@ export function SettingsPageLayout(props: SettingsPageLayoutProps) {
     usernameSaving,
     genderDraft,
     genderSaving,
+    countryDraft,
+    countrySaving,
     supportBody,
     supportSending,
     restorePurchasing,
@@ -205,6 +222,8 @@ export function SettingsPageLayout(props: SettingsPageLayoutProps) {
     onSaveUsername,
     onGenderDraftChange,
     onSaveGender,
+    onCountryDraftChange,
+    onSaveCountry,
     onPasswordReset,
     onToggleLeague,
     onHealthDataChange,
@@ -256,7 +275,17 @@ export function SettingsPageLayout(props: SettingsPageLayoutProps) {
             </AlertDialog>
 
             <Dialog open={settingsDialog != null} onOpenChange={(open) => !open && onCloseDialog()}>
-              <DialogContent className="max-w-md border-border bg-card">
+              <DialogContent
+                className="max-w-md border-border bg-card"
+                onPointerDownOutside={(e) => {
+                  const el = e.target as HTMLElement | null;
+                  if (el?.closest('[data-radix-select-content]')) e.preventDefault();
+                }}
+                onInteractOutside={(e) => {
+                  const el = e.target as HTMLElement | null;
+                  if (el?.closest('[data-radix-select-content]')) e.preventDefault();
+                }}
+              >
                 {settingsDialog === 'email' ? (
                   <>
                     <DialogHeader>
@@ -335,6 +364,34 @@ export function SettingsPageLayout(props: SettingsPageLayoutProps) {
                         onClick={onSaveGender}
                       >
                         {genderSaving ? 'Saving…' : 'Save'}
+                      </Button>
+                    </DialogFooter>
+                  </>
+                ) : null}
+
+                {settingsDialog === 'country' ? (
+                  <>
+                    <DialogHeader>
+                      <DialogTitle>Country</DialogTitle>
+                      <p className="text-sm text-muted-foreground">
+                        Optional — shown on leaderboards if you choose one.
+                      </p>
+                    </DialogHeader>
+                    <CountrySelect
+                      value={countryDraft}
+                      onChange={onCountryDraftChange}
+                      allowUnset
+                    />
+                    <DialogFooter>
+                      <Button type="button" variant="outline" onClick={onCloseDialog}>
+                        Cancel
+                      </Button>
+                      <Button
+                        type="button"
+                        disabled={countrySaving}
+                        onClick={onSaveCountry}
+                      >
+                        {countrySaving ? 'Saving…' : 'Save'}
                       </Button>
                     </DialogFooter>
                   </>
@@ -702,6 +759,13 @@ export function SettingsPageLayout(props: SettingsPageLayoutProps) {
                   title="Email"
                   subtitle={userEmail ?? '—'}
                   onClick={() => onOpenDialog('email')}
+                />
+                <SettingsRowDivider />
+                <SettingsRow
+                  icon={Globe}
+                  title="Country"
+                  subtitle={countryRowSubtitle(athlete.country)}
+                  onClick={() => onOpenDialog('country')}
                 />
                 <SettingsRowDivider />
                 <SettingsRow
