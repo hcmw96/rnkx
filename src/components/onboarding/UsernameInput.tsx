@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Input } from '@/components/ui/input';
 import { supabase } from '@/integrations/supabase/client';
 import { Check, X, Loader2 } from 'lucide-react';
@@ -14,55 +14,79 @@ const UsernameInput = ({ value, onChange, onValidChange }: UsernameInputProps) =
   const [isChecking, setIsChecking] = useState(false);
   const [isAvailable, setIsAvailable] = useState<boolean | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const checkGenRef = useRef(0);
+  const valueRef = useRef(value);
+  valueRef.current = value;
 
   useEffect(() => {
-    const checkUsername = async () => {
-      if (value.length < 3) {
-        setIsAvailable(null);
-        setError(value.length > 0 ? 'Username must be at least 3 characters' : null);
-        onValidChange(false);
-        return;
-      }
+    checkGenRef.current += 1;
+    const requested = value;
+    setIsAvailable(null);
+    setIsChecking(false);
+    onValidChange(false);
 
-      if (value.length > 20) {
-        setIsAvailable(null);
-        setError('Username must be 20 characters or less');
-        onValidChange(false);
-        return;
-      }
+    const debounce = setTimeout(() => {
+      const gen = checkGenRef.current;
+      const isCurrent = () => gen === checkGenRef.current && valueRef.current === requested;
 
-      if (!/^[a-zA-Z0-9_]+$/.test(value)) {
-        setIsAvailable(null);
-        setError('Only letters, numbers, and underscores allowed');
-        onValidChange(false);
-        return;
-      }
+      void (async () => {
+        if (requested.length < 3) {
+          if (!isCurrent()) return;
+          setIsChecking(false);
+          setIsAvailable(null);
+          setError(requested.length > 0 ? 'Username must be at least 3 characters' : null);
+          onValidChange(false);
+          return;
+        }
 
-      setIsChecking(true);
-      setError(null);
+        if (requested.length > 20) {
+          if (!isCurrent()) return;
+          setIsChecking(false);
+          setIsAvailable(null);
+          setError('Username must be 20 characters or less');
+          onValidChange(false);
+          return;
+        }
 
-      const { data, error: queryError } = await supabase
-        .from('athletes')
-        .select('id')
-        .eq('username', value.toLowerCase())
-        .maybeSingle();
+        if (!/^[a-zA-Z0-9_]+$/.test(requested)) {
+          if (!isCurrent()) return;
+          setIsChecking(false);
+          setIsAvailable(null);
+          setError('Only letters, numbers, and underscores allowed');
+          onValidChange(false);
+          return;
+        }
 
-      setIsChecking(false);
+        setIsChecking(true);
+        setError(null);
 
-      if (queryError) {
-        setError('Error checking username');
-        onValidChange(false);
-        return;
-      }
+        const { data, error: queryError } = await supabase
+          .from('athletes')
+          .select('id')
+          .eq('username', requested.toLowerCase())
+          .maybeSingle();
 
-      const available = !data;
-      setIsAvailable(available);
-      setError(available ? null : 'Username is already taken');
-      onValidChange(available);
+        if (!isCurrent()) return;
+
+        setIsChecking(false);
+
+        if (queryError) {
+          setError('Error checking username');
+          onValidChange(false);
+          return;
+        }
+
+        const available = !data;
+        setIsAvailable(available);
+        setError(available ? null : 'Username is already taken');
+        onValidChange(available);
+      })();
+    }, 300);
+
+    return () => {
+      clearTimeout(debounce);
+      checkGenRef.current += 1;
     };
-
-    const debounce = setTimeout(checkUsername, 300);
-    return () => clearTimeout(debounce);
   }, [value, onValidChange]);
 
   return (

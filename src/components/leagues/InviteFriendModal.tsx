@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { AthleteAvatarImg } from '@/components/AthleteAvatarImg';
@@ -27,23 +27,34 @@ export function InviteFriendModal({ open, onOpenChange, leagueId, leagueName, on
   const [results, setResults] = useState<SearchResult[]>([]);
   const [searching, setSearching] = useState(false);
   const [adding, setAdding] = useState<string | null>(null);
+  const searchGenRef = useRef(0);
+  const searchRef = useRef(search);
+  searchRef.current = search;
 
   useEffect(() => {
-    if (!search.trim() || search.trim().length < 2) {
+    searchGenRef.current += 1;
+    const q = search.trim();
+    if (!q || q.length < 2) {
       setResults([]);
+      setSearching(false);
       return;
     }
 
     const timer = setTimeout(() => {
+      const gen = searchGenRef.current;
+      const requested = q;
+      const isCurrent = () =>
+        gen === searchGenRef.current && searchRef.current.trim() === requested;
+
       void (async () => {
         setSearching(true);
         try {
-          const q = search.trim();
-          const pattern = `%${q}%`;
+          const pattern = `%${requested}%`;
           const [byUser, byName] = await Promise.all([
             supabase.from('athletes').select('id, display_name, username, avatar_url').ilike('username', pattern).limit(10),
             supabase.from('athletes').select('id, display_name, username, avatar_url').ilike('display_name', pattern).limit(10),
           ]);
+          if (!isCurrent()) return;
           const err = byUser.error || byName.error;
           if (err) throw err;
           const map = new Map<string, SearchResult>();
@@ -52,14 +63,18 @@ export function InviteFriendModal({ open, onOpenChange, leagueId, leagueName, on
           }
           setResults([...map.values()].slice(0, 10));
         } catch (err) {
+          if (!isCurrent()) return;
           console.error('Search error:', err);
         } finally {
-          setSearching(false);
+          if (isCurrent()) setSearching(false);
         }
       })();
     }, 300);
 
-    return () => clearTimeout(timer);
+    return () => {
+      clearTimeout(timer);
+      searchGenRef.current += 1;
+    };
   }, [search]);
 
   const handleAdd = async (athlete: SearchResult) => {

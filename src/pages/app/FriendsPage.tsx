@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { ChevronRight, MessageCircle, Search, UserPlus, Check, X } from 'lucide-react';
 import { AppShell } from '@/components/app/AppShell';
@@ -49,6 +49,11 @@ export default function FriendsPage({ embedded = false }: FriendsPageProps) {
   const [cancellingOutgoingId, setCancellingOutgoingId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const athleteId = sessionAthleteId;
+  const searchGenRef = useRef(0);
+  const searchRef = useRef(search);
+  searchRef.current = search;
+  const athleteIdRef = useRef(athleteId);
+  athleteIdRef.current = athleteId;
 
   const loadFriendsData = useCallback(async (options?: { silent?: boolean }) => {
     if (!options?.silent) {
@@ -181,20 +186,30 @@ export default function FriendsPage({ embedded = false }: FriendsPageProps) {
   }, [loading, incoming, outgoing, friends]);
 
   useEffect(() => {
-    if (!search.trim() || search.trim().length < 2 || !athleteId) {
+    searchGenRef.current += 1;
+    const q = search.trim();
+    if (!q || q.length < 2 || !athleteId) {
       setResults([]);
+      setSearching(false);
       return;
     }
     const t = setTimeout(() => {
+      const gen = searchGenRef.current;
+      const requested = { q, athleteId };
+      const isCurrent = () =>
+        gen === searchGenRef.current &&
+        searchRef.current.trim() === requested.q &&
+        athleteIdRef.current === requested.athleteId;
+
       void (async () => {
         setSearching(true);
-        const q = search.trim();
         const { data, error } = await supabase
           .from('athletes')
           .select('id, username, display_name, avatar_url, selected_leagues')
           .or(`username.ilike.%${q}%,display_name.ilike.%${q}%`)
           .neq('id', athleteId)
           .limit(15);
+        if (!isCurrent()) return;
         if (error) {
           setResults([]);
         } else {
@@ -203,7 +218,10 @@ export default function FriendsPage({ embedded = false }: FriendsPageProps) {
         setSearching(false);
       })();
     }, 300);
-    return () => clearTimeout(t);
+    return () => {
+      clearTimeout(t);
+      searchGenRef.current += 1;
+    };
   }, [search, athleteId]);
 
   const sendRequest = async (friendId: string) => {
