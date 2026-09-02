@@ -7,8 +7,12 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-function rcAuthHeader(publicKey: string): string {
-  const token = btoa(`${publicKey}:`);
+/** Secret keys (sk_) use Bearer; public SDK keys (appl_/goog_) use Basic. */
+function rcAuthHeader(apiKey: string): string {
+  if (apiKey.startsWith('sk_')) {
+    return `Bearer ${apiKey}`;
+  }
+  const token = btoa(`${apiKey}:`);
   return `Basic ${token}`;
 }
 
@@ -28,11 +32,11 @@ function isPremiumEntitlementActive(ent: Record<string, unknown> | null | undefi
  */
 async function isPremiumForAppUserId(
   appUserId: string,
-  rcPublicKey: string,
+  rcSecretKey: string,
 ): Promise<boolean> {
   const subUrl = `https://api.revenuecat.com/v1/subscribers/${encodeURIComponent(appUserId)}`;
   const rcRes = await fetch(subUrl, {
-    headers: { Authorization: rcAuthHeader(rcPublicKey) },
+    headers: { Authorization: rcAuthHeader(rcSecretKey) },
   });
 
   if (rcRes.ok) {
@@ -69,9 +73,9 @@ serve(async (req) => {
 
   const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
   const serviceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
-  const rcPublicKey = Deno.env.get('REVENUECAT_PUBLIC_KEY')?.trim();
-  if (!rcPublicKey) {
-    console.error('[check-entitlement] REVENUECAT_PUBLIC_KEY not set');
+  const rcSecretKey = Deno.env.get('REVENUECAT_SECRET_KEY')?.trim();
+  if (!rcSecretKey) {
+    console.error('[check-entitlement] REVENUECAT_SECRET_KEY not set');
     return new Response(JSON.stringify({ error: 'Server misconfiguration' }), {
       status: 500,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
@@ -113,11 +117,11 @@ serve(async (req) => {
 
   // Primary: auth UUID — matches launchNativePaywall external_id.
   // Fallback: email — historical check-entitlement identity (may own legacy subscribers).
-  let isPremium = await isPremiumForAppUserId(user.id, rcPublicKey);
+  let isPremium = await isPremiumForAppUserId(user.id, rcSecretKey);
   let matchedBy: 'auth_uuid' | 'email' | 'none' = isPremium ? 'auth_uuid' : 'none';
 
   if (!isPremium && email && email !== user.id) {
-    const emailPremium = await isPremiumForAppUserId(email, rcPublicKey);
+    const emailPremium = await isPremiumForAppUserId(email, rcSecretKey);
     if (emailPremium) {
       isPremium = true;
       matchedBy = 'email';

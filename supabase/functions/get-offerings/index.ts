@@ -46,8 +46,8 @@ serve(async (req) => {
     });
   }
 
-  const rcPublicKey = Deno.env.get('REVENUECAT_PUBLIC_KEY')?.trim();
-  if (!rcPublicKey) {
+  const rcSecretKey = Deno.env.get('REVENUECAT_SECRET_KEY')?.trim();
+  if (!rcSecretKey) {
     return new Response(JSON.stringify({ error: 'Server misconfiguration', packages: [] }), {
       status: 500,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
@@ -71,7 +71,7 @@ serve(async (req) => {
   const offeringsUrl = `https://api.revenuecat.com/v1/subscribers/${encodeURIComponent(appUserId)}/offerings`;
   const rcRes = await fetch(offeringsUrl, {
     headers: {
-      Authorization: rcAuthHeader(rcPublicKey),
+      Authorization: rcAuthHeader(rcSecretKey),
       'X-Platform': platform,
       'Content-Type': 'application/json',
     },
