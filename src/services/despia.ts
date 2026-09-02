@@ -1,5 +1,4 @@
 import despia from 'despia-native';
-import { toast } from 'sonner';
 import {
   releaseHealthKit,
   summarizeRawHealthKitWorkouts,
@@ -91,11 +90,6 @@ function normaliseWorkouts(raw: unknown): WorkoutObject[] {
     const w = item as Record<string, unknown>;
 
     const activityTypeRaw = String(w.activityType ?? w.workoutActivityType ?? 'unknown');
-    if (String(w.activityType ?? '').toLowerCase().includes('run')) {
-      toast.message('run debug', {
-        description: `dist:${w.distance} totalDist:${w.totalDistance} val:${w.value} unit:${w.unit} speed:${JSON.stringify(Array.isArray(w.samples) ? (w.samples as any[]).find((s: any) => s.key?.includes('Speed')) : null)}`,
-      });
-    }
 
     const avgHrSample = Array.isArray(w.samples)
       ? (w.samples as any[]).find((s: any) => s.key === 'HKQuantityTypeIdentifierHeartRateAverage')
