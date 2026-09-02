@@ -1,4 +1,7 @@
 import html2canvas from 'html2canvas';
+import rnkxLogo from '@/assets/rnkx-logo.svg';
+import rnkxSymbol from '@/assets/rnkx-symbol.png';
+import { useEffect, useState } from 'react';
 
 export const SHARE_CARD_WIDTH = 1080;
 export const SHARE_CARD_HEIGHT = 1920;
@@ -16,6 +19,37 @@ export const SHARE_CARD_STAT_BLOCK_WIDTH =
 /** Left edge of the 3-cell block. Right margin equals this (88px). */
 export const SHARE_CARD_STAT_BLOCK_LEFT =
   (SHARE_CARD_WIDTH - SHARE_CARD_STAT_BLOCK_WIDTH) / 2;
+
+const SHARE_CARD_IMAGE_URLS = [rnkxLogo, rnkxSymbol];
+
+function loadImage(src: string): Promise<void> {
+  return new Promise((resolve) => {
+    const img = new Image();
+    img.onload = () => resolve();
+    img.onerror = () => resolve();
+    img.src = src;
+  });
+}
+
+let shareCardImagesReady: Promise<void> | null = null;
+
+/** Decode wordmark + symbol before preview/capture so the logo is never missing. */
+export function ensureShareCardImagesLoaded(): Promise<void> {
+  if (!shareCardImagesReady) {
+    shareCardImagesReady = Promise.all(SHARE_CARD_IMAGE_URLS.map(loadImage)).then(() => undefined);
+  }
+  return shareCardImagesReady;
+}
+
+void ensureShareCardImagesLoaded();
+
+export function useShareCardImagesReady(): boolean {
+  const [ready, setReady] = useState(false);
+  useEffect(() => {
+    void ensureShareCardImagesLoaded().then(() => setReady(true));
+  }, []);
+  return ready;
+}
 
 function canvasToPngBlob(canvas: HTMLCanvasElement): Promise<Blob> {
   return new Promise((resolve, reject) => {
@@ -121,12 +155,20 @@ function forceCaptureBox(el: HTMLElement): void {
 async function waitForImages(root: HTMLElement): Promise<void> {
   const images = Array.from(root.querySelectorAll('img'));
   await Promise.all(
-    images.map((img) => {
-      if (img.complete) return Promise.resolve();
-      return new Promise<void>((resolve) => {
-        img.addEventListener('load', () => resolve(), { once: true });
-        img.addEventListener('error', () => resolve(), { once: true });
-      });
+    images.map(async (img) => {
+      if (!img.complete) {
+        await new Promise<void>((resolve) => {
+          img.addEventListener('load', () => resolve(), { once: true });
+          img.addEventListener('error', () => resolve(), { once: true });
+        });
+      }
+      if (typeof img.decode === 'function') {
+        try {
+          await img.decode();
+        } catch {
+          // ignore decode failures — capture still proceeds
+        }
+      }
     }),
   );
 }
@@ -135,6 +177,7 @@ export async function captureElementAsPng(element: HTMLElement): Promise<Blob> {
   const previousStyle = element.getAttribute('style');
   forceCaptureBox(element);
   try {
+    await ensureShareCardImagesLoaded();
     await waitForImages(element);
     await new Promise<void>((resolve) => {
       requestAnimationFrame(() => requestAnimationFrame(() => resolve()));

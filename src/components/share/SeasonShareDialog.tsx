@@ -10,10 +10,12 @@ import {
 } from '@/components/ui/dialog';
 import {
   captureElementAsPng,
+  ensureShareCardImagesLoaded,
   SHARE_CARD_HEIGHT,
   SHARE_CARD_PREVIEW_SCALE,
   SHARE_CARD_WIDTH,
   sharePngBlob,
+  useShareCardImagesReady,
 } from '@/lib/shareCardImage';
 import { fetchSeasonShareStats, type SeasonShareStats } from '@/lib/seasonShareStats';
 import { Loader2, Share2 } from 'lucide-react';
@@ -35,6 +37,7 @@ export function SeasonShareDialog({ open, onOpenChange, athleteId }: SeasonShare
   const [loading, setLoading] = useState(false);
   const [sharing, setSharing] = useState(false);
   const [backgroundImageUrl, setBackgroundImageUrl] = useState<string | null>(null);
+  const logoReady = useShareCardImagesReady();
 
   useEffect(() => {
     if (!open || !athleteId) return;
@@ -51,9 +54,10 @@ export function SeasonShareDialog({ open, onOpenChange, athleteId }: SeasonShare
 
   async function handleShare() {
     const el = captureRef.current;
-    if (!el || !stats) return;
+    if (!el || !stats || !logoReady) return;
     setSharing(true);
     try {
+      await ensureShareCardImagesLoaded();
       await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
       const blob = await captureElementAsPng(el);
       await sharePngBlob(blob, 'rnkx-season-card.png', 'My RNKX Season');
@@ -146,7 +150,7 @@ export function SeasonShareDialog({ open, onOpenChange, athleteId }: SeasonShare
             <Button
               type="button"
               className="h-11 w-full bg-neon-lime font-semibold text-black hover:bg-neon-lime/90"
-              disabled={sharing}
+              disabled={sharing || !logoReady}
               onClick={() => void handleShare()}
             >
               {sharing ? (

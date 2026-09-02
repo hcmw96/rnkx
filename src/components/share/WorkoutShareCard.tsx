@@ -6,6 +6,7 @@ import {
   SHARE_CARD_STAT_CELL_WIDTH,
   SHARE_CARD_STAT_RULE_WIDTH,
   SHARE_CARD_WIDTH,
+  useShareCardImagesReady,
 } from '@/lib/shareCardImage';
 import {
   DEFAULT_SHARE_PHOTO_TRANSFORM,
@@ -70,6 +71,7 @@ export function WorkoutShareCard({
   const leagueLabel = payload.leagueType === 'run' ? 'RUN' : 'ENGINE';
   const rankText = payload.seasonRank != null ? `#${payload.seasonRank}` : '—';
   const usingPhoto = Boolean(backgroundImageUrl);
+  const logoReady = useShareCardImagesReady();
   const textShadow = usingPhoto ? '0 2px 14px rgba(0,0,0,0.55)' : undefined;
   const divisionText = `${payload.division.toUpperCase()} DIVISION`;
 
@@ -142,22 +144,24 @@ export function WorkoutShareCard({
           height: FIGURE_H,
         }}
       >
-        <img
-          src={rnkxSymbol}
-          alt=""
-          crossOrigin="anonymous"
-          style={{
-            position: 'absolute',
-            left: ICON_INSET,
-            bottom: 0,
-            height: FIGURE_H,
-            width: FIGURE_H,
-            objectFit: 'contain',
-            objectPosition: 'center bottom',
-            display: 'block',
-            filter: usingPhoto ? 'drop-shadow(0 2px 10px rgba(0,0,0,0.45))' : undefined,
-          }}
-        />
+        {logoReady ? (
+          <img
+            src={rnkxSymbol}
+            alt=""
+            crossOrigin="anonymous"
+            style={{
+              position: 'absolute',
+              left: ICON_INSET,
+              bottom: 0,
+              height: FIGURE_H,
+              width: FIGURE_H,
+              objectFit: 'contain',
+              objectPosition: 'center bottom',
+              display: 'block',
+              filter: usingPhoto ? 'drop-shadow(0 2px 10px rgba(0,0,0,0.45))' : undefined,
+            }}
+          />
+        ) : null}
       </div>
       <div
         style={{

@@ -11,10 +11,12 @@ import {
 import { useSharePhotoGestures } from '@/hooks/useSharePhotoGestures';
 import {
   captureElementAsPng,
+  ensureShareCardImagesLoaded,
   SHARE_CARD_HEIGHT,
   SHARE_CARD_PREVIEW_SCALE,
   SHARE_CARD_WIDTH,
   sharePngBlob,
+  useShareCardImagesReady,
 } from '@/lib/shareCardImage';
 import {
   DEFAULT_SHARE_PHOTO_TRANSFORM,
@@ -42,6 +44,7 @@ export function WorkoutShareDialog({ open, onOpenChange, payload }: WorkoutShare
     DEFAULT_SHARE_PHOTO_TRANSFORM,
   );
   const [naturalSize, setNaturalSize] = useState({ w: 0, h: 0 });
+  const logoReady = useShareCardImagesReady();
 
   useEffect(() => {
     if (!backgroundImageUrl) {
@@ -71,9 +74,10 @@ export function WorkoutShareDialog({ open, onOpenChange, payload }: WorkoutShare
 
   async function handleShare() {
     const el = captureRef.current;
-    if (!el || !payload) return;
+    if (!el || !payload || !logoReady) return;
     setSharing(true);
     try {
+      await ensureShareCardImagesLoaded();
       await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
       const blob = await captureElementAsPng(el);
       await sharePngBlob(blob, 'rnkx-workout-card.png', 'My RNKX Workout');
@@ -192,7 +196,7 @@ export function WorkoutShareDialog({ open, onOpenChange, payload }: WorkoutShare
           <Button
             type="button"
             className="flex-1 bg-neon-lime font-semibold text-zinc-950 hover:bg-neon-lime/90"
-            disabled={sharing}
+            disabled={sharing || !logoReady}
             onClick={() => void handleShare()}
           >
             {sharing ? (

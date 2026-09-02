@@ -1,4 +1,4 @@
-import { SHARE_CARD_HEIGHT, SHARE_CARD_WIDTH } from '@/lib/shareCardImage';
+import { SHARE_CARD_HEIGHT, SHARE_CARD_WIDTH, useShareCardImagesReady } from '@/lib/shareCardImage';
 import { ENGINE_CHART_COLOR } from '@/lib/chartTheme';
 import {
   clampSharePhotoTransform,
@@ -136,6 +136,7 @@ export function ShareCardFrame({
   className,
 }: ShareCardFrameProps) {
   const usingPhoto = Boolean(backgroundImageUrl);
+  const logoReady = useShareCardImagesReady();
 
   return (
     <div
@@ -178,7 +179,7 @@ export function ShareCardFrame({
           pointerEvents: 'none',
         }}
       >
-        {showLogo ? (
+        {showLogo && logoReady ? (
           <div
             style={{
               position: 'absolute',

@@ -1,7 +1,7 @@
 import { ShareCardFrame } from '@/components/share/ShareCardFrame';
 import { ENGINE_CHART_COLOR } from '@/lib/chartTheme';
 import { formatScore } from '@/lib/formatScore';
-import { SHARE_CARD_HEIGHT, SHARE_CARD_WIDTH } from '@/lib/shareCardImage';
+import { SHARE_CARD_HEIGHT, SHARE_CARD_WIDTH, useShareCardImagesReady } from '@/lib/shareCardImage';
 import type { SeasonShareStats } from '@/lib/seasonShareStats';
 import rnkxSymbol from '@/assets/rnkx-symbol.png';
 
@@ -83,6 +83,7 @@ export function SeasonOverviewCard({ stats, backgroundImageUrl }: SeasonOverview
   const rankText = stats.seasonRank != null ? `#${stats.seasonRank}` : '—';
   const displayName = stats.displayName || stats.username;
   const usingPhoto = Boolean(backgroundImageUrl);
+  const logoReady = useShareCardImagesReady();
   const textShadow = usingPhoto ? '0 2px 14px rgba(0,0,0,0.55)' : undefined;
   const pillText = (stats.seasonName || 'SEASON').toUpperCase();
 
@@ -177,17 +178,19 @@ export function SeasonOverviewCard({ stats, backgroundImageUrl }: SeasonOverview
               padding: '8px 28px',
             }}
           >
-            <img
-              src={rnkxSymbol}
-              alt=""
-              crossOrigin="anonymous"
-              style={{
-                height: 96,
-                width: 96,
-                objectFit: 'contain',
-                filter: usingPhoto ? 'drop-shadow(0 2px 10px rgba(0,0,0,0.45))' : undefined,
-              }}
-            />
+            {logoReady ? (
+              <img
+                src={rnkxSymbol}
+                alt=""
+                crossOrigin="anonymous"
+                style={{
+                  height: 96,
+                  width: 96,
+                  objectFit: 'contain',
+                  filter: usingPhoto ? 'drop-shadow(0 2px 10px rgba(0,0,0,0.45))' : undefined,
+                }}
+              />
+            ) : null}
             <p
               style={{
                 margin: 0,
