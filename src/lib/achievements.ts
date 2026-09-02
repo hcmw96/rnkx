@@ -1,4 +1,5 @@
 import { activitySessionScore } from '@/lib/activitySessionScore';
+import { fetchLiveCategoryRanks } from '@/lib/categoryRank';
 import { divisionForRank } from '@/lib/division';
 import type { ProfileCareerStats, ProfileSeasonStats } from '@/lib/profileStats';
 import { fetchProfileCareerStats, fetchProfileSeasonStats } from '@/lib/profileStats';
@@ -176,10 +177,13 @@ async function hasRecruitedScoringFriend(athleteId: string): Promise<boolean> {
   return false;
 }
 
-async function isSeasonOneMember(): Promise<boolean> {
-  const { data: season } = await supabase.from('seasons').select('name').eq('is_active', true).maybeSingle();
-  const name = typeof season?.name === 'string' ? season.name.trim().toLowerCase() : '';
-  return name.includes('season 1') || name.startsWith('season 1');
+async function fetchActiveSeason(): Promise<{ id: string; name: string } | null> {
+  const { data } = await supabase.from('seasons').select('id, name').eq('is_active', true).maybeSingle();
+  if (!data?.id) return null;
+  return {
+    id: String(data.id),
+    name: typeof data.name === 'string' ? data.name : '',
+  };
 }
 
 async function computeUnlockEligibility(
@@ -191,15 +195,16 @@ async function computeUnlockEligibility(
   const runScore = season?.runScore ?? 0;
   const bestSession = career?.bestSession ?? 0;
 
-  const [dayMap, seasonOne, recruiter, statsRows] = await Promise.all([
+  const [dayMap, recruiter, seasonPack] = await Promise.all([
     fetchScoredDaysByCategory(athleteId),
-    isSeasonOneMember(),
     hasRecruitedScoringFriend(athleteId),
-    supabase
-      .from('athlete_stats')
-      .select('category, rank')
-      .eq('athlete_id', athleteId)
-      .in('category', ['engine', 'run']),
+    (async () => {
+      const activeSeason = await fetchActiveSeason();
+      const liveRanks = activeSeason
+        ? await fetchLiveCategoryRanks(athleteId, activeSeason.id)
+        : { engine: null, run: null };
+      return { activeSeason, liveRanks };
+    })(),
   ]);
 
   const dayKeys = [...dayMap.keys()];
@@ -213,17 +218,12 @@ async function computeUnlockEligibility(
 
   const ironWeek = hasSevenDayStreak(dayKeys);
 
-  let engineRank: number | null = null;
-  let runRank: number | null = null;
-  for (const row of statsRows.data ?? []) {
-    const r = row as { category: string; rank: number | string | null };
-    const rank = num(r.rank);
-    if (rank <= 0) continue;
-    if (r.category === 'engine') engineRank = rank;
-    else if (r.category === 'run') runRank = rank;
-  }
+  const seasonName = seasonPack.activeSeason?.name.trim().toLowerCase() ?? '';
+  const seasonOne = seasonName.includes('season 1') || seasonName.startsWith('season 1');
 
-  const ranks = [engineRank, runRank].filter((r): r is number => r != null);
+  const ranks = [seasonPack.liveRanks.engine, seasonPack.liveRanks.run].filter(
+    (r): r is number => r != null,
+  );
   const top3 = ranks.some((r) => r <= 3);
   const promoted = ranks.some((r) => divisionForRank(r) !== 'Open');
 
