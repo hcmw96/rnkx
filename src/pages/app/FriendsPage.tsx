@@ -12,7 +12,7 @@ import { AthleteAvatarImg } from '@/components/AthleteAvatarImg';
 import { leagueFromSelectedLeagues } from '@/lib/leagueAvatars';
 import { useAthleteSession } from '@/context/AthleteSessionContext';
 import { getAuthUserId } from '@/lib/authSession';
-import { getFriendsCache, setFriendsCache } from '@/lib/routeCaches';
+import { setFriendsCache } from '@/lib/routeCaches';
 import { resolveAthleteId } from '@/lib/resolveAthleteId';
 import { supabase } from '@/services/supabase';
 import { toast } from 'sonner';
@@ -40,21 +40,14 @@ type FriendsPageProps = {
 
 export default function FriendsPage({ embedded = false }: FriendsPageProps) {
   const { authUserId, athleteId: sessionAthleteId } = useAthleteSession();
-  const cached = getFriendsCache();
   const [search, setSearch] = useState('');
   const [results, setResults] = useState<AthleteLite[]>([]);
   const [searching, setSearching] = useState(false);
-  const [incoming, setIncoming] = useState<(FriendshipRow & { requester: AthleteLite })[]>(
-    (cached?.incoming as (FriendshipRow & { requester: AthleteLite })[]) ?? [],
-  );
-  const [outgoing, setOutgoing] = useState<(FriendshipRow & { recipient: AthleteLite })[]>(
-    (cached?.outgoing as (FriendshipRow & { recipient: AthleteLite })[]) ?? [],
-  );
-  const [friends, setFriends] = useState<FriendWithMeta[]>(
-    (cached?.friends as FriendWithMeta[]) ?? [],
-  );
+  const [incoming, setIncoming] = useState<(FriendshipRow & { requester: AthleteLite })[]>([]);
+  const [outgoing, setOutgoing] = useState<(FriendshipRow & { recipient: AthleteLite })[]>([]);
+  const [friends, setFriends] = useState<FriendWithMeta[]>([]);
   const [cancellingOutgoingId, setCancellingOutgoingId] = useState<string | null>(null);
-  const [loading, setLoading] = useState(!cached);
+  const [loading, setLoading] = useState(true);
   const athleteId = sessionAthleteId;
 
   const loadFriendsData = useCallback(async (options?: { silent?: boolean }) => {
@@ -179,7 +172,7 @@ export default function FriendsPage({ embedded = false }: FriendsPageProps) {
   }, [authUserId, sessionAthleteId]);
 
   useEffect(() => {
-    void loadFriendsData({ silent: !!getFriendsCache() });
+    void loadFriendsData();
   }, [loadFriendsData]);
 
   useEffect(() => {

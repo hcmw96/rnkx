@@ -6,7 +6,7 @@ import { NewMessageModal } from "@/components/chat/NewMessageModal";
 import { supabase } from "@/services/supabase";
 import { useAthleteSession } from "@/context/AthleteSessionContext";
 import { getAuthUserId } from "@/lib/authSession";
-import { getChatCache, setChatCache } from "@/lib/routeCaches";
+import { setChatCache } from "@/lib/routeCaches";
 import { resolveAthleteId } from "@/lib/resolveAthleteId";
 import { getOrCreateDmConversation } from "@/lib/chatConversation";
 import { loadUnifiedChatInbox, type ChatInboxItem } from "@/lib/chatInboxLoad";
@@ -23,10 +23,9 @@ import type { RealtimeChannel } from "@supabase/supabase-js";
 
 export default function ChatPage() {
   const { athleteId: sessionAthleteId } = useAthleteSession();
-  const cached = getChatCache();
-  const [items, setItems] = useState<ChatInboxItem[]>((cached?.items as ChatInboxItem[]) ?? []);
-  const [loading, setLoading] = useState(!cached);
-  const [athleteId, setAthleteId] = useState<string | null>(cached?.athleteId ?? sessionAthleteId ?? null);
+  const [items, setItems] = useState<ChatInboxItem[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [athleteId, setAthleteId] = useState<string | null>(sessionAthleteId ?? null);
   const [newMsgOpen, setNewMsgOpen] = useState(false);
   const navigate = useNavigate();
   const channelRef = useRef<RealtimeChannel | null>(null);
@@ -54,7 +53,7 @@ export default function ChatPage() {
   loadAllRef.current = loadAll;
 
   useEffect(() => {
-    void loadAll({ silent: !!getChatCache() });
+    void loadAll();
   }, [loadAll]);
 
   useEffect(() => {

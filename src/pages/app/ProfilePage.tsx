@@ -14,7 +14,7 @@ import {
   type PromotionTimelineItem,
 } from '@/lib/profileStats';
 import { leagueFromSelectedLeagues } from '@/lib/leagueAvatars';
-import { getProfileCache, setProfileCache } from '@/lib/routeCaches';
+import { setProfileCache } from '@/lib/routeCaches';
 import { supabase } from '@/services/supabase';
 
 const ATHLETE_COLUMNS =
@@ -47,22 +47,15 @@ function memberSinceLabel(createdAt: string | null | undefined): string {
 
 export default function ProfilePage() {
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const cached = getProfileCache();
-  const [athlete, setAthlete] = useState<AthleteRow | null>((cached?.athlete as AthleteRow | null) ?? null);
-  const [seasonStats, setSeasonStats] = useState<ProfileSeasonStats | null>(
-    (cached?.seasonStats as ProfileSeasonStats | null) ?? null,
-  );
-  const [careerStats, setCareerStats] = useState<ProfileCareerStats | null>(
-    (cached?.careerStats as ProfileCareerStats | null) ?? null,
-  );
-  const [standingPercent, setStandingPercent] = useState(cached?.standingPercent ?? 50);
-  const [topPercent, setTopPercent] = useState(cached?.topPercent ?? 50);
-  const [achievements, setAchievements] = useState<AchievementState[]>(
-    (cached?.achievements as AchievementState[]) ?? [],
-  );
+  const [athlete, setAthlete] = useState<AthleteRow | null>(null);
+  const [seasonStats, setSeasonStats] = useState<ProfileSeasonStats | null>(null);
+  const [careerStats, setCareerStats] = useState<ProfileCareerStats | null>(null);
+  const [standingPercent, setStandingPercent] = useState(50);
+  const [topPercent, setTopPercent] = useState(50);
+  const [achievements, setAchievements] = useState<AchievementState[]>([]);
   const [timeline, setTimeline] = useState<PromotionTimelineItem[]>([]);
   const [timelineLoading, setTimelineLoading] = useState(true);
-  const [loading, setLoading] = useState(!cached);
+  const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
 
   const loadProfile = useCallback(async (options?: { silent?: boolean }) => {
@@ -123,7 +116,7 @@ export default function ProfilePage() {
   }, []);
 
   useEffect(() => {
-    void loadProfile({ silent: !!getProfileCache() });
+    void loadProfile();
   }, [loadProfile]);
 
   useEffect(() => {

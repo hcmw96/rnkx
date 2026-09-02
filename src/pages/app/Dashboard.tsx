@@ -40,7 +40,7 @@ import {
 import { isDespiaIphoneUa, wearablesIncludeAppleWatch } from '@/lib/despiaPlatform';
 import { runAppleWorkoutSync } from '@/lib/runAppleWorkoutSync';
 import { PREVIEW_COACH_SUMMARY, PREVIEW_RECENT_WORKOUTS, PREVIEW_WEEKLY_INSIGHTS } from '@/lib/dashboardPreviewData';
-import { getDashboardCache, setDashboardCache } from '@/lib/routeCaches';
+import { setDashboardCache } from '@/lib/routeCaches';
 import { getAuthUserId } from '@/lib/authSession';
 import { resolveAthleteId } from '@/lib/resolveAthleteId';
 import { supabase } from '@/services/supabase';
@@ -192,30 +192,21 @@ function activityLabel(activityType: string | null, leagueType: string): string 
 export default function Dashboard() {
   const { refreshAchievements } = useAchievementUnlock();
   const { promptFromAppleSync, openShareForHistory } = useScoreSharePrompt();
-  const cached = getDashboardCache();
-  const [loading, setLoading] = useState(!cached);
-  const [error, setError] = useState<string | null>((cached?.error as string | null) ?? null);
-  const [season, setSeason] = useState<ActiveSeason | null>((cached?.season as ActiveSeason | null) ?? null);
-  const [stats, setStats] = useState<AthleteStats | null>((cached?.stats as AthleteStats | null) ?? null);
-  const [recentActivities, setRecentActivities] = useState<RecentActivity[]>(
-    (cached?.recentActivities as RecentActivity[]) ?? [],
-  );
-  const [weeklyInsights, setWeeklyInsights] = useState<WeeklyInsightsData | null>(
-    (cached?.weeklyInsights as WeeklyInsightsData | null) ?? null,
-  );
-  const [insightsSummary, setInsightsSummary] = useState<InsightsSummary | null>(
-    (cached?.insightsSummary as InsightsSummary | null) ?? null,
-  );
-  const [lastSynced, setLastSynced] = useState<string | null>(cached?.lastSynced ?? null);
-  const [wearables, setWearables] = useState<string[] | null>(cached?.wearables ?? null);
-  const [athleteMaxHr, setAthleteMaxHr] = useState<number | string | null>(cached?.athleteMaxHr ?? null);
-  const [athleteMaxHrSource, setAthleteMaxHrSource] = useState<string | null>(
-    cached?.athleteMaxHrSource ?? null,
-  );
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [season, setSeason] = useState<ActiveSeason | null>(null);
+  const [stats, setStats] = useState<AthleteStats | null>(null);
+  const [recentActivities, setRecentActivities] = useState<RecentActivity[]>([]);
+  const [weeklyInsights, setWeeklyInsights] = useState<WeeklyInsightsData | null>(null);
+  const [insightsSummary, setInsightsSummary] = useState<InsightsSummary | null>(null);
+  const [lastSynced, setLastSynced] = useState<string | null>(null);
+  const [wearables, setWearables] = useState<string[] | null>(null);
+  const [athleteMaxHr, setAthleteMaxHr] = useState<number | string | null>(null);
+  const [athleteMaxHrSource, setAthleteMaxHrSource] = useState<string | null>(null);
   const [syncReminderDismissed, setSyncReminderDismissed] = useState(false);
   const [syncing, setSyncing] = useState(false);
-  const [athleteId, setAthleteId] = useState<string | undefined>(cached?.athleteId);
-  const [authUserId, setAuthUserId] = useState<string | undefined>(cached?.authUserId);
+  const [athleteId, setAthleteId] = useState<string | undefined>(undefined);
+  const [authUserId, setAuthUserId] = useState<string | undefined>(undefined);
 
   const loadDashboard = useCallback(async (options?: { silent?: boolean }) => {
     if (!options?.silent) {
@@ -504,7 +495,7 @@ export default function Dashboard() {
   }, []);
 
   useEffect(() => {
-    void loadDashboard({ silent: !!getDashboardCache() });
+    void loadDashboard();
   }, [loadDashboard]);
 
   useEffect(() => {
@@ -565,7 +556,6 @@ export default function Dashboard() {
 
     setSyncing(true);
     try {
-      toast.message('Syncing workouts…');
       const result = await runAppleWorkoutSync(syncAthleteId, {
         max_hr: athleteMaxHr,
         max_hr_source: athleteMaxHrSource,
@@ -576,7 +566,6 @@ export default function Dashboard() {
         return;
       }
 
-      toast.success(`Synced ${result.processed} workout${result.processed === 1 ? '' : 's'}.`);
       await loadDashboard({ silent: true });
       await refreshAchievements();
       await promptFromAppleSync(syncAthleteId, result.workouts, result.results);
