@@ -1,17 +1,17 @@
-import { useCallback, useEffect, useMemo, useState, type ComponentType } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type ComponentType } from 'react';
 import { Globe, Users, Zap } from 'lucide-react';
 import { LeaderboardRows } from '@/components/leaderboard/LeaderboardRows';
 import { PremiumGate } from '@/components/PremiumGate';
 import { FriendsPreview } from '@/components/premium/PreviewMocks';
 import { Select, SelectContent, SelectItem, SelectTrigger } from '@/components/ui/select';
 import { Skeleton } from '@/components/ui/skeleton';
-import { fetchMyDivision, type League } from '@/lib/athleteDivisions';
+import { fetchMyDivisions, type League } from '@/lib/athleteDivisions';
 import { isDivision, type Division } from '@/lib/division';
 import { fetchAcceptedFriendIds } from '@/lib/friendships';
 import { isHiddenFromLeaderboard } from '@/lib/leaderboardHidden';
 import { haptic } from '@/lib/haptics';
 import { resolveAthleteId } from '@/lib/resolveAthleteId';
-import { getLeaderboardCache, setLeaderboardCache } from '@/lib/routeCaches';
+import { setLeaderboardCache } from '@/lib/routeCaches';
 import { usePullToRefresh } from '@/hooks/usePullToRefresh';
 import { cn } from '@/lib/utils';
 import { supabase } from '@/services/supabase';
@@ -93,6 +93,16 @@ interface LeaderboardRow {
   username: string;
   country: string | null;
   avatarUrl: string | null;
+}
+
+type BoardRequest = {
+  league: League;
+  seasonId: string | null;
+  scopeTab: ScopeTab;
+};
+
+function isSameBoardRequest(a: BoardRequest, b: BoardRequest): boolean {
+  return a.league === b.league && a.seasonId === b.seasonId && a.scopeTab === b.scopeTab;
 }
 
 function num(v: number | string | null | undefined): number {
@@ -237,34 +247,61 @@ async function fetchSeasonBoard(
 }
 
 export default function LeaderboardPage() {
-  const cached = getLeaderboardCache();
-  const [activeLeague, setActiveLeague] = useState<League>(cached?.activeLeague ?? 'engine');
-  const [scopeTab, setScopeTab] = useState<ScopeTab>(cached?.scopeTab ?? 'open');
-  const [seasons, setSeasons] = useState<SeasonOption[]>((cached?.seasons as SeasonOption[]) ?? []);
-  const [selectedSeasonId, setSelectedSeasonId] = useState<string | null>(cached?.selectedSeasonId ?? null);
-  const [countryFilter, setCountryFilter] = useState<string>(cached?.countryFilter ?? 'all');
-  const [genderFilter, setGenderFilter] = useState<GenderFilter>(cached?.genderFilter ?? 'all');
-  const [merged, setMerged] = useState<MergedAthlete[]>((cached?.merged as MergedAthlete[]) ?? []);
-  const [loading, setLoading] = useState(!cached);
-  const [error, setError] = useState<string | null>(cached?.error ?? null);
-  const [currentUserId, setCurrentUserId] = useState<string | null>(cached?.currentUserId ?? null);
-  const [myAthleteId, setMyAthleteId] = useState<string | null>(cached?.myAthleteId ?? null);
-  const [friendIds, setFriendIds] = useState<Set<string>>(new Set(cached?.friendIds ?? []));
-  const [myDivision, setMyDivision] = useState<Division>((cached?.myDivision as Division) ?? 'Open');
+  const [activeLeague, setActiveLeague] = useState<League>('engine');
+  const [scopeTab, setScopeTab] = useState<ScopeTab>('open');
+  const [seasons, setSeasons] = useState<SeasonOption[]>([]);
+  const [selectedSeasonId, setSelectedSeasonId] = useState<string | null>(null);
+  const [countryFilter, setCountryFilter] = useState<string>('all');
+  const [genderFilter, setGenderFilter] = useState<GenderFilter>('all');
+  const [merged, setMerged] = useState<MergedAthlete[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+  const [myAthleteId, setMyAthleteId] = useState<string | null>(null);
+  const [friendIds, setFriendIds] = useState<Set<string>>(new Set());
+  const [myDivisions, setMyDivisions] = useState<{ engine: Division; run: Division }>({
+    engine: 'Open',
+    run: 'Open',
+  });
   const [hasMore, setHasMore] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
+  const [appliedRequest, setAppliedRequest] = useState<BoardRequest | null>(null);
+
+  const boardRequest: BoardRequest = useMemo(
+    () => ({ league: activeLeague, seasonId: selectedSeasonId, scopeTab }),
+    [activeLeague, selectedSeasonId, scopeTab],
+  );
+  const boardRequestRef = useRef(boardRequest);
+  boardRequestRef.current = boardRequest;
+  const loadGenRef = useRef(0);
+
+  const myDivision = myDivisions[activeLeague];
+  const boardMatchesSelection =
+    appliedRequest != null && isSameBoardRequest(appliedRequest, boardRequest);
 
   const loadAll = useCallback(
     async (options?: { silent?: boolean }) => {
+      const gen = ++loadGenRef.current;
+      const requested: BoardRequest = {
+        league: activeLeague,
+        seasonId: selectedSeasonId,
+        scopeTab,
+      };
+      const isCurrent = () =>
+        gen === loadGenRef.current && isSameBoardRequest(boardRequestRef.current, requested);
+
       if (!options?.silent) {
         setLoading(true);
       }
+      setLoadingMore(false);
+      if (!isCurrent()) return;
       setError(null);
 
       const [{ data: auth }, { data: seasonRows, error: seasonsErr }] = await Promise.all([
         supabase.auth.getUser(),
         supabase.from('seasons').select('id,name,is_active').order('starts_at', { ascending: false }),
       ]);
+      if (!isCurrent()) return;
 
       const uid = auth.user?.id ?? null;
       setCurrentUserId(uid);
@@ -280,9 +317,11 @@ export default function LeaderboardPage() {
       let aid: string | null = null;
       if (uid) {
         aid = (await resolveAthleteId(uid)) ?? null;
+        if (!isCurrent()) return;
         setMyAthleteId(aid);
         if (aid) {
           const friends = await fetchAcceptedFriendIds(aid);
+          if (!isCurrent()) return;
           setFriendIds(new Set(friends));
         } else {
           setFriendIds(new Set());
@@ -293,28 +332,37 @@ export default function LeaderboardPage() {
       }
 
       if (!seasonId) {
+        if (!isCurrent()) return;
         setMerged([]);
         setHasMore(false);
+        setAppliedRequest({ ...requested, seasonId: null });
         setLoading(false);
         return;
       }
 
       let division: Division = 'Open';
       if (aid) {
-        division = await fetchMyDivision(aid, seasonId, activeLeague);
-        setMyDivision(division);
+        const nextDivisions = await fetchMyDivisions(aid, seasonId);
+        if (!isCurrent()) return;
+        setMyDivisions(nextDivisions);
+        division = nextDivisions[requested.league];
+      } else if (isCurrent()) {
+        setMyDivisions({ engine: 'Open', run: 'Open' });
       } else {
-        setMyDivision('Open');
+        return;
       }
 
       const view =
-        scopeTab === 'open' ? 'season_division_leaderboard' : 'season_overall_leaderboard';
+        requested.scopeTab === 'open'
+          ? 'season_division_leaderboard'
+          : 'season_overall_leaderboard';
       const pack = await fetchSeasonBoard(
         view,
         seasonId,
-        activeLeague,
-        scopeTab === 'open' ? division : null,
+        requested.league,
+        requested.scopeTab === 'open' ? division : null,
       );
+      if (!isCurrent()) return;
 
       if (pack.error) {
         setError(pack.error);
@@ -324,7 +372,7 @@ export default function LeaderboardPage() {
         setMerged(pack.merged);
         setHasMore(pack.merged.length === BOARD_PAGE_SIZE);
       }
-
+      setAppliedRequest({ ...requested, seasonId });
       setLoading(false);
     },
     [selectedSeasonId, activeLeague, scopeTab],
@@ -355,11 +403,11 @@ export default function LeaderboardPage() {
 
   useEffect(() => {
     if (!selectedSeasonId) return;
-    void loadAll({ silent: !!getLeaderboardCache() });
+    void loadAll();
   }, [loadAll, selectedSeasonId]);
 
   useEffect(() => {
-    if (loading) return;
+    if (loading || !boardMatchesSelection) return;
     setLeaderboardCache({
       seasons,
       selectedSeasonId,
@@ -376,6 +424,7 @@ export default function LeaderboardPage() {
     });
   }, [
     loading,
+    boardMatchesSelection,
     seasons,
     selectedSeasonId,
     merged,
@@ -392,16 +441,31 @@ export default function LeaderboardPage() {
 
   const loadMore = useCallback(async () => {
     if (!selectedSeasonId || loadingMore || !hasMore) return;
+    const gen = loadGenRef.current;
+    const requested: BoardRequest = {
+      league: activeLeague,
+      seasonId: selectedSeasonId,
+      scopeTab,
+    };
+    const isCurrent = () =>
+      gen === loadGenRef.current && isSameBoardRequest(boardRequestRef.current, requested);
+
     setLoadingMore(true);
     const view =
-      scopeTab === 'open' ? 'season_division_leaderboard' : 'season_overall_leaderboard';
+      requested.scopeTab === 'open'
+        ? 'season_division_leaderboard'
+        : 'season_overall_leaderboard';
     const pack = await fetchSeasonBoard(
       view,
       selectedSeasonId,
-      activeLeague,
-      scopeTab === 'open' ? myDivision : null,
+      requested.league,
+      requested.scopeTab === 'open' ? myDivision : null,
       merged.length,
     );
+    if (!isCurrent()) {
+      setLoadingMore(false);
+      return;
+    }
     if (!pack.error) {
       setMerged((prev) => [...prev, ...pack.merged]);
       setHasMore(pack.merged.length === BOARD_PAGE_SIZE);
@@ -549,6 +613,8 @@ export default function LeaderboardPage() {
     { id: 'friends', label: 'Friends' },
   ];
 
+  const showBoard = !loading && boardMatchesSelection;
+
   return (
     <section className="mx-auto flex max-w-lg flex-col gap-5 pb-2" {...pullHandlers}>
       {(isRefreshing || pullDistance > 0) && (
@@ -671,13 +737,13 @@ export default function LeaderboardPage() {
         </p>
       ) : null}
 
-      {error && (
+      {showBoard && error && (
         <p className="rounded-xl border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">
           {error}
         </p>
       )}
 
-      {loading ? (
+      {!showBoard ? (
         <LeaderboardSkeleton />
       ) : scopeTab === 'friends' ? (
         <PremiumGate
@@ -710,7 +776,7 @@ export default function LeaderboardPage() {
         )
       )}
 
-      {!loading && !error && hasMore ? (
+      {showBoard && !error && hasMore ? (
         <button
           type="button"
           className="mx-auto rounded-lg border border-border bg-[hsla(0,0%,10%,1)] px-4 py-2.5 text-sm font-medium text-foreground disabled:opacity-50"
