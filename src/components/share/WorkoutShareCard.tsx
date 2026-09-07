@@ -22,6 +22,13 @@ type WorkoutShareCardProps = {
 };
 
 const FIGURE_H = 92;
+/** Inter’s win ascent+descent is ~1.2em; 1.0 + overflow:hidden clips html2canvas. */
+const FIGURE_LINE_HEIGHT = 1.2;
+const FIGURE_LINE_PX = Math.ceil(FIGURE_H * FIGURE_LINE_HEIGHT);
+/** Half-leading so the 92px em-square stays on the R baseline inside the 1.2 line box. */
+const FIGURE_HALF_LEADING = Math.round((FIGURE_LINE_PX - FIGURE_H) / 2);
+/** Extra capture padding above the line box so html2canvas doesn’t clip ascenders. */
+const FIGURE_CAPTURE_PAD = 8;
 const CAPTION_GAP = 18;
 const CAPTION_H = 34;
 const CELL_W = SHARE_CARD_STAT_CELL_WIDTH;
@@ -29,8 +36,10 @@ const RULE_W = SHARE_CARD_STAT_RULE_WIDTH;
 const ICON_INSET = (CELL_W - FIGURE_H) / 2;
 const PILL_H = 62;
 const GAP_PILL_TO_STATS = 56;
-/** Pixel Y of the figure row on the 1080×1920 canvas — not a % of any box. */
+/** Pixel Y of the 92px glyph em-square — R / score / rank share this baseline. */
 const FIGURE_TOP = 525;
+const FIGURE_CELL_TOP = FIGURE_TOP - FIGURE_HALF_LEADING - FIGURE_CAPTURE_PAD;
+const FIGURE_CELL_H = FIGURE_LINE_PX + FIGURE_CAPTURE_PAD;
 const CAPTION_TOP = FIGURE_TOP + FIGURE_H + CAPTION_GAP;
 const PILL_TOP = FIGURE_TOP - GAP_PILL_TO_STATS - PILL_H;
 
@@ -59,6 +68,51 @@ function Caption({ text, textShadow }: { text: string; textShadow?: string }) {
 
 function cellLeft(index: number): number {
   return SHARE_CARD_STAT_BLOCK_LEFT + index * (CELL_W + RULE_W);
+}
+
+function StatFigure({
+  text,
+  color,
+  textShadow,
+  left,
+}: {
+  text: string;
+  color: string;
+  textShadow?: string;
+  left: number;
+}) {
+  return (
+    <div
+      style={{
+        position: 'absolute',
+        left,
+        top: FIGURE_CELL_TOP,
+        width: CELL_W,
+        height: FIGURE_CELL_H,
+        display: 'flex',
+        alignItems: 'flex-end',
+        justifyContent: 'center',
+        overflow: 'visible',
+      }}
+    >
+      <span
+        className="font-sans font-bold tabular-nums"
+        style={{
+          display: 'block',
+          fontSize: FIGURE_H,
+          lineHeight: FIGURE_LINE_HEIGHT,
+          height: FIGURE_LINE_PX,
+          color,
+          textShadow,
+          whiteSpace: 'nowrap',
+          overflow: 'visible',
+          fontVariantNumeric: 'tabular-nums',
+        }}
+      >
+        {text}
+      </span>
+    </div>
+  );
 }
 
 /** V1 card: division pill + logo / points / rank — matches social share mock. */
@@ -175,27 +229,12 @@ export function WorkoutShareCard({
         <Caption text={leagueLabel} textShadow={textShadow} />
       </div>
 
-      <p
-        className="font-sans font-bold tabular-nums"
-        style={{
-          position: 'absolute',
-          left: cellLeft(1),
-          top: FIGURE_TOP,
-          width: CELL_W,
-          height: FIGURE_H,
-          margin: 0,
-          fontSize: FIGURE_H,
-          lineHeight: `${FIGURE_H}px`,
-          color: '#ffffff',
-          textShadow,
-          textAlign: 'center',
-          overflow: 'hidden',
-          whiteSpace: 'nowrap',
-          fontVariantNumeric: 'tabular-nums',
-        }}
-      >
-        {formatScore(payload.pointsScored)}
-      </p>
+      <StatFigure
+        text={formatScore(payload.pointsScored)}
+        color="#ffffff"
+        textShadow={textShadow}
+        left={cellLeft(1)}
+      />
       <div
         style={{
           position: 'absolute',
@@ -208,27 +247,12 @@ export function WorkoutShareCard({
         <Caption text="POINTS" textShadow={textShadow} />
       </div>
 
-      <p
-        className="font-sans font-bold tabular-nums"
-        style={{
-          position: 'absolute',
-          left: cellLeft(2),
-          top: FIGURE_TOP,
-          width: CELL_W,
-          height: FIGURE_H,
-          margin: 0,
-          fontSize: FIGURE_H,
-          lineHeight: `${FIGURE_H}px`,
-          color: accent,
-          textShadow,
-          textAlign: 'center',
-          overflow: 'hidden',
-          whiteSpace: 'nowrap',
-          fontVariantNumeric: 'tabular-nums',
-        }}
-      >
-        {rankText}
-      </p>
+      <StatFigure
+        text={rankText}
+        color={accent}
+        textShadow={textShadow}
+        left={cellLeft(2)}
+      />
       <div
         style={{
           position: 'absolute',
