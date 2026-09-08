@@ -28,6 +28,8 @@ type PremiumGateProps = {
   className?: string;
   /** Tighter overlay for inline gates (e.g. a single button). */
   compact?: boolean;
+  /** Grow to fill leftover column space and center the paywall in it. */
+  fill?: boolean;
 };
 
 export function PremiumGate({
@@ -40,6 +42,7 @@ export function PremiumGate({
   badge,
   className,
   compact,
+  fill,
   sessionReady: sessionReadyProp,
 }: PremiumGateProps) {
   const session = useAthleteSession();
@@ -50,10 +53,12 @@ export function PremiumGate({
     sessionReady,
   });
 
+  const stretch = !compact && !fill ? FULL_PAGE_MIN_HEIGHT : fill ? 'flex min-h-0 flex-1 flex-col' : undefined;
+
   if (loading) {
     return (
       <div
-        className={cn('relative', !compact && FULL_PAGE_MIN_HEIGHT, className)}
+        className={cn('relative', stretch, className)}
         aria-busy="true"
         aria-label="Checking premium access"
       />
@@ -69,11 +74,11 @@ export function PremiumGate({
   const preview = previewContent ?? children;
 
   return (
-    <div className={cn('relative rounded-xl', !compact && FULL_PAGE_MIN_HEIGHT, className)}>
+    <div className={cn('relative rounded-xl', stretch, className)}>
       <div
         className={cn(
           'pointer-events-none select-none opacity-50',
-          !compact && FULL_PAGE_MIN_HEIGHT,
+          !compact && !fill && FULL_PAGE_MIN_HEIGHT,
         )}
         aria-hidden
       >
@@ -93,13 +98,13 @@ export function PremiumGate({
 
       <div
         className={cn(
-          'absolute inset-0 z-10 flex items-center justify-center bg-background/25',
+          'absolute inset-0 z-10 flex flex-col items-center justify-center bg-background/25',
           compact ? 'p-4' : 'p-6 sm:p-8',
         )}
       >
         <div
           className={cn(
-            'pointer-events-auto flex w-full max-w-sm flex-col items-center gap-4 rounded-xl border border-border/80 bg-card/95 p-5 text-center shadow-lg backdrop-blur-[2px] sm:gap-5 sm:p-6',
+            'pointer-events-auto mx-auto flex w-full max-w-sm flex-col items-center gap-4 rounded-xl border border-border/80 bg-card/95 p-5 text-center shadow-lg backdrop-blur-[2px] sm:gap-5 sm:p-6',
             compact && 'max-w-xs gap-3 p-4 sm:p-5',
           )}
         >

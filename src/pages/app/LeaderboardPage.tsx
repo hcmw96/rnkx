@@ -564,7 +564,7 @@ export default function LeaderboardPage() {
   const showBoard = !loading && boardMatchesSelection;
 
   return (
-    <section className="mx-auto flex max-w-lg flex-col gap-5 pb-2" {...pullHandlers}>
+    <section className="mx-auto flex min-h-full w-full max-w-lg flex-1 flex-col gap-5 pb-2" {...pullHandlers}>
       {(isRefreshing || pullDistance > 0) && (
         <p className="text-center text-xs text-muted-foreground">
           {isRefreshing ? 'Refreshing…' : pullDistance > 72 ? 'Release to refresh' : ''}
@@ -679,8 +679,8 @@ export default function LeaderboardPage() {
       </div>
 
       {scopeTab === 'overall' ? (
-        <p className="text-center text-[11px] text-muted-foreground/80">
-          Overall is browse-only. Promotion and relegation use your {myDivision} division board.
+        <p className="whitespace-nowrap text-center text-[11px] tracking-tight text-muted-foreground/80">
+          Overall shows all divisions. Your division determines promotion and relegation.
         </p>
       ) : null}
 
@@ -697,6 +697,7 @@ export default function LeaderboardPage() {
           title="Friends leaderboard"
           description="Compare season scores with athletes you've added as friends."
           previewContent={friendIds.size === 0 ? <FriendsPreview /> : undefined}
+          fill
         >
           {friendIds.size === 0 ? (
             <div className="rounded-xl border border-border bg-[hsla(0,0%,10%,1)] px-4 py-8 text-center">

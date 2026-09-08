@@ -30,7 +30,7 @@ function KeepPanel({ show, children }: { show: boolean; children: ReactNode }) {
   }, [show]);
 
   return (
-    <div hidden={!show} aria-hidden={!show} className={show ? undefined : 'hidden'} {...(!show ? { inert: '' } : {})}>
+    <div hidden={!show} aria-hidden={!show} className={show ? 'flex min-h-full flex-col' : 'hidden'} {...(!show ? { inert: '' } : {})}>
       {children}
     </div>
   );
