@@ -8,7 +8,6 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { fetchMyDivisions, type League } from '@/lib/athleteDivisions';
 import { isDivision, type Division } from '@/lib/division';
 import { fetchAcceptedFriendIds } from '@/lib/friendships';
-import { isHiddenFromLeaderboard } from '@/lib/leaderboardHidden';
 import { haptic } from '@/lib/haptics';
 import { resolveAthleteId } from '@/lib/resolveAthleteId';
 import { setLeaderboardCache } from '@/lib/routeCaches';
@@ -548,16 +547,8 @@ export default function LeaderboardPage() {
       base = base.filter((r) => friendIds.has(r.id) || r.id === myAthleteId);
     }
 
-    const hiddenFromLeague = base.some((r) => isHiddenFromLeaderboard(r.id, activeLeague));
-    if (hiddenFromLeague) {
-      base = base.filter((r) => !isHiddenFromLeaderboard(r.id, activeLeague));
-    }
-
     const clientFiltered =
-      countryFilter !== 'all' ||
-      genderFilter !== 'all' ||
-      scopeTab === 'friends' ||
-      hiddenFromLeague;
+      countryFilter !== 'all' || genderFilter !== 'all' || scopeTab === 'friends';
 
     if (clientFiltered) {
       base = reRankBySeasonTieBreak(base, recordedAtById);
@@ -566,7 +557,6 @@ export default function LeaderboardPage() {
     return base;
   }, [
     merged,
-    activeLeague,
     scopeTab,
     countryFilter,
     genderFilter,
