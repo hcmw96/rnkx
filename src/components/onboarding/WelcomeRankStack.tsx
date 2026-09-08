@@ -17,17 +17,17 @@ const ROWS: RankRow[] = [
 
 export function WelcomeRankStack({ className }: { className?: string }) {
   return (
-    <div className={cn('flex w-full flex-col gap-3', className)} aria-hidden>
-      <div className="rounded-2xl border border-neon-lime bg-black px-3.5 py-3">
-        <div className="flex items-center gap-3">
-          <div className="flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-[10px] border border-neon-lime bg-black">
-            <img src={rnkxSymbol} alt="" className="h-8 w-8 object-contain" />
+    <div className={cn('mx-auto flex w-full max-w-[17.5rem] flex-col gap-3', className)} aria-hidden>
+      <div className="rounded-2xl border border-neon-lime bg-black px-3 py-2.5">
+        <div className="flex items-center gap-2.5">
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-[10px] border border-neon-lime bg-black">
+            <img src={rnkxSymbol} alt="" className="h-5 w-5 object-contain" />
           </div>
           <div className="min-w-0">
-            <p className="text-[0.95rem] font-bold uppercase tracking-[0.06em] text-white">
+            <p className="font-mono text-[0.95rem] font-bold uppercase tracking-[0.12em] text-white">
               Rank up ▲
             </p>
-            <p className="mt-0.5 text-[0.8125rem] leading-snug text-zinc-400">
+            <p className="mt-0.5 text-[0.75rem] leading-snug text-zinc-400">
               You climbed 12 places this week.
             </p>
           </div>

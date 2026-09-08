@@ -22,6 +22,7 @@ export default {
         display: ["Anton", "sans-serif"],
         sans: ["Inter", "sans-serif"],
         headline: ['"Inter Tight"', "Inter", "sans-serif"],
+        mono: ['"IBM Plex Mono"', "ui-monospace", "SFMono-Regular", "Menlo", "monospace"],
       },
       fontSize: {
         caption: ["0.6875rem", { lineHeight: "1rem" }],
