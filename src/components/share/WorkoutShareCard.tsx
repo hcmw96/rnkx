@@ -27,7 +27,9 @@ const FIGURE_H = 92;
  * Inter’s win ascent spills past a 1.0em box. Pad equally above and below the
  * 92px slot so html2canvas can rasterize it without shifting the ink upward.
  */
-const FIGURE_OVERFLOW = 12;
+const FIGURE_OVERFLOW = 20;
+/** Inter numerals sit high in the em; shift down so they share the R’s optical center. */
+const FIGURE_OPTICAL_NUDGE = 16;
 const CAPTION_GAP = 18;
 const CAPTION_H = 34;
 const CELL_W = SHARE_CARD_STAT_CELL_WIDTH;
@@ -111,6 +113,8 @@ function StatFigure({
           height: FIGURE_H,
           fontSize: FIGURE_H,
           lineHeight: 1,
+          position: 'relative',
+          top: FIGURE_OPTICAL_NUDGE,
           color,
           textShadow,
           whiteSpace: 'nowrap',
