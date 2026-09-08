@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
+import { getAuthUserId } from '@/lib/authSession';
 import { fetchUnreadMessageCount } from '@/lib/notificationCounts';
 import { resolveAthleteId } from '@/lib/resolveAthleteId';
 import { UNREAD_CHANGED_EVENT } from '@/lib/unreadMessages';
@@ -12,14 +13,12 @@ export function useUnreadCount(): number {
   const [count, setCount] = useState(0);
 
   const fetchCount = useCallback(async () => {
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-    if (!user) {
+    const uid = await getAuthUserId();
+    if (!uid) {
       setCount(0);
       return;
     }
-    const aid = await resolveAthleteId(user.id);
+    const aid = await resolveAthleteId(uid);
     if (!aid) {
       setCount(0);
       return;

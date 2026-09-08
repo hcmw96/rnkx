@@ -10,7 +10,7 @@ import { isDivision, type Division } from '@/lib/division';
 import { fetchAcceptedFriendIds } from '@/lib/friendships';
 import { haptic } from '@/lib/haptics';
 import { resolveAthleteId } from '@/lib/resolveAthleteId';
-import { setLeaderboardCache } from '@/lib/routeCaches';
+import { getLeaderboardCache, setLeaderboardCache } from '@/lib/routeCaches';
 import { usePullToRefresh } from '@/hooks/usePullToRefresh';
 import { cn } from '@/lib/utils';
 import { supabase } from '@/services/supabase';
@@ -246,25 +246,38 @@ async function fetchSeasonBoard(
 }
 
 export default function LeaderboardPage() {
-  const [activeLeague, setActiveLeague] = useState<League>('engine');
-  const [scopeTab, setScopeTab] = useState<ScopeTab>('open');
-  const [seasons, setSeasons] = useState<SeasonOption[]>([]);
-  const [selectedSeasonId, setSelectedSeasonId] = useState<string | null>(null);
-  const [countryFilter, setCountryFilter] = useState<string>('all');
-  const [genderFilter, setGenderFilter] = useState<GenderFilter>('all');
-  const [merged, setMerged] = useState<MergedAthlete[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
-  const [myAthleteId, setMyAthleteId] = useState<string | null>(null);
-  const [friendIds, setFriendIds] = useState<Set<string>>(new Set());
+  const cached = getLeaderboardCache();
+  const [activeLeague, setActiveLeague] = useState<League>(() => cached?.activeLeague ?? 'engine');
+  const [scopeTab, setScopeTab] = useState<ScopeTab>(() => cached?.scopeTab ?? 'open');
+  const [seasons, setSeasons] = useState<SeasonOption[]>(() => (cached?.seasons as SeasonOption[] | undefined) ?? []);
+  const [selectedSeasonId, setSelectedSeasonId] = useState<string | null>(() => cached?.selectedSeasonId ?? null);
+  const [countryFilter, setCountryFilter] = useState<string>(() => cached?.countryFilter ?? 'all');
+  const [genderFilter, setGenderFilter] = useState<GenderFilter>(() => cached?.genderFilter ?? 'all');
+  const [merged, setMerged] = useState<MergedAthlete[]>(
+    () => (cached?.merged as MergedAthlete[] | undefined) ?? [],
+  );
+  const [loading, setLoading] = useState(() => !(cached?.merged as MergedAthlete[] | undefined)?.length);
+  const [error, setError] = useState<string | null>(() => cached?.error ?? null);
+  const [currentUserId, setCurrentUserId] = useState<string | null>(() => cached?.currentUserId ?? null);
+  const [myAthleteId, setMyAthleteId] = useState<string | null>(() => cached?.myAthleteId ?? null);
+  const [friendIds, setFriendIds] = useState<Set<string>>(
+    () => new Set(cached?.friendIds ?? []),
+  );
   const [myDivisions, setMyDivisions] = useState<{ engine: Division; run: Division }>({
     engine: 'Open',
     run: 'Open',
   });
   const [hasMore, setHasMore] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
-  const [appliedRequest, setAppliedRequest] = useState<BoardRequest | null>(null);
+  const [appliedRequest, setAppliedRequest] = useState<BoardRequest | null>(() =>
+    cached?.selectedSeasonId
+      ? {
+          league: cached.activeLeague,
+          seasonId: cached.selectedSeasonId,
+          scopeTab: cached.scopeTab,
+        }
+      : null,
+  );
 
   const boardRequest: BoardRequest = useMemo(
     () => ({ league: activeLeague, seasonId: selectedSeasonId, scopeTab }),
@@ -273,23 +286,19 @@ export default function LeaderboardPage() {
   const boardRequestRef = useRef(boardRequest);
   boardRequestRef.current = boardRequest;
   const loadGenRef = useRef(0);
+  const loadedKeyRef = useRef('');
+  const hasBoardRef = useRef(Boolean((cached?.merged as MergedAthlete[] | undefined)?.length));
 
   const myDivision = myDivisions[activeLeague];
   const boardMatchesSelection =
     appliedRequest != null && isSameBoardRequest(appliedRequest, boardRequest);
 
   const loadAll = useCallback(
-    async (options?: { silent?: boolean }) => {
+    async (options?: { silent?: boolean; force?: boolean }) => {
       const gen = ++loadGenRef.current;
-      const requested: BoardRequest = {
-        league: activeLeague,
-        seasonId: selectedSeasonId,
-        scopeTab,
-      };
-      const isCurrent = () =>
-        gen === loadGenRef.current && isSameBoardRequest(boardRequestRef.current, requested);
+      const isCurrent = () => gen === loadGenRef.current;
 
-      if (!options?.silent) {
+      if (!options?.silent && !hasBoardRef.current) {
         setLoading(true);
       }
       setLoadingMore(false);
@@ -297,12 +306,12 @@ export default function LeaderboardPage() {
       setError(null);
 
       const [{ data: auth }, { data: seasonRows, error: seasonsErr }] = await Promise.all([
-        supabase.auth.getUser(),
+        supabase.auth.getSession(),
         supabase.from('seasons').select('id,name,is_active').order('starts_at', { ascending: false }),
       ]);
       if (!isCurrent()) return;
 
-      const uid = auth.user?.id ?? null;
+      const uid = auth.session?.user?.id ?? null;
       setCurrentUserId(uid);
 
       const list = (seasonRows ?? []) as SeasonOption[];
@@ -312,19 +321,18 @@ export default function LeaderboardPage() {
 
       const activeSeason = list.find((s) => s.is_active) ?? list[0] ?? null;
       const seasonId = selectedSeasonId ?? activeSeason?.id ?? null;
+      const key = `${activeLeague}|${scopeTab}|${seasonId ?? ''}`;
+      if (!options?.force && loadedKeyRef.current === key && hasBoardRef.current) {
+        if (!selectedSeasonId && seasonId) setSelectedSeasonId(seasonId);
+        setLoading(false);
+        return;
+      }
 
       let aid: string | null = null;
       if (uid) {
         aid = (await resolveAthleteId(uid)) ?? null;
         if (!isCurrent()) return;
         setMyAthleteId(aid);
-        if (aid) {
-          const friends = await fetchAcceptedFriendIds(aid);
-          if (!isCurrent()) return;
-          setFriendIds(new Set(friends));
-        } else {
-          setFriendIds(new Set());
-        }
       } else {
         setMyAthleteId(null);
         setFriendIds(new Set());
@@ -334,32 +342,32 @@ export default function LeaderboardPage() {
         if (!isCurrent()) return;
         setMerged([]);
         setHasMore(false);
-        setAppliedRequest({ ...requested, seasonId: null });
+        hasBoardRef.current = false;
+        setAppliedRequest({ league: activeLeague, seasonId: null, scopeTab });
         setLoading(false);
         return;
       }
 
-      let division: Division = 'Open';
-      if (aid) {
-        const nextDivisions = await fetchMyDivisions(aid, seasonId);
-        if (!isCurrent()) return;
-        setMyDivisions(nextDivisions);
-        division = nextDivisions[requested.league];
-      } else if (isCurrent()) {
-        setMyDivisions({ engine: 'Open', run: 'Open' });
-      } else {
-        return;
+      const emptyDivisions = { engine: 'Open' as Division, run: 'Open' as Division };
+      const [nextDivisions, friends] = await Promise.all([
+        aid ? fetchMyDivisions(aid, seasonId) : Promise.resolve(emptyDivisions),
+        aid && scopeTab === 'friends' ? fetchAcceptedFriendIds(aid) : Promise.resolve([] as string[]),
+      ]);
+      if (!isCurrent()) return;
+      setMyDivisions(nextDivisions);
+      if (scopeTab === 'friends') {
+        setFriendIds(new Set(friends));
+      } else if (aid == null) {
+        setFriendIds(new Set());
       }
+      const division = nextDivisions[activeLeague];
 
-      const view =
-        requested.scopeTab === 'open'
-          ? 'season_division_leaderboard'
-          : 'season_overall_leaderboard';
+      const view = scopeTab === 'open' ? 'season_division_leaderboard' : 'season_overall_leaderboard';
       const pack = await fetchSeasonBoard(
         view,
         seasonId,
-        requested.league,
-        requested.scopeTab === 'open' ? division : null,
+        activeLeague,
+        scopeTab === 'open' ? division : null,
       );
       if (!isCurrent()) return;
 
@@ -367,43 +375,23 @@ export default function LeaderboardPage() {
         setError(pack.error);
         setMerged([]);
         setHasMore(false);
+        hasBoardRef.current = false;
       } else {
         setMerged(pack.merged);
         setHasMore(pack.merged.length === BOARD_PAGE_SIZE);
+        hasBoardRef.current = true;
       }
-      setAppliedRequest({ ...requested, seasonId });
+      loadedKeyRef.current = key;
+      if (!selectedSeasonId) setSelectedSeasonId(seasonId);
+      setAppliedRequest({ league: activeLeague, seasonId, scopeTab });
       setLoading(false);
     },
     [selectedSeasonId, activeLeague, scopeTab],
   );
 
   useEffect(() => {
-    if (selectedSeasonId) return;
-    let cancelled = false;
-    void (async () => {
-      const { data: seasonRows } = await supabase
-        .from('seasons')
-        .select('id,name,is_active')
-        .order('starts_at', { ascending: false });
-      if (cancelled) return;
-      const list = (seasonRows ?? []) as SeasonOption[];
-      setSeasons(list);
-      const active = list.find((s) => s.is_active) ?? list[0];
-      if (active) {
-        setSelectedSeasonId(active.id);
-      } else {
-        setLoading(false);
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [selectedSeasonId]);
-
-  useEffect(() => {
-    if (!selectedSeasonId) return;
-    void loadAll();
-  }, [loadAll, selectedSeasonId]);
+    void loadAll({ silent: Boolean(getLeaderboardCache()) });
+  }, [loadAll]);
 
   useEffect(() => {
     if (loading || !boardMatchesSelection) return;
@@ -480,7 +468,9 @@ export default function LeaderboardPage() {
     merged.length,
   ]);
 
-  const { isRefreshing, pullDistance, pullHandlers } = usePullToRefresh(loadAll);
+  const { isRefreshing, pullDistance, pullHandlers } = usePullToRefresh(() =>
+    loadAll({ silent: true, force: true }),
+  );
 
   const selectedSeason = useMemo(
     () => seasons.find((s) => s.id === selectedSeasonId) ?? seasons.find((s) => s.is_active) ?? null,
@@ -563,38 +553,6 @@ export default function LeaderboardPage() {
     friendIds,
     myAthleteId,
     recordedAtById,
-  ]);
-
-  const countryFilterLabel =
-    countryOptions.find((o) => o.value === countryFilter)?.label ?? 'All';
-
-  const genderFilterLabel = GENDER_OPTIONS.find((o) => o.value === genderFilter)?.label ?? 'All';
-
-  const scopeSubtitle = useMemo(() => {
-    const leagueLabel = activeLeague === 'engine' ? 'Engine' : 'Run';
-    const parts: string[] = [];
-
-    if (scopeTab === 'open') {
-      parts.push(`${myDivision} division · promotion board`);
-    } else if (scopeTab === 'overall') {
-      parts.push('All divisions · browse only');
-    } else if (scopeTab === 'friends') {
-      parts.push('Friends · season scores');
-    }
-
-    parts.push(leagueLabel);
-    if (countryFilter !== 'all') parts.push(countryFilterLabel);
-    if (genderFilter !== 'all') parts.push(genderFilterLabel);
-
-    return parts.join(' · ');
-  }, [
-    scopeTab,
-    activeLeague,
-    myDivision,
-    countryFilter,
-    countryFilterLabel,
-    genderFilter,
-    genderFilterLabel,
   ]);
 
   const scopeTabs: { id: ScopeTab; label: string }[] = [
@@ -720,7 +678,6 @@ export default function LeaderboardPage() {
         />
       </div>
 
-      <p className="text-center text-xs text-muted-foreground">{scopeSubtitle}</p>
       {scopeTab === 'overall' ? (
         <p className="text-center text-[11px] text-muted-foreground/80">
           Overall is browse-only. Promotion and relegation use your {myDivision} division board.

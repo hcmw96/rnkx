@@ -14,7 +14,7 @@ import {
   type PromotionTimelineItem,
 } from '@/lib/profileStats';
 import { leagueFromSelectedLeagues } from '@/lib/leagueAvatars';
-import { setProfileCache } from '@/lib/routeCaches';
+import { getProfileCache, setProfileCache } from '@/lib/routeCaches';
 import { supabase } from '@/services/supabase';
 
 const ATHLETE_COLUMNS =
@@ -47,23 +47,32 @@ function memberSinceLabel(createdAt: string | null | undefined): string {
 
 export default function ProfilePage() {
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const [athlete, setAthlete] = useState<AthleteRow | null>(null);
-  const [seasonStats, setSeasonStats] = useState<ProfileSeasonStats | null>(null);
-  const [careerStats, setCareerStats] = useState<ProfileCareerStats | null>(null);
-  const [standingPercent, setStandingPercent] = useState(50);
-  const [topPercent, setTopPercent] = useState(50);
-  const [achievements, setAchievements] = useState<AchievementState[]>([]);
-  const [timeline, setTimeline] = useState<PromotionTimelineItem[]>([]);
-  const [timelineLoading, setTimelineLoading] = useState(true);
-  const [loading, setLoading] = useState(true);
+  const cached = getProfileCache();
+  const [athlete, setAthlete] = useState<AthleteRow | null>(() => (cached?.athlete as AthleteRow | null) ?? null);
+  const [seasonStats, setSeasonStats] = useState<ProfileSeasonStats | null>(
+    () => (cached?.seasonStats as ProfileSeasonStats | null) ?? null,
+  );
+  const [careerStats, setCareerStats] = useState<ProfileCareerStats | null>(
+    () => (cached?.careerStats as ProfileCareerStats | null) ?? null,
+  );
+  const [standingPercent, setStandingPercent] = useState(() => cached?.standingPercent ?? 50);
+  const [topPercent, setTopPercent] = useState(() => cached?.topPercent ?? 50);
+  const [achievements, setAchievements] = useState<AchievementState[]>(
+    () => (cached?.achievements as AchievementState[] | undefined) ?? [],
+  );
+  const [timeline, setTimeline] = useState<PromotionTimelineItem[]>(
+    () => (cached?.timeline as PromotionTimelineItem[] | undefined) ?? [],
+  );
+  const [timelineLoading, setTimelineLoading] = useState(() => !cached);
+  const [loading, setLoading] = useState(() => !cached?.athlete);
   const [uploading, setUploading] = useState(false);
 
   const loadProfile = useCallback(async (options?: { silent?: boolean }) => {
     if (!options?.silent) {
-    setLoading(true);
+      setLoading(true);
     }
-    const { data: auth, error: authErr } = await supabase.auth.getUser();
-    if (authErr || !auth.user) {
+    const { data: auth, error: authErr } = await supabase.auth.getSession();
+    if (authErr || !auth.session?.user) {
       toast.error(authErr?.message ?? 'Not signed in.');
       setAthlete(null);
       setSeasonStats(null);
@@ -74,7 +83,7 @@ export default function ProfilePage() {
       return;
     }
 
-    const uid = auth.user.id;
+    const uid = auth.session.user.id;
     const [byUserId, byId] = await Promise.all([
       supabase.from('athletes').select(ATHLETE_COLUMNS).eq('user_id', uid).maybeSingle(),
       supabase.from('athletes').select(ATHLETE_COLUMNS).eq('id', uid).maybeSingle(),
@@ -95,9 +104,10 @@ export default function ProfilePage() {
 
     const row = athleteRow as AthleteRow;
     setAthlete(row);
+    setLoading(false);
 
     const allTime = numScore(row.total_score);
-    setTimelineLoading(true);
+    if (!options?.silent) setTimelineLoading(true);
     const [season, career, standing, promoTimeline] = await Promise.all([
       fetchProfileSeasonStats(row.id),
       fetchProfileCareerStats(row.id, allTime),
@@ -112,11 +122,10 @@ export default function ProfilePage() {
     setAchievements(badgeStates);
     setTimeline(promoTimeline);
     setTimelineLoading(false);
-    setLoading(false);
   }, []);
 
   useEffect(() => {
-    void loadProfile();
+    void loadProfile({ silent: Boolean(getProfileCache()) });
   }, [loadProfile]);
 
   useEffect(() => {
@@ -128,8 +137,9 @@ export default function ProfilePage() {
       standingPercent,
       topPercent,
       achievements,
+      timeline,
     });
-  }, [loading, athlete, seasonStats, careerStats, standingPercent, topPercent, achievements]);
+  }, [loading, athlete, seasonStats, careerStats, standingPercent, topPercent, achievements, timeline]);
 
   const openAvatarPicker = () => {
     fileInputRef.current?.click();

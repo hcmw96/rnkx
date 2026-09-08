@@ -41,8 +41,8 @@ export default function PrivateLeaguesPage({ embedded = false }: PrivateLeaguesP
 
   const load = useCallback(async () => {
     setLoading(true);
-    const { data: auth, error: authErr } = await supabase.auth.getUser();
-    if (authErr || !auth.user) {
+    const { data: auth, error: authErr } = await supabase.auth.getSession();
+    if (authErr || !auth.session?.user) {
       toast.error(authErr?.message ?? 'Not signed in');
       setAthleteId(undefined);
       setLeagues([]);
@@ -50,7 +50,7 @@ export default function PrivateLeaguesPage({ embedded = false }: PrivateLeaguesP
       return;
     }
 
-    const uid = auth.user.id;
+    const uid = auth.session.user.id;
     const [byUserId, byId] = await Promise.all([
       supabase.from('athletes').select('id').eq('user_id', uid).not('username', 'is', null).maybeSingle(),
       supabase.from('athletes').select('id').eq('id', uid).not('username', 'is', null).maybeSingle(),
@@ -63,11 +63,14 @@ export default function PrivateLeaguesPage({ embedded = false }: PrivateLeaguesP
       return;
     }
 
-    const { data: memberships, error: memErr } = await supabase
-      .from('private_league_members')
-      .select('league_id')
-      .eq('athlete_id', aid)
-      .eq('status', 'accepted');
+    const [{ data: memberships, error: memErr }, { data: season }] = await Promise.all([
+      supabase
+        .from('private_league_members')
+        .select('league_id')
+        .eq('athlete_id', aid)
+        .eq('status', 'accepted'),
+      supabase.from('seasons').select('id').eq('is_active', true).maybeSingle(),
+    ]);
 
     if (memErr) {
       toast.error(memErr.message);
@@ -83,10 +86,17 @@ export default function PrivateLeaguesPage({ embedded = false }: PrivateLeaguesP
       return;
     }
 
-    const { data: leagueRows, error: leagueErr } = await supabase
-      .from('private_leagues')
-      .select('id, name, description, image_url, conversation_id, league_type, invite_code, is_public, created_by, gender')
-      .in('id', leagueIds);
+    const [{ data: leagueRows, error: leagueErr }, { data: memberRows }] = await Promise.all([
+      supabase
+        .from('private_leagues')
+        .select('id, name, description, image_url, conversation_id, league_type, invite_code, is_public, created_by, gender')
+        .in('id', leagueIds),
+      supabase
+        .from('private_league_members')
+        .select('league_id, athlete_id')
+        .in('league_id', leagueIds)
+        .eq('status', 'accepted'),
+    ]);
 
     if (leagueErr) {
       toast.error(leagueErr.message);
@@ -95,28 +105,15 @@ export default function PrivateLeaguesPage({ embedded = false }: PrivateLeaguesP
       return;
     }
 
-    const { data: allMembers } = await supabase
-      .from('private_league_members')
-      .select('league_id')
-      .in('league_id', leagueIds)
-      .eq('status', 'accepted');
-
     const countByLeague = new Map<string, number>();
-    for (const row of allMembers ?? []) {
+    for (const row of memberRows ?? []) {
       const lid = row.league_id as string;
       countByLeague.set(lid, (countByLeague.get(lid) ?? 0) + 1);
     }
 
     const rankMap: Record<string, number> = {};
-    const { data: season } = await supabase.from('seasons').select('id').eq('is_active', true).maybeSingle();
     const seasonId = (season?.id as string | undefined) ?? null;
     if (seasonId && aid && leagueRows?.length) {
-      const { data: memberRows } = await supabase
-        .from('private_league_members')
-        .select('league_id, athlete_id')
-        .in('league_id', leagueIds)
-        .eq('status', 'accepted');
-
       const allAthleteIds = [...new Set((memberRows ?? []).map((m) => String(m.athlete_id)))];
       const { data: statsRows } =
         allAthleteIds.length > 0

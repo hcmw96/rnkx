@@ -7,6 +7,7 @@ import {
   type ReactNode,
 } from 'react';
 import { syncAppIconBadge } from '@/lib/appBadgeSync';
+import { getAuthUserId } from '@/lib/authSession';
 import { fetchTotalNotificationCount } from '@/lib/notificationCounts';
 import { resolveAthleteId } from '@/lib/resolveAthleteId';
 import { notifyUnreadStateChanged, UNREAD_CHANGED_EVENT } from '@/lib/unreadMessages';
@@ -31,14 +32,12 @@ export function NotificationCountProvider({ children, enabled }: NotificationCou
       setCount(0);
       return;
     }
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-    if (!user) {
+    const uid = await getAuthUserId();
+    if (!uid) {
       setCount(0);
       return;
     }
-    const aid = await resolveAthleteId(user.id);
+    const aid = await resolveAthleteId(uid);
     if (!aid) {
       setCount(0);
       return;

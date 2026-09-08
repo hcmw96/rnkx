@@ -1,8 +1,12 @@
+import { useLayoutEffect, useState } from 'react';
 import type { LucideIcon } from 'lucide-react';
 import { Compass, Shield, UserRound } from 'lucide-react';
-import { Link, NavLink, Outlet } from 'react-router-dom';
+import { Link, Navigate, NavLink, useLocation } from 'react-router-dom';
 import { PremiumGate } from '@/components/PremiumGate';
 import { cn } from '@/lib/utils';
+import FriendsPage from '@/pages/app/FriendsPage';
+import PrivateLeaguesPage from '@/pages/app/PrivateLeaguesPage';
+import DiscoverClubsPage from '@/pages/app/DiscoverClubsPage';
 
 const TABS: readonly { to: string; label: string; Icon: LucideIcon }[] = [
   { to: '/app/social/friends', label: 'Friends', Icon: UserRound },
@@ -10,7 +14,33 @@ const TABS: readonly { to: string; label: string; Icon: LucideIcon }[] = [
   { to: '/app/social/discover', label: 'Discover', Icon: Compass },
 ];
 
+type SocialSub = '/app/social/friends' | '/app/social/leagues' | '/app/social/discover';
+
+function subFromPath(pathname: string): SocialSub | null {
+  if (pathname.startsWith('/app/social/leagues')) return '/app/social/leagues';
+  if (pathname.startsWith('/app/social/discover')) return '/app/social/discover';
+  if (pathname.startsWith('/app/social/friends') || pathname === '/app/social') {
+    return '/app/social/friends';
+  }
+  return null;
+}
+
 export default function SocialPage() {
+  const { pathname } = useLocation();
+  const active = subFromPath(pathname);
+  const [seen, setSeen] = useState<Set<SocialSub>>(() => new Set([active ?? '/app/social/friends']));
+
+  useLayoutEffect(() => {
+    const next = subFromPath(pathname) ?? '/app/social/friends';
+    setSeen((s) => (s.has(next) ? s : new Set(s).add(next)));
+  }, [pathname]);
+
+  if (pathname === '/app/social') {
+    return <Navigate to="/app/social/friends" replace />;
+  }
+
+  const show = active ?? '/app/social/friends';
+
   return (
     <PremiumGate
       title="Friends and Clubs"
@@ -43,7 +73,33 @@ export default function SocialPage() {
             </NavLink>
           ))}
         </nav>
-        <Outlet />
+        {seen.has('/app/social/friends') ? (
+          <div
+            hidden={show !== '/app/social/friends'}
+            aria-hidden={show !== '/app/social/friends'}
+            className={show === '/app/social/friends' ? undefined : 'hidden'}
+          >
+            <FriendsPage embedded />
+          </div>
+        ) : null}
+        {seen.has('/app/social/leagues') ? (
+          <div
+            hidden={show !== '/app/social/leagues'}
+            aria-hidden={show !== '/app/social/leagues'}
+            className={show === '/app/social/leagues' ? undefined : 'hidden'}
+          >
+            <PrivateLeaguesPage embedded />
+          </div>
+        ) : null}
+        {seen.has('/app/social/discover') ? (
+          <div
+            hidden={show !== '/app/social/discover'}
+            aria-hidden={show !== '/app/social/discover'}
+            className={show === '/app/social/discover' ? undefined : 'hidden'}
+          >
+            <DiscoverClubsPage />
+          </div>
+        ) : null}
       </div>
     </PremiumGate>
   );

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { lazy, Suspense, useCallback, useEffect, useState } from 'react';
 import type { Session } from '@supabase/supabase-js';
 import { BrowserRouter, Navigate, Route, Routes, useNavigate } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
@@ -14,36 +14,7 @@ import { clearRouteCaches } from '@/lib/routeCaches';
 import { clearPremiumCache } from '@/lib/premiumCache';
 import { clearAthleteIdCache, peekCachedHasSeenWelcome, resolveAthleteId } from '@/lib/resolveAthleteId';
 import { AthleteSessionProvider } from '@/context/AthleteSessionContext';
-import LeaderboardPage from './pages/app/LeaderboardPage';
-import ProfilePage from './pages/app/ProfilePage';
-import SettingsPage from './pages/app/SettingsPage';
-import FaqPage from './pages/app/FaqPage';
-import PremiumPage from './pages/app/PremiumPage';
-import AdminPage from './pages/app/AdminPage';
-import PrivateLeaguesPage from './pages/app/PrivateLeaguesPage';
-import DiscoverClubsPage from './pages/app/DiscoverClubsPage';
-import LeaguePage from './pages/app/LeaguePage';
-import FriendsPage from './pages/app/FriendsPage';
-import FriendProfilePage from './pages/app/FriendProfilePage';
-import SocialPage from './pages/app/SocialPage';
-import ChatPage from './app/ChatPage';
-import ChatThread from './app/ChatThread';
-import GroupChatThread from './app/GroupChatThread';
-import Dashboard from './pages/app/Dashboard';
-import JoinLeaguePage from './pages/JoinLeaguePage';
-import AthleteAuth from './pages/AthleteAuth';
-import WhoopCallback from './pages/auth/WhoopCallback';
-import AppleAuthComplete from './pages/auth/AppleAuthComplete';
-import Onboarding from './pages/Onboarding';
-import NotificationsPage from './pages/app/NotificationsPage';
 import { NotificationNavigationBridge } from '@/components/NotificationNavigationBridge';
-import {
-  CookiesPageRoute,
-  PrivacyPolicyPageRoute,
-  TermsPageRoute,
-  WaiverPageRoute,
-} from './pages/legal/StaticLegalPages';
-import { WelcomeModal } from '@/components/WelcomeModal';
 import { isDespiaNative, registerPushForAthlete } from './services/onesignal';
 import {
   applyPremiumIfStoreHasEntitlement,
@@ -51,6 +22,37 @@ import {
   syncEntitlementFromServer,
 } from './services/revenuecat';
 import { supabase } from './services/supabase';
+
+const AdminPage = lazy(() => import('./pages/app/AdminPage'));
+const ChatThread = lazy(() => import('./app/ChatThread'));
+const GroupChatThread = lazy(() => import('./app/GroupChatThread'));
+const SettingsPage = lazy(() => import('./pages/app/SettingsPage'));
+const FaqPage = lazy(() => import('./pages/app/FaqPage'));
+const PremiumPage = lazy(() => import('./pages/app/PremiumPage'));
+const LeaguePage = lazy(() => import('./pages/app/LeaguePage'));
+const FriendProfilePage = lazy(() => import('./pages/app/FriendProfilePage'));
+const ChatPage = lazy(() => import('./app/ChatPage'));
+const JoinLeaguePage = lazy(() => import('./pages/JoinLeaguePage'));
+const AthleteAuth = lazy(() => import('./pages/AthleteAuth'));
+const WhoopCallback = lazy(() => import('./pages/auth/WhoopCallback'));
+const AppleAuthComplete = lazy(() => import('./pages/auth/AppleAuthComplete'));
+const Onboarding = lazy(() => import('./pages/Onboarding'));
+const NotificationsPage = lazy(() => import('./pages/app/NotificationsPage'));
+const WelcomeModal = lazy(() =>
+  import('@/components/WelcomeModal').then((m) => ({ default: m.WelcomeModal })),
+);
+const PrivacyPolicyPageRoute = lazy(() =>
+  import('./pages/legal/StaticLegalPages').then((m) => ({ default: m.PrivacyPolicyPageRoute })),
+);
+const TermsPageRoute = lazy(() =>
+  import('./pages/legal/StaticLegalPages').then((m) => ({ default: m.TermsPageRoute })),
+);
+const WaiverPageRoute = lazy(() =>
+  import('./pages/legal/StaticLegalPages').then((m) => ({ default: m.WaiverPageRoute })),
+);
+const CookiesPageRoute = lazy(() =>
+  import('./pages/legal/StaticLegalPages').then((m) => ({ default: m.CookiesPageRoute })),
+);
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -275,11 +277,14 @@ function SessionRoutes() {
       <AchievementUnlockProvider authUserId={session?.user?.id} enabled={showApp}>
       <NotificationNavigationBridge enabled={showApp} />
       {welcomeAthleteId && showWelcomeOverlay ? (
-        <WelcomeModal
-          athleteId={welcomeAthleteId}
-          onDismiss={() => setShowWelcomeOverlay(false)}
-        />
+        <Suspense fallback={null}>
+          <WelcomeModal
+            athleteId={welcomeAthleteId}
+            onDismiss={() => setShowWelcomeOverlay(false)}
+          />
+        </Suspense>
       ) : null}
+      <Suspense fallback={<div className="min-h-screen bg-black" aria-hidden />}>
       <Routes>
         <Route path="/privacy" element={<PrivacyPolicyPageRoute />} />
         <Route path="/terms" element={<TermsPageRoute />} />
@@ -333,16 +338,16 @@ function SessionRoutes() {
           path="/app"
           element={authShell}
         >
-          <Route index element={<Dashboard />} />
-          <Route path="leaderboard" element={<LeaderboardPage />} />
-          <Route path="profile" element={<ProfilePage />} />
+          <Route index element={null} />
+          <Route path="leaderboard" element={null} />
+          <Route path="profile" element={null} />
           <Route path="settings" element={<SettingsPage />} />
           <Route path="faq" element={<FaqPage />} />
-          <Route path="social" element={<SocialPage />}>
-            <Route index element={<Navigate to="friends" replace />} />
-            <Route path="friends" element={<FriendsPage embedded />} />
-            <Route path="leagues" element={<PrivateLeaguesPage embedded />} />
-            <Route path="discover" element={<DiscoverClubsPage />} />
+          <Route path="social">
+            <Route index element={null} />
+            <Route path="friends" element={null} />
+            <Route path="leagues" element={null} />
+            <Route path="discover" element={null} />
             <Route
               path="recovery"
               element={
@@ -380,6 +385,7 @@ function SessionRoutes() {
         <Route path="/" element={<Navigate to="/app" replace />} />
         <Route path="*" element={<Navigate to="/app" replace />} />
       </Routes>
+      </Suspense>
       </AchievementUnlockProvider>
       </NotificationCountProvider>
       </ScoreSharePromptProvider>

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { lazy, Suspense, useCallback, useEffect, useMemo, useState } from 'react';
 import { X, Zap, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
@@ -6,7 +6,6 @@ import { useAchievementUnlock } from '@/context/AchievementUnlockContext';
 import { useScoreSharePrompt } from '@/context/ScoreSharePromptContext';
 import { MomentumSection } from '@/components/dashboard/MomentumBlock';
 import { SeasonCard } from '@/components/dashboard/SeasonCard';
-import { WeeklyInsightsSection } from '@/components/dashboard/WeeklyInsightsSection';
 import { CoachNotesCard } from '@/components/dashboard/CoachNotesCard';
 import { PremiumGate } from '@/components/PremiumGate';
 import {
@@ -40,10 +39,16 @@ import {
 import { isDespiaIphoneUa, wearablesIncludeAppleWatch } from '@/lib/despiaPlatform';
 import { runAppleWorkoutSync } from '@/lib/runAppleWorkoutSync';
 import { PREVIEW_COACH_SUMMARY, PREVIEW_RECENT_WORKOUTS, PREVIEW_WEEKLY_INSIGHTS } from '@/lib/dashboardPreviewData';
-import { setDashboardCache } from '@/lib/routeCaches';
+import { getDashboardCache, setDashboardCache } from '@/lib/routeCaches';
 import { getAuthUserId } from '@/lib/authSession';
 import { resolveAthleteId } from '@/lib/resolveAthleteId';
 import { supabase } from '@/services/supabase';
+
+const WeeklyInsightsSection = lazy(() =>
+  import('@/components/dashboard/WeeklyInsightsSection').then((m) => ({
+    default: m.WeeklyInsightsSection,
+  })),
+);
 
 const SYNC_STALE_MS = 24 * 60 * 60 * 1000;
 
@@ -192,21 +197,30 @@ function activityLabel(activityType: string | null, leagueType: string): string 
 export default function Dashboard() {
   const { refreshAchievements } = useAchievementUnlock();
   const { promptFromAppleSync, openShareForHistory } = useScoreSharePrompt();
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [season, setSeason] = useState<ActiveSeason | null>(null);
-  const [stats, setStats] = useState<AthleteStats | null>(null);
-  const [recentActivities, setRecentActivities] = useState<RecentActivity[]>([]);
-  const [weeklyInsights, setWeeklyInsights] = useState<WeeklyInsightsData | null>(null);
-  const [insightsSummary, setInsightsSummary] = useState<InsightsSummary | null>(null);
-  const [lastSynced, setLastSynced] = useState<string | null>(null);
-  const [wearables, setWearables] = useState<string[] | null>(null);
-  const [athleteMaxHr, setAthleteMaxHr] = useState<number | string | null>(null);
-  const [athleteMaxHrSource, setAthleteMaxHrSource] = useState<string | null>(null);
+  const cached = getDashboardCache();
+  const [loading, setLoading] = useState(() => !cached);
+  const [error, setError] = useState<string | null>(() => cached?.error ?? null);
+  const [season, setSeason] = useState<ActiveSeason | null>(() => (cached?.season as ActiveSeason | null) ?? null);
+  const [stats, setStats] = useState<AthleteStats | null>(() => (cached?.stats as AthleteStats | null) ?? null);
+  const [recentActivities, setRecentActivities] = useState<RecentActivity[]>(
+    () => (cached?.recentActivities as RecentActivity[] | undefined) ?? [],
+  );
+  const [weeklyInsights, setWeeklyInsights] = useState<WeeklyInsightsData | null>(
+    () => (cached?.weeklyInsights as WeeklyInsightsData | null) ?? null,
+  );
+  const [insightsSummary, setInsightsSummary] = useState<InsightsSummary | null>(
+    () => (cached?.insightsSummary as InsightsSummary | null) ?? null,
+  );
+  const [lastSynced, setLastSynced] = useState<string | null>(() => cached?.lastSynced ?? null);
+  const [wearables, setWearables] = useState<string[] | null>(() => cached?.wearables ?? null);
+  const [athleteMaxHr, setAthleteMaxHr] = useState<number | string | null>(() => cached?.athleteMaxHr ?? null);
+  const [athleteMaxHrSource, setAthleteMaxHrSource] = useState<string | null>(
+    () => cached?.athleteMaxHrSource ?? null,
+  );
   const [syncReminderDismissed, setSyncReminderDismissed] = useState(false);
   const [syncing, setSyncing] = useState(false);
-  const [athleteId, setAthleteId] = useState<string | undefined>(undefined);
-  const [authUserId, setAuthUserId] = useState<string | undefined>(undefined);
+  const [athleteId, setAthleteId] = useState<string | undefined>(() => cached?.athleteId);
+  const [authUserId, setAuthUserId] = useState<string | undefined>(() => cached?.authUserId);
 
   const loadDashboard = useCallback(async (options?: { silent?: boolean }) => {
     if (!options?.silent) {
@@ -258,11 +272,20 @@ export default function Dashboard() {
       setAuthUserId(userId);
 
       const membershipAthleteId = (await resolveAthleteId(userId)) ?? userId;
+      const insightSince = insightsFetchSinceIso(INSIGHTS_WINDOW_DAYS);
+      const workoutSince = workoutsFetchSinceIso(INSIGHTS_WINDOW_DAYS);
+      const emptyDivisions = { engine: 'Open' as Division, run: 'Open' as Division };
 
       const [
         { data: statsRows, error: statsError },
         { data: athleteRow, error: athleteRowError },
         liveRanks,
+        membership,
+        rulesPack,
+        { data: activityRows, error: activitiesError },
+        { data: workoutRows, error: workoutsError },
+        { data: weekActivityRows, error: weekActivitiesError },
+        { data: weekWorkoutRows, error: weekWorkoutsError },
       ] = await Promise.all([
         activeSeasonId
           ? supabase
@@ -280,6 +303,45 @@ export default function Dashboard() {
         activeSeasonId
           ? fetchLiveCategoryRanks(membershipAthleteId, activeSeasonId)
           : Promise.resolve({ engine: null, run: null }),
+        activeSeasonId && membershipAthleteId
+          ? fetchMyDivisions(membershipAthleteId, activeSeasonId)
+          : Promise.resolve(emptyDivisions),
+        supabase
+          .from('division_rules')
+          .select(
+            'division, promote_percent, promote_min_count, relegate_percent, promotes_to, relegates_to',
+          ),
+        supabase
+          .from('activities')
+          .select('id,activity_type,league_type,activity_date,duration_minutes,avg_hr_percent,avg_pace_seconds')
+          .eq('athlete_id', userId)
+          .eq('status', 'scored')
+          .order('workout_start_time', { ascending: false, nullsFirst: false })
+          .order('activity_date', { ascending: false })
+          .limit(10),
+        supabase
+          .from('workouts')
+          .select(
+            'id, activity_type, avg_hr, avg_pace_per_km, engine_score, run_score, duration_min, started_at',
+          )
+          .eq('athlete_id', userId)
+          .eq('status', 'scored')
+          .order('started_at', { ascending: false })
+          .limit(10),
+        supabase
+          .from('activities')
+          .select('id,activity_type,league_type,activity_date,duration_minutes,avg_hr_percent,avg_pace_seconds')
+          .eq('athlete_id', userId)
+          .eq('status', 'scored')
+          .gte('activity_date', insightSince)
+          .order('activity_date', { ascending: true }),
+        supabase
+          .from('workouts')
+          .select('id, activity_type, avg_hr, avg_pace_per_km, engine_score, run_score, duration_min, started_at')
+          .eq('athlete_id', userId)
+          .eq('status', 'scored')
+          .gte('started_at', workoutSince)
+          .order('started_at', { ascending: true }),
       ]);
 
       if (athleteRowError) {
@@ -314,143 +376,90 @@ export default function Dashboard() {
 
         let engineRank: number | null = liveRanks.engine;
         let runRank: number | null = liveRanks.run;
+        const engineDivision: Division = membership.engine;
+        const runDivision: Division = membership.run;
+        const divisionRules = (rulesPack.data as DivisionRule[] | null) ?? [];
+        const selectedLeagues = (athleteRow?.selected_leagues as string[] | null | undefined) ?? null;
+
+        const paintStats = (
+          nextEngineRank: number | null,
+          nextRunRank: number | null,
+          engineBoard: { rank: number | null; size: number },
+          runBoard: { rank: number | null; size: number },
+        ) => {
+          const ruleFor = (d: Division) =>
+            divisionRules.find((r) => r.division === d) ?? null;
+          const enginePlaces = momentumPlacesFromDivisionStanding({
+            division: engineDivision,
+            rank: engineBoard.rank,
+            divisionSize: engineBoard.size,
+            rule: ruleFor(engineDivision),
+          });
+          const runPlaces = momentumPlacesFromDivisionStanding({
+            division: runDivision,
+            rank: runBoard.rank,
+            divisionSize: runBoard.size,
+            rule: ruleFor(runDivision),
+          });
+          setStats({
+            engine_rank: nextEngineRank,
+            run_rank: nextRunRank,
+            engine_score: engineScore,
+            run_score: runScore,
+            total_score: engineScore + runScore,
+            engine_weekly_change: null,
+            run_weekly_change: null,
+            engine_places_to_promotion: enginePlaces.placesToPromotion,
+            run_places_to_promotion: runPlaces.placesToPromotion,
+            engine_places_to_relegation: enginePlaces.placesToRelegation,
+            run_places_to_relegation: runPlaces.placesToRelegation,
+            engine_division: engineDivision,
+            run_division: runDivision,
+            engine_division_rank: engineBoard.rank,
+            run_division_rank: runBoard.rank,
+            engine_division_size: engineBoard.size,
+            run_division_size: runBoard.size,
+            division_rules: divisionRules,
+            selected_leagues: selectedLeagues,
+          });
+        };
+
+        const cachedStats = getDashboardCache()?.stats as AthleteStats | null | undefined;
+        paintStats(
+          cachedStats?.engine_rank ?? engineRank,
+          cachedStats?.run_rank ?? runRank,
+          {
+            rank: cachedStats?.engine_division_rank ?? null,
+            size: cachedStats?.engine_division_size ?? 0,
+          },
+          {
+            rank: cachedStats?.run_division_rank ?? null,
+            size: cachedStats?.run_division_size ?? 0,
+          },
+        );
 
         if (activeSeasonId) {
-          const [computedEngineRank, computedRunRank] = await Promise.all([
+          void Promise.all([
             engineRank == null && engineScore > 0
               ? computeCategoryRank(activeSeasonId, 'engine', engineScore)
               : Promise.resolve(engineRank),
             runRank == null && runScore > 0
               ? computeCategoryRank(activeSeasonId, 'run', runScore)
               : Promise.resolve(runRank),
-          ]);
-          engineRank = computedEngineRank;
-          runRank = computedRunRank;
+            membershipAthleteId
+              ? fetchDivisionBoardStanding(membershipAthleteId, activeSeasonId, 'engine', engineDivision)
+              : Promise.resolve({ rank: null, size: 0 }),
+            membershipAthleteId
+              ? fetchDivisionBoardStanding(membershipAthleteId, activeSeasonId, 'run', runDivision)
+              : Promise.resolve({ rank: null, size: 0 }),
+          ]).then(([nextEngineRank, nextRunRank, engineBoard, runBoard]) => {
+            paintStats(nextEngineRank, nextRunRank, engineBoard, runBoard);
+          });
         }
-        let engineDivision: Division = 'Open';
-        let runDivision: Division = 'Open';
-        let engineDivisionRank: number | null = null;
-        let runDivisionRank: number | null = null;
-        let engineDivisionSize = 0;
-        let runDivisionSize = 0;
-        let divisionRules: DivisionRule[] = [];
-
-        if (activeSeasonId && membershipAthleteId) {
-          const [membership, rulesPack] = await Promise.all([
-            fetchMyDivisions(membershipAthleteId, activeSeasonId),
-            supabase
-              .from('division_rules')
-              .select(
-                'division, promote_percent, promote_min_count, relegate_percent, promotes_to, relegates_to',
-              ),
-          ]);
-
-          engineDivision = membership.engine;
-          runDivision = membership.run;
-          divisionRules = (rulesPack.data as DivisionRule[] | null) ?? [];
-
-          const [engineBoard, runBoard] = await Promise.all([
-            fetchDivisionBoardStanding(
-              membershipAthleteId,
-              activeSeasonId,
-              'engine',
-              engineDivision,
-            ),
-            fetchDivisionBoardStanding(
-              membershipAthleteId,
-              activeSeasonId,
-              'run',
-              runDivision,
-            ),
-          ]);
-          engineDivisionRank = engineBoard.rank;
-          engineDivisionSize = engineBoard.size;
-          runDivisionRank = runBoard.rank;
-          runDivisionSize = runBoard.size;
-        }
-
-        const ruleFor = (d: Division) =>
-          divisionRules.find((r) => r.division === d) ?? null;
-
-        const enginePlaces = momentumPlacesFromDivisionStanding({
-          division: engineDivision,
-          rank: engineDivisionRank,
-          divisionSize: engineDivisionSize,
-          rule: ruleFor(engineDivision),
-        });
-        const runPlaces = momentumPlacesFromDivisionStanding({
-          division: runDivision,
-          rank: runDivisionRank,
-          divisionSize: runDivisionSize,
-          rule: ruleFor(runDivision),
-        });
-
-        setStats({
-          engine_rank: engineRank,
-          run_rank: runRank,
-          engine_score: engineScore,
-          run_score: runScore,
-          total_score: engineScore + runScore,
-          engine_weekly_change: null,
-          run_weekly_change: null,
-          engine_places_to_promotion: enginePlaces.placesToPromotion,
-          run_places_to_promotion: runPlaces.placesToPromotion,
-          engine_places_to_relegation: enginePlaces.placesToRelegation,
-          run_places_to_relegation: runPlaces.placesToRelegation,
-          engine_division: engineDivision,
-          run_division: runDivision,
-          engine_division_rank: engineDivisionRank,
-          run_division_rank: runDivisionRank,
-          engine_division_size: engineDivisionSize,
-          run_division_size: runDivisionSize,
-          division_rules: divisionRules,
-          selected_leagues: (athleteRow?.selected_leagues as string[] | null | undefined) ?? null,
-        });
       }
 
       const athleteAge = Number(athleteRow?.age) || 30;
-      const athleteMaxHr = (athleteRow?.max_hr as number | string | null | undefined) ?? null;
-      const insightSince = insightsFetchSinceIso(INSIGHTS_WINDOW_DAYS);
-      const workoutSince = workoutsFetchSinceIso(INSIGHTS_WINDOW_DAYS);
-
-      const [
-        { data: activityRows, error: activitiesError },
-        { data: workoutRows, error: workoutsError },
-        { data: weekActivityRows, error: weekActivitiesError },
-        { data: weekWorkoutRows, error: weekWorkoutsError },
-      ] = await Promise.all([
-        supabase
-          .from('activities')
-          .select('id,activity_type,league_type,activity_date,duration_minutes,avg_hr_percent,avg_pace_seconds')
-          .eq('athlete_id', userId)
-          .eq('status', 'scored')
-          .order('workout_start_time', { ascending: false, nullsFirst: false })
-          .order('activity_date', { ascending: false })
-          .limit(10),
-        supabase
-          .from('workouts')
-          .select(
-            'id, activity_type, avg_hr, avg_pace_per_km, engine_score, run_score, duration_min, started_at',
-          )
-          .eq('athlete_id', userId)
-          .eq('status', 'scored')
-          .order('started_at', { ascending: false })
-          .limit(10),
-        supabase
-          .from('activities')
-          .select('id,activity_type,league_type,activity_date,duration_minutes,avg_hr_percent,avg_pace_seconds')
-          .eq('athlete_id', userId)
-          .eq('status', 'scored')
-          .gte('activity_date', insightSince)
-          .order('activity_date', { ascending: true }),
-        supabase
-          .from('workouts')
-          .select('id, activity_type, avg_hr, avg_pace_per_km, engine_score, run_score, duration_min, started_at')
-          .eq('athlete_id', userId)
-          .eq('status', 'scored')
-          .gte('started_at', workoutSince)
-          .order('started_at', { ascending: true }),
-      ]);
+      const athleteMaxHrValue = (athleteRow?.max_hr as number | string | null | undefined) ?? null;
 
       if (activitiesError) {
         setError((prev) => prev ?? activitiesError.message);
@@ -473,7 +482,7 @@ export default function Dashboard() {
         const weekWorkouts = (weekWorkoutRows as InsightWorkoutRow[] | null) ?? [];
         setWeeklyInsights(buildWeeklyInsights(weekActivities, weekWorkouts));
         const mergedInsights = mergeActivitiesAndWorkoutsForInsights(weekActivities, weekWorkouts, {
-          maxHr: athleteMaxHr,
+          maxHr: athleteMaxHrValue,
           age: athleteAge,
         });
         setInsightsSummary(buildInsightsSummary(mergedInsights, INSIGHTS_WINDOW_DAYS));
@@ -486,7 +495,7 @@ export default function Dashboard() {
           (row) => ({ ...row, id: `activity-${row.id}` }),
         );
         const fromWorkouts = ((workoutRows as WorkoutRow[] | null) ?? []).map((row) =>
-          mapWorkoutToRecentActivity(row, athleteMaxHr, athleteAge),
+          mapWorkoutToRecentActivity(row, athleteMaxHrValue, athleteAge),
         );
         setRecentActivities(mergeRecentWorkouts(fromActivities, fromWorkouts));
       }
@@ -495,7 +504,7 @@ export default function Dashboard() {
   }, []);
 
   useEffect(() => {
-    void loadDashboard();
+    void loadDashboard({ silent: Boolean(getDashboardCache()) });
   }, [loadDashboard]);
 
   useEffect(() => {
@@ -754,14 +763,20 @@ export default function Dashboard() {
           description="Unlock weekly charts, coach notes, and workout history with RNKX Premium."
           previewContent={
             <div className="space-y-4">
-              <WeeklyInsightsSection data={PREVIEW_WEEKLY_INSIGHTS} />
+              <Suspense fallback={null}>
+                <WeeklyInsightsSection data={PREVIEW_WEEKLY_INSIGHTS} />
+              </Suspense>
               <CoachNotesCard summary={PREVIEW_COACH_SUMMARY} />
               <RecentWorkoutsSection items={PREVIEW_RECENT_WORKOUTS} />
             </div>
           }
         >
           <div className="space-y-4">
-            {weeklyInsights ? <WeeklyInsightsSection data={weeklyInsights} /> : null}
+            {weeklyInsights ? (
+              <Suspense fallback={null}>
+                <WeeklyInsightsSection data={weeklyInsights} />
+              </Suspense>
+            ) : null}
             {insightsSummary ? <CoachNotesCard summary={insightsSummary} /> : null}
             <RecentWorkoutsSection
               items={recentWorkoutItems}

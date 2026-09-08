@@ -1,4 +1,3 @@
-import html2canvas from 'html2canvas';
 import rnkxLogo from '@/assets/rnkx-logo.svg';
 import rnkxSymbol from '@/assets/rnkx-symbol.png';
 import { useEffect, useState } from 'react';
@@ -183,6 +182,7 @@ export async function captureElementAsPng(element: HTMLElement): Promise<Blob> {
       requestAnimationFrame(() => requestAnimationFrame(() => resolve()));
     });
 
+    const { default: html2canvas } = await import('html2canvas');
     const rendered = await html2canvas(element, {
       width: SHARE_CARD_WIDTH,
       height: SHARE_CARD_HEIGHT,

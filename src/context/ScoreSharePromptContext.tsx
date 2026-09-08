@@ -1,5 +1,7 @@
 import {
   createContext,
+  lazy,
+  Suspense,
   useCallback,
   useContext,
   useEffect,
@@ -8,7 +10,6 @@ import {
   type ReactNode,
 } from 'react';
 import { toast } from 'sonner';
-import { WorkoutShareDialog } from '@/components/share/WorkoutShareDialog';
 import {
   buildWorkoutShareFromActivityRow,
   buildWorkoutShareFromAppleSync,
@@ -24,6 +25,10 @@ import {
 import type { WorkoutObject } from '@/services/despia';
 import { supabase } from '@/services/supabase';
 import type { ProcessActivityRpcResult, WorkoutSharePayload } from '@/types/shareCards';
+
+const WorkoutShareDialog = lazy(() =>
+  import('@/components/share/WorkoutShareDialog').then((m) => ({ default: m.WorkoutShareDialog })),
+);
 
 const RECENT_MS = 15 * 60 * 1000;
 
@@ -325,7 +330,11 @@ export function ScoreSharePromptProvider({ children, authUserId, enabled }: Scor
   return (
     <ScoreSharePromptContext.Provider value={value}>
       {children}
-      <WorkoutShareDialog open={open} onOpenChange={handleDialogOpenChange} payload={payload} />
+      {open && payload ? (
+        <Suspense fallback={null}>
+          <WorkoutShareDialog open={open} onOpenChange={handleDialogOpenChange} payload={payload} />
+        </Suspense>
+      ) : null}
     </ScoreSharePromptContext.Provider>
   );
 }

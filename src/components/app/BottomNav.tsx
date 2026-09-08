@@ -2,6 +2,7 @@ import { Link, useLocation } from "react-router-dom";
 import { Home, Trophy, User, UsersRound } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { haptic } from "@/lib/haptics";
+import { prefetchMainTab, tabFromNavPath } from "@/lib/tabPrefetch";
 
 const navItems = [
   { path: "/app", icon: Home, label: "Dashboard" },
@@ -32,6 +33,14 @@ export function BottomNav() {
             <Link
               key={path}
               to={path}
+              onPointerDown={() => {
+                const tab = tabFromNavPath(path);
+                if (tab) prefetchMainTab(tab);
+              }}
+              onMouseEnter={() => {
+                const tab = tabFromNavPath(path);
+                if (tab) prefetchMainTab(tab);
+              }}
               onClick={() => haptic('light')}
               className={cn(
                 "flex flex-col items-center gap-1 px-3 py-2 transition-colors",

@@ -36,8 +36,8 @@ export default function DiscoverClubsPage() {
 
   const load = useCallback(async () => {
     setLoading(true);
-    const { data: auth } = await supabase.auth.getUser();
-    const uid = auth.user?.id;
+    const { data: auth } = await supabase.auth.getSession();
+    const uid = auth.session?.user?.id;
     if (!uid) {
       setLoading(false);
       return;
@@ -46,16 +46,17 @@ export default function DiscoverClubsPage() {
     const aid = await resolveAthleteId(uid);
     setAthleteId(aid);
 
-    if (aid) {
-      const { data: me } = await supabase.from('athletes').select('gender').eq('id', aid).maybeSingle();
-      setMyGender((me?.gender as string | null) ?? null);
-    }
-
-    const { data: publicLeagues, error } = await supabase
-      .from('private_leagues')
-      .select('id, name, created_by, image_url, league_type, gender, conversation_id')
-      .eq('is_public', true)
-      .order('name');
+    const [{ data: me }, { data: publicLeagues, error }] = await Promise.all([
+      aid
+        ? supabase.from('athletes').select('gender').eq('id', aid).maybeSingle()
+        : Promise.resolve({ data: null }),
+      supabase
+        .from('private_leagues')
+        .select('id, name, created_by, image_url, league_type, gender, conversation_id')
+        .eq('is_public', true)
+        .order('name'),
+    ]);
+    setMyGender((me?.gender as string | null) ?? null);
 
     if (error) {
       toast.error(error.message);

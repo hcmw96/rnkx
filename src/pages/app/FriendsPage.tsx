@@ -12,7 +12,7 @@ import { AthleteAvatarImg } from '@/components/AthleteAvatarImg';
 import { leagueFromSelectedLeagues } from '@/lib/leagueAvatars';
 import { useAthleteSession } from '@/context/AthleteSessionContext';
 import { getAuthUserId } from '@/lib/authSession';
-import { setFriendsCache } from '@/lib/routeCaches';
+import { getFriendsCache, setFriendsCache } from '@/lib/routeCaches';
 import { resolveAthleteId } from '@/lib/resolveAthleteId';
 import { supabase } from '@/services/supabase';
 import { toast } from 'sonner';
@@ -40,14 +40,21 @@ type FriendsPageProps = {
 
 export default function FriendsPage({ embedded = false }: FriendsPageProps) {
   const { authUserId, athleteId: sessionAthleteId } = useAthleteSession();
+  const cachedFriends = getFriendsCache();
   const [search, setSearch] = useState('');
   const [results, setResults] = useState<AthleteLite[]>([]);
   const [searching, setSearching] = useState(false);
-  const [incoming, setIncoming] = useState<(FriendshipRow & { requester: AthleteLite })[]>([]);
-  const [outgoing, setOutgoing] = useState<(FriendshipRow & { recipient: AthleteLite })[]>([]);
-  const [friends, setFriends] = useState<FriendWithMeta[]>([]);
+  const [incoming, setIncoming] = useState<(FriendshipRow & { requester: AthleteLite })[]>(
+    () => (cachedFriends?.incoming as (FriendshipRow & { requester: AthleteLite })[] | undefined) ?? [],
+  );
+  const [outgoing, setOutgoing] = useState<(FriendshipRow & { recipient: AthleteLite })[]>(
+    () => (cachedFriends?.outgoing as (FriendshipRow & { recipient: AthleteLite })[] | undefined) ?? [],
+  );
+  const [friends, setFriends] = useState<FriendWithMeta[]>(
+    () => (cachedFriends?.friends as FriendWithMeta[] | undefined) ?? [],
+  );
   const [cancellingOutgoingId, setCancellingOutgoingId] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(() => !cachedFriends);
   const athleteId = sessionAthleteId;
   const searchGenRef = useRef(0);
   const searchRef = useRef(search);
@@ -76,108 +83,94 @@ export default function FriendsPage({ embedded = false }: FriendsPageProps) {
       return;
     }
 
-    const { data: incRows, error: incErr } = await supabase
-      .from('friendships')
-      .select('id, athlete_id, friend_id, status')
-      .eq('friend_id', aid)
-      .eq('status', 'pending');
+    const fallback = (id: string): AthleteLite => ({
+      id,
+      username: null,
+      display_name: null,
+      avatar_url: null,
+      selected_leagues: null,
+    });
 
-    if (incErr) {
-      toast.error(incErr.message);
-    } else {
-      const ids = [...new Set((incRows ?? []).map((r) => r.athlete_id))];
-      let requesterMap = new Map<string, AthleteLite>();
-      if (ids.length) {
-        const { data: ath } = await supabase
+    const [{ data: incRows, error: incErr }, { data: outRows, error: outErr }, { data: accepted, error: accErr }] =
+      await Promise.all([
+        supabase
+          .from('friendships')
+          .select('id, athlete_id, friend_id, status')
+          .eq('friend_id', aid)
+          .eq('status', 'pending'),
+        supabase
+          .from('friendships')
+          .select('id, athlete_id, friend_id, status')
+          .eq('athlete_id', aid)
+          .eq('status', 'pending'),
+        supabase
+          .from('friendships')
+          .select('id, athlete_id, friend_id, status')
+          .or(`athlete_id.eq.${aid},friend_id.eq.${aid}`)
+          .eq('status', 'accepted'),
+      ]);
+
+    if (incErr) toast.error(incErr.message);
+    if (outErr) toast.error(outErr.message);
+    if (accErr) toast.error(accErr.message);
+
+    const friendIds = (accepted ?? []).map((r) => (r.athlete_id === aid ? r.friend_id : r.athlete_id));
+    const athleteIds = [
+      ...new Set([
+        ...(incRows ?? []).map((r) => r.athlete_id as string),
+        ...(outRows ?? []).map((r) => r.friend_id as string),
+        ...friendIds.map((id) => id as string),
+      ]),
+    ].filter(Boolean);
+
+    let athleteMap = new Map<string, AthleteLite>();
+    let lbMap = new Map<string, { rank?: number | string | null; total_score?: number | string | null }>();
+    if (athleteIds.length) {
+      const [{ data: ath }, { data: lb }] = await Promise.all([
+        supabase
           .from('athletes')
           .select('id, username, display_name, avatar_url, selected_leagues')
-          .in('id', ids);
-        requesterMap = new Map((ath ?? []).map((a) => [a.id as string, a as AthleteLite]));
-      }
-      setIncoming(
-        (incRows ?? []).map((r) => ({
-          ...(r as FriendshipRow),
-          requester: requesterMap.get(r.athlete_id as string) ?? {
-            id: r.athlete_id,
-            username: null,
-            display_name: null,
-            avatar_url: null,
-            selected_leagues: null,
-          },
-        })),
-      );
+          .in('id', athleteIds),
+        supabase.from('leaderboard').select('id, rank, total_score').in('id', athleteIds),
+      ]);
+      athleteMap = new Map((ath ?? []).map((a) => [a.id as string, a as AthleteLite]));
+      lbMap = new Map((lb ?? []).map((l) => [l.id as string, l]));
     }
 
-    const { data: outRows, error: outErr } = await supabase
-      .from('friendships')
-      .select('id, athlete_id, friend_id, status')
-      .eq('athlete_id', aid)
-      .eq('status', 'pending');
-
-    if (outErr) {
-      toast.error(outErr.message);
-    } else {
-      const ids = [...new Set((outRows ?? []).map((r) => r.friend_id))];
-      let recipientMap = new Map<string, AthleteLite>();
-      if (ids.length) {
-        const { data: ath } = await supabase
-          .from('athletes')
-          .select('id, username, display_name, avatar_url, selected_leagues')
-          .in('id', ids);
-        recipientMap = new Map((ath ?? []).map((a) => [a.id as string, a as AthleteLite]));
-      }
-      setOutgoing(
-        (outRows ?? []).map((r) => ({
-          ...(r as FriendshipRow),
-          recipient: recipientMap.get(r.friend_id as string) ?? {
-            id: r.friend_id,
-            username: null,
-            display_name: null,
-            avatar_url: null,
-            selected_leagues: null,
-          },
-        })),
-      );
-    }
-
-    const { data: accepted, error: accErr } = await supabase
-      .from('friendships')
-      .select('id, athlete_id, friend_id, status')
-      .or(`athlete_id.eq.${aid},friend_id.eq.${aid}`)
-      .eq('status', 'accepted');
-
+    setIncoming(
+      (incRows ?? []).map((r) => ({
+        ...(r as FriendshipRow),
+        requester: athleteMap.get(r.athlete_id as string) ?? fallback(r.athlete_id as string),
+      })),
+    );
+    setOutgoing(
+      (outRows ?? []).map((r) => ({
+        ...(r as FriendshipRow),
+        recipient: athleteMap.get(r.friend_id as string) ?? fallback(r.friend_id as string),
+      })),
+    );
     if (accErr) {
-      toast.error(accErr.message);
       setFriends([]);
     } else {
-      const friendIds = (accepted ?? []).map((r) => (r.athlete_id === aid ? r.friend_id : r.athlete_id));
-      const unique = [...new Set(friendIds)];
-      if (!unique.length) {
-        setFriends([]);
-      } else {
-        const [{ data: aths }, { data: lb }] = await Promise.all([
-          supabase.from('athletes').select('id, username, display_name, avatar_url, selected_leagues').in('id', unique),
-          supabase.from('leaderboard').select('id, rank, total_score').in('id', unique),
-        ]);
-        const lbMap = new Map((lb ?? []).map((l) => [l.id as string, l]));
-        setFriends(
-          (aths ?? []).map((a) => {
-            const row = lbMap.get(a.id as string);
-            return {
-              ...(a as AthleteLite),
-              rank: row?.rank != null ? Number(row.rank) : null,
-              total_score: row?.total_score != null ? Number(row.total_score) : 0,
-            };
-          }),
-        );
-      }
+      const unique = [...new Set(friendIds.map((id) => id as string))];
+      setFriends(
+        unique.map((id) => {
+          const a = athleteMap.get(id) ?? fallback(id);
+          const row = lbMap.get(id);
+          return {
+            ...a,
+            rank: row?.rank != null ? Number(row.rank) : null,
+            total_score: row?.total_score != null ? Number(row.total_score) : 0,
+          };
+        }),
+      );
     }
 
     setLoading(false);
   }, [authUserId, sessionAthleteId]);
 
   useEffect(() => {
-    void loadFriendsData();
+    void loadFriendsData({ silent: Boolean(getFriendsCache()) });
   }, [loadFriendsData]);
 
   useEffect(() => {
