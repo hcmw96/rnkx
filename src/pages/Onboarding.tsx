@@ -19,6 +19,7 @@ import { Button } from '@/components/ui/button';
 import { useProfileGate } from '@/context/ProfileGateContext';
 import { getSeededDisplayName, isAppleAuthUser } from '@/lib/authPostLogin';
 import { consumeAfterOnboardingPath } from '@/hooks/useWearableConnect';
+import { notifyLoopsAccountCreated } from '@/lib/loopsAccountCreated';
 import { getPendingLeagueInvitePath } from '@/lib/shareLeagueInvite';
 import { supabase } from '@/services/supabase';
 
@@ -198,6 +199,13 @@ export default function Onboarding() {
         setFinishing(false);
         setSubmitError(insertError.message);
         return;
+      }
+
+      const email = userData.user.email?.trim();
+      if (email) {
+        notifyLoopsAccountCreated(userId, email);
+      } else {
+        console.warn('[loops] skip accountCreated — auth user has no email');
       }
 
       await refetchProfile();
