@@ -679,7 +679,7 @@ export default function LeaderboardPage() {
       </div>
 
       {scopeTab === 'overall' ? (
-        <p className="whitespace-nowrap text-center text-[11px] tracking-tight text-muted-foreground/80">
+        <p className="px-1 text-center text-[11px] leading-snug tracking-tight text-muted-foreground/80">
           Overall shows all divisions. Your division determines promotion and relegation.
         </p>
       ) : null}
