@@ -285,7 +285,7 @@ export default function FriendsPage({ embedded = false }: FriendsPageProps) {
   };
 
   const content = (
-    <section className="mx-auto max-w-lg space-y-6">
+    <section className="mx-auto w-full max-w-lg space-y-6">
       {!embedded ? <h1 className="type-page-title">Friends</h1> : null}
 
           <div className="space-y-2">

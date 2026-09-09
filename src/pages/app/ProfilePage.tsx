@@ -209,7 +209,7 @@ export default function ProfilePage() {
   const combinedScore = engineScore + runScore;
 
   return (
-    <section className="mx-auto max-w-lg space-y-4 pb-8">
+    <section className="mx-auto w-full max-w-lg space-y-4 pb-8">
         <input
           ref={fileInputRef}
           type="file"

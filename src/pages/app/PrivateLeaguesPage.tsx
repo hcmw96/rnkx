@@ -226,7 +226,7 @@ export default function PrivateLeaguesPage({ embedded = false }: PrivateLeaguesP
   );
 
   const content = (
-    <section className="mx-auto max-w-lg space-y-4">
+    <section className="mx-auto w-full max-w-lg space-y-4">
       <div className="flex items-center justify-between gap-3">
         {!embedded ? (
           <h1 className="type-page-title">Clubs</h1>

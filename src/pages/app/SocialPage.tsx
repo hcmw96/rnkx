@@ -46,7 +46,7 @@ export default function SocialPage() {
       title="Friends and Clubs"
       description="Unlock friends, messaging, public and private clubs with RNKX premium."
     >
-      <div className="mx-auto max-w-lg space-y-4">
+      <div className="mx-auto w-full max-w-lg space-y-4">
         <p className="text-center text-xs text-muted-foreground">
           Friends, clubs, and{' '}
           <Link to="/app/chat" className="font-medium text-neon-lime hover:underline">
