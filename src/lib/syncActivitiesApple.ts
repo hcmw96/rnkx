@@ -3,6 +3,7 @@ import { isDespiaNative, registerPushForAthlete } from '@/services/onesignal';
 import { supabase } from '@/services/supabase';
 import type { ProcessActivityRpcResult } from '@/types/shareCards';
 
+import { notifyLoopsFirstWorkout } from './loopsFirstWorkout';
 import { notifyWorkoutScoredPushes } from './pushAfterWorkoutScored';
 
 function newlyScoredResults(results: ProcessActivityRpcResult[]): ProcessActivityRpcResult[] {
@@ -47,6 +48,7 @@ export async function syncAppleWorkoutsToDatabase(
       }
     }
     notifyWorkoutScoredPushes(athleteId, scored);
+    notifyLoopsFirstWorkout(athleteId);
   }
 
   return { processed, results, error: null };
