@@ -23,7 +23,7 @@ export type AchievementState = AchievementDefinition & {
 
 export const ACHIEVEMENTS: AchievementDefinition[] = [
   { id: 'founder', name: 'Founder', criteria: 'Joined Season 1', color: 'gold' },
-  { id: 'century', name: 'Century', criteria: 'First 150+ pt session', color: 'lime' },
+  { id: 'century', name: 'Century', criteria: 'First 100+ pt session', color: 'lime' },
   { id: 'engine-room', name: 'Engine Room', criteria: '8,000 engine league pts', color: 'lime' },
   { id: 'pacemaker', name: 'Pacemaker', criteria: '8,000 run league pts', color: 'cyan' },
   { id: 'double-day', name: 'Double Day', criteria: 'Engine + run same day', color: 'gradient' },
@@ -229,7 +229,7 @@ async function computeUnlockEligibility(
 
   return {
     founder: seasonOne,
-    century: bestSession >= 150,
+    century: bestSession >= 100,
     'engine-room': engineScore >= 8000,
     pacemaker: runScore >= 8000,
     'double-day': doubleDay,
