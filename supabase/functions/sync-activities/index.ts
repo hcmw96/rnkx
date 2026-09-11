@@ -1,5 +1,21 @@
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import { scheduleLoopsFirstWorkout } from '../_shared/scheduleLoopsFirstWorkout.ts';
+
+function isScoredProcessResult(data: unknown): boolean {
+  if (data == null) return false;
+  const payload = typeof data === 'string'
+    ? (() => {
+      try {
+        return JSON.parse(data) as unknown;
+      } catch {
+        return null;
+      }
+    })()
+    : data;
+  if (typeof payload !== 'object' || payload === null) return false;
+  return String((payload as { status?: unknown }).status).toLowerCase() === 'scored';
+}
 
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
@@ -67,6 +83,9 @@ serve(async (req) => {
 
     const { data, error } = await supabase.rpc('process_activity', { payload });
     results.push({ sourceId: w.sourceId, result: data, error: error?.message });
+    if (!error && isScoredProcessResult(data)) {
+      scheduleLoopsFirstWorkout(body.athlete_id, 'sync-activities');
+    }
   }
 
   console.log('sync-activities results:', JSON.stringify(results));

@@ -1,5 +1,6 @@
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import { scheduleLoopsFirstWorkout } from '../_shared/scheduleLoopsFirstWorkout.ts';
 
 const WHOOP_TOKEN_URL = 'https://api.prod.whoop.com/oauth/oauth2/token';
 const WHOOP_WORKOUT_COLLECTION = 'https://api.prod.whoop.com/developer/v2/activity/workout';
@@ -204,6 +205,10 @@ serve(async (req) => {
         .from('athletes')
         .update({ max_hr: Math.round(highestSeen), max_hr_source: 'whoop_live' })
         .eq('id', athleteId);
+    }
+
+    if (inserted > 0) {
+      scheduleLoopsFirstWorkout(athleteId, 'whoop-sync-manual');
     }
 
     return json({ inserted, skipped });

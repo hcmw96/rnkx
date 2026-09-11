@@ -1,6 +1,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { scheduleActivityScoringPushes } from "../_shared/pushAfterActivityScored.ts";
+import { scheduleLoopsFirstWorkout } from "../_shared/scheduleLoopsFirstWorkout.ts";
 
 type AthleteRow = {
   id: string;
@@ -181,6 +182,9 @@ async function processTerraWorkouts(params: {
 
   // After scoring trigger completes — fire-and-forget; never block webhook response.
   scheduleActivityScoringPushes(supabase, athlete.id, insertedActivityIds, "terra-webhook");
+  if (insertedActivityIds.length > 0) {
+    scheduleLoopsFirstWorkout(athlete.id, "terra-webhook");
+  }
 
   try {
     if (sessionPeakMaxHr > 0) {

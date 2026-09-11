@@ -1,6 +1,7 @@
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { scheduleActivityScoringPushes } from '../_shared/pushAfterActivityScored.ts';
+import { scheduleLoopsFirstWorkout } from '../_shared/scheduleLoopsFirstWorkout.ts';
 
 const WHOOP_TOKEN_URL = 'https://api.prod.whoop.com/oauth/oauth2/token';
 
@@ -272,12 +273,14 @@ serve(async (req) => {
     // After on_activity_inserted scoring — fire-and-forget; never block webhook response.
     const activityId = insertedRow?.id != null ? String(insertedRow.id) : '';
     if (activityId) {
+      const athleteId = String(conn.athlete_id);
       scheduleActivityScoringPushes(
         supabase,
-        String(conn.athlete_id),
+        athleteId,
         [activityId],
         'whoop-webhook',
       );
+      scheduleLoopsFirstWorkout(athleteId, 'whoop-webhook');
     }
 
     return new Response(JSON.stringify({ status: 'inserted', workout_id: wid }), {
