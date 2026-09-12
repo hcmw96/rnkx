@@ -13,6 +13,7 @@ import {
   syncAthleteAchievements,
   type AchievementState,
 } from '@/lib/achievements';
+import { requestInAppReviewAfterPromotion } from '@/lib/inAppReview';
 import { invokePushNotify } from '@/lib/pushNotify';
 import { resolveAthleteId } from '@/lib/resolveAthleteId';
 import { supabase } from '@/services/supabase';
@@ -58,6 +59,7 @@ export function AchievementUnlockProvider({ children, authUserId, enabled }: Ach
   const syncingRef = useRef(false);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const subscribedAtRef = useRef(Date.now());
+  const pendingRatePromptRef = useRef(false);
 
   useEffect(() => {
     if (!enabled || !authUserId) {
@@ -130,12 +132,31 @@ export function AchievementUnlockProvider({ children, authUserId, enabled }: Ach
   const handleDismiss = useCallback(() => {
     const celebrating = current;
     const aid = athleteId;
+    if (celebrating?.id === 'promoted') {
+      pendingRatePromptRef.current = true;
+    }
     // Advance the queue immediately so a hung write cannot leave the overlay up.
     presentNext();
     if (celebrating && aid) {
       void markAchievementsCelebrated(aid, [celebrating.id]);
     }
   }, [athleteId, current, presentNext]);
+
+  useEffect(() => {
+    if (!enabled) {
+      pendingRatePromptRef.current = false;
+      return;
+    }
+    if (current) return;
+    if (!pendingRatePromptRef.current || !athleteId) return;
+    const aid = athleteId;
+    const timer = window.setTimeout(() => {
+      if (!pendingRatePromptRef.current) return;
+      pendingRatePromptRef.current = false;
+      void requestInAppReviewAfterPromotion(aid);
+    }, 400);
+    return () => window.clearTimeout(timer);
+  }, [current, athleteId, enabled]);
 
   useEffect(() => {
     if (!enabled || !athleteId) return;
