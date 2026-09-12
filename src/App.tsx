@@ -21,6 +21,12 @@ import {
   pollCheckEntitlementUntilPremium,
   syncEntitlementFromServer,
 } from './services/revenuecat';
+import {
+  clearPasswordRecovery,
+  hasPasswordRecoveryFlag,
+  markPasswordRecovery,
+  urlIndicatesPasswordRecovery,
+} from '@/lib/authRedirect';
 import { supabase } from './services/supabase';
 
 const AdminPage = lazy(() => import('./pages/app/AdminPage'));
@@ -74,6 +80,21 @@ function SessionRoutes() {
   const [profileComplete, setProfileComplete] = useState(false);
   const [welcomeAthleteId, setWelcomeAthleteId] = useState<string | null>(null);
   const [showWelcomeOverlay, setShowWelcomeOverlay] = useState(false);
+  const [passwordRecovery, setPasswordRecovery] = useState(
+    () => urlIndicatesPasswordRecovery() || hasPasswordRecoveryFlag(),
+  );
+
+  useEffect(() => {
+    const syncFromUrl = () => {
+      if (urlIndicatesPasswordRecovery()) {
+        markPasswordRecovery();
+        setPasswordRecovery(true);
+      }
+    };
+    syncFromUrl();
+    window.addEventListener('hashchange', syncFromUrl);
+    return () => window.removeEventListener('hashchange', syncFromUrl);
+  }, []);
 
   const refetchProfile = useCallback(async (): Promise<boolean> => {
     const {
@@ -139,8 +160,12 @@ function SessionRoutes() {
 
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, newSession) => {
+    } = supabase.auth.onAuthStateChange((event, newSession) => {
       if (cancelled) return;
+      if (event === 'PASSWORD_RECOVERY' || urlIndicatesPasswordRecovery()) {
+        markPasswordRecovery();
+        setPasswordRecovery(true);
+      }
       // Defer async Supabase calls — running them synchronously in this handler can deadlock getSession().
       window.setTimeout(() => {
         if (!cancelled) void applySession(newSession);
@@ -220,7 +245,7 @@ function SessionRoutes() {
   }, [session?.user?.id, profileComplete]);
 
   useEffect(() => {
-    if (!session?.user?.id || !profileComplete) {
+    if (!session?.user?.id || !profileComplete || passwordRecovery) {
       window.iapSuccess = undefined;
       window.onRevenueCatPurchase = undefined;
       return;
@@ -256,13 +281,13 @@ function SessionRoutes() {
       window.iapSuccess = undefined;
       window.onRevenueCatPurchase = undefined;
     };
-  }, [session?.user?.id, profileComplete, navigate]);
+  }, [session?.user?.id, profileComplete, navigate, passwordRecovery]);
 
   if (!initialized) {
     return <div className="min-h-screen bg-black" aria-hidden />;
   }
 
-  const showApp = !!session && profileComplete;
+  const showApp = !!session && profileComplete && !passwordRecovery;
   const authShell = (
     <RequireAuth session={session} profileComplete={profileComplete}>
       <AppLayout />
@@ -276,7 +301,7 @@ function SessionRoutes() {
       <NotificationCountProvider enabled={showApp}>
       <AchievementUnlockProvider authUserId={session?.user?.id} enabled={showApp}>
       <NotificationNavigationBridge enabled={showApp} />
-      {welcomeAthleteId && showWelcomeOverlay ? (
+      {welcomeAthleteId && showWelcomeOverlay && !passwordRecovery ? (
         <Suspense fallback={null}>
           <WelcomeModal
             athleteId={welcomeAthleteId}
@@ -299,7 +324,15 @@ function SessionRoutes() {
         <Route
           path="/auth"
           element={
-            session ? (
+            passwordRecovery ? (
+              <AthleteAuth
+                passwordRecovery
+                onRecoveryComplete={() => {
+                  clearPasswordRecovery();
+                  setPasswordRecovery(false);
+                }}
+              />
+            ) : session ? (
               profileComplete ? (
                 <Navigate to="/app" replace />
               ) : (

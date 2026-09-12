@@ -8,7 +8,7 @@ import {
 } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
-import { SHOW_RECOVERY } from '@/lib/featureFlags';
+import { sendPasswordResetEmail } from '@/lib/authRedirect';
 import {
   AlertDialog,
   AlertDialogContent,
@@ -48,6 +48,7 @@ import {
 import { useAchievementUnlock } from '@/context/AchievementUnlockContext';
 import { useScoreSharePrompt } from '@/context/ScoreSharePromptContext';
 import { runAppleWorkoutSync } from '@/lib/runAppleWorkoutSync';
+import { SHOW_RECOVERY } from '@/lib/featureFlags';
 import { launchNativePaywall, restoreInAppPurchasesAndApplyPremium } from '@/services/revenuecat';
 import { supabase } from '@/services/supabase';
 
@@ -637,9 +638,7 @@ export default function SettingsPage() {
       toast.error('No email on file for this account.');
       return;
     }
-    const { error } = await supabase.auth.resetPasswordForEmail(userEmail.trim(), {
-      redirectTo: `${window.location.origin}/auth`,
-    });
+    const { error } = await sendPasswordResetEmail(userEmail);
     if (error) {
       toast.error(error.message);
       return;
