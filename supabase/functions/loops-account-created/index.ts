@@ -138,8 +138,11 @@ serve(async (req) => {
       .maybeSingle();
 
     if (seasonErr) {
-      console.error('[loops-account-created] season lookup', seasonErr);
-      return json({ ok: false, skipped: true });
+      console.error('[loops-account-created] seasons query error', seasonErr);
+    } else if (season == null) {
+      console.warn('[loops-account-created] seasons query returned nothing');
+    } else {
+      console.log('[loops-account-created] seasons query row', season);
     }
 
     const startsAt = typeof season?.starts_at === 'string' ? season.starts_at : '';
@@ -149,7 +152,12 @@ serve(async (req) => {
     const seasonStartDate = startsAt ? isoDateLondon(startsAt) : null;
     const seasonEndDate = endsAt ? isoDateLondon(endsAt) : null;
 
-    if (!datesDisplay || !seasonStartDate || !seasonEndDate || !seasonName) {
+    console.log('[loops-account-created] seasonName', JSON.stringify(seasonName));
+    console.log('[loops-account-created] seasonStartDate', JSON.stringify(seasonStartDate));
+    console.log('[loops-account-created] seasonEndDate', JSON.stringify(seasonEndDate));
+    console.log('[loops-account-created] seasonDatesDisplay', JSON.stringify(datesDisplay));
+
+    if (seasonErr || !datesDisplay || !seasonStartDate || !seasonEndDate || !seasonName) {
       console.error('[loops-account-created] missing active season dates; email would not send', {
         athleteId,
         seasonName,
@@ -161,12 +169,7 @@ serve(async (req) => {
 
     const firstName = firstNameFromDisplayName(athlete.display_name as string | null);
 
-    const contactProperties = {
-      ...(firstName ? { firstName } : {}),
-      userId: String(athlete.id),
-    };
-
-    const eventProperties = {
+    const loopsProperties = {
       ...(firstName ? { firstName } : {}),
       userId: String(athlete.id),
       seasonName,
@@ -175,8 +178,10 @@ serve(async (req) => {
       seasonDatesDisplay: datesDisplay,
     };
 
-    await upsertContact(email, contactProperties);
-    await sendEvent(email, ACCOUNT_CREATED_EVENT, eventProperties);
+    console.log('[loops-account-created] upsertContact properties', loopsProperties);
+    await upsertContact(email, loopsProperties);
+    console.log('[loops-account-created] sendEvent properties', loopsProperties);
+    await sendEvent(email, ACCOUNT_CREATED_EVENT, loopsProperties);
 
     console.log('[loops-account-created] sent', { athleteId, event: ACCOUNT_CREATED_EVENT });
     return json({ ok: true });

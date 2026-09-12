@@ -461,6 +461,9 @@ verify_jwt = true
 [functions.loops-account-created]
 verify_jwt = true
 
+[functions.loops-first-workout]
+verify_jwt = true
+
 [analytics]
 enabled = true
 port = 54327

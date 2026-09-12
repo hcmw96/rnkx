@@ -3,7 +3,6 @@
  * LOOPS_API_KEY must never ship in the client bundle.
  */
 
-const LOOPS_CREATE_CONTACT = 'https://app.loops.so/api/v1/contacts/create';
 const LOOPS_UPDATE_CONTACT = 'https://app.loops.so/api/v1/contacts/update';
 const LOOPS_SEND_EVENT = 'https://app.loops.so/api/v1/events/send';
 
@@ -106,20 +105,12 @@ class LoopsHttpError extends Error {
   }
 }
 
-/** Create a Loops contact, or update if the email already exists (409). */
+/** Upsert a Loops contact. Update creates the contact when it does not exist. */
 export async function upsertContact(
   email: string,
   properties: LoopsProperties = {},
 ): Promise<unknown> {
-  const payload = { email, ...properties };
-  try {
-    return await loopsPost(LOOPS_CREATE_CONTACT, payload);
-  } catch (err) {
-    if (err instanceof LoopsHttpError && err.status === 409) {
-      return await loopsPost(LOOPS_UPDATE_CONTACT, payload);
-    }
-    throw err;
-  }
+  return await loopsPost(LOOPS_UPDATE_CONTACT, { email, ...properties });
 }
 
 /** Fire a Loops event for a contact, optionally with event properties. */
