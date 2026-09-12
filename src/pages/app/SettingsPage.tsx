@@ -812,7 +812,7 @@ export default function SettingsPage() {
         return false;
       }
       setSupportBody('');
-      toast.success('Thanks — our team will get back to you soon.');
+      toast.success("Thanks — we've got your message and we'll be in touch.");
       return true;
     } finally {
       setSupportSending(false);
