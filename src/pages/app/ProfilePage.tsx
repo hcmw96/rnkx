@@ -236,7 +236,7 @@ export default function ProfilePage() {
               avatarLeague={avatarLeague}
               uploading={uploading}
               onAvatarClick={openAvatarPicker}
-              seasonDisplay={seasonStats?.seasonDisplay ?? 'Season 1 · Spring 2026'}
+              seasonDisplay={seasonStats?.seasonDisplay ?? 'Season 1'}
               combinedScore={combinedScore}
               engineScore={engineScore}
               runScore={runScore}

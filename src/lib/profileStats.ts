@@ -77,7 +77,7 @@ export async function fetchPromotionTimeline(athleteId: string): Promise<Promoti
 }
 
 export function formatSeasonDisplay(name: string | null | undefined): string {
-  if (!name?.trim()) return 'Season 1 · Spring 2026';
+  if (!name?.trim()) return 'Season 1';
   const trimmed = name.trim();
   const sep = trimmed.indexOf(' - ');
   if (sep > 0) {
@@ -88,7 +88,7 @@ export function formatSeasonDisplay(name: string | null | undefined): string {
 
 export async function fetchProfileSeasonStats(athleteId: string): Promise<ProfileSeasonStats> {
   const empty: ProfileSeasonStats = {
-    seasonDisplay: 'Season 1 · Spring 2026',
+    seasonDisplay: 'Season 1',
     engineScore: 0,
     runScore: 0,
   };

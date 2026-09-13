@@ -81,7 +81,7 @@ export default function FriendProfilePage() {
   const [myAthleteId, setMyAthleteId] = useState<string | null>(null);
   const [friendship, setFriendship] = useState<FriendshipRelation>({ kind: 'none' });
   const [friend, setFriend] = useState<FriendAthlete | null>(null);
-  const [seasonDisplay, setSeasonDisplay] = useState('Season 1 · Spring 2026');
+  const [seasonDisplay, setSeasonDisplay] = useState('Season 1');
   const [engineScore, setEngineScore] = useState(0);
   const [runScore, setRunScore] = useState(0);
   const [standingPercent, setStandingPercent] = useState(50);

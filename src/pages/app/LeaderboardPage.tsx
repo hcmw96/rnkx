@@ -37,7 +37,7 @@ function normalizeGender(value: string | null | undefined): 'male' | 'female' | 
   return null;
 }
 
-/** Display "Season 1" only — strip suffixes like " - Spring 2026" from DB season names. */
+/** Display the primary season label only — strip suffixes after " - " from DB season names. */
 function seasonShortLabel(name: string | null | undefined): string {
   if (!name?.trim()) return 'Season 1';
   const trimmed = name.trim();
