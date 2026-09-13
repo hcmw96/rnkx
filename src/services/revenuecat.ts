@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useState } from 'react';
 import despia from 'despia-native';
+import { toast } from 'sonner';
 import { getAuthUserId } from '@/lib/authSession';
+import { nativePaywallOfferingsReady } from '@/lib/subscriptionProducts';
 import {
   fetchPremiumStatus,
   getCachedPremium,
@@ -88,18 +90,51 @@ function isDespiaRuntime(): boolean {
   return navigator.userAgent.toLowerCase().includes('despia');
 }
 
+/** User-facing copy when the native paywall cannot be shown. Never include SDK text. */
+export const PREMIUM_UNAVAILABLE_MESSAGE =
+  "Premium isn't available right now, please try again shortly.";
+
+export type NativePaywallLaunchResult = 'opened' | 'unavailable' | 'web';
+
+let paywallLaunchInFlight = false;
+
+function notifyPremiumUnavailable(): void {
+  toast.error(PREMIUM_UNAVAILABLE_MESSAGE);
+}
+
 /**
  * Single entry point for the native RevenueCat paywall.
  * Always passes offering=RNKXPREMIUM_MONTHLY (never the RC default fallback).
+ * Probes offerings first so RevenueCatUI never presents its raw SDK error sheet.
  */
-export function launchNativePaywall(userId: string): void {
+export async function launchNativePaywall(
+  userId: string,
+  options?: { notify?: boolean },
+): Promise<NativePaywallLaunchResult> {
+  const notify = options?.notify !== false;
+
   if (!isDespiaRuntime()) {
     window.location.href = '/premium';
-    return;
+    return 'web';
   }
-  void despia(
-    `revenuecat://launchPaywall?external_id=${encodeURIComponent(userId)}&offering=${encodeURIComponent(REVENUECAT_OFFERING_ID)}`,
-  );
+  if (paywallLaunchInFlight) return 'opened';
+  paywallLaunchInFlight = true;
+  try {
+    const offeringsReady = await nativePaywallOfferingsReady(userId);
+    if (!offeringsReady) {
+      if (notify) notifyPremiumUnavailable();
+      return 'unavailable';
+    }
+    await despia(
+      `revenuecat://launchPaywall?external_id=${encodeURIComponent(userId)}&offering=${encodeURIComponent(REVENUECAT_OFFERING_ID)}`,
+    );
+    return 'opened';
+  } catch {
+    if (notify) notifyPremiumUnavailable();
+    return 'unavailable';
+  } finally {
+    paywallLaunchInFlight = false;
+  }
 }
 
 /**
@@ -202,7 +237,7 @@ export function usePremium(
 
   const onLaunchNativePaywall = useCallback(() => {
     if (userId) {
-      launchNativePaywall(userId);
+      void launchNativePaywall(userId);
     } else {
       window.location.href = '/premium';
     }

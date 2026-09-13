@@ -334,6 +334,52 @@ async function despiaWatch(command: string, watch: string[], timeoutMs = 10_000)
   ]);
 }
 
+/** True when a native/SDK payload is an error object — never read its message for UI. */
+export function payloadIndicatesSdkFailure(value: unknown): boolean {
+  if (value == null || value === 'n/a') return false;
+  const rec = asRecord(value);
+  if (!rec) return false;
+  if ('error' in rec && rec.error != null && rec.error !== false && rec.error !== '') return true;
+  if ('paywallError' in rec && rec.paywallError != null) return true;
+  if ('offeringsError' in rec && rec.offeringsError != null) return true;
+  const info = asRecord(rec.userInfo) ?? asRecord(rec.info);
+  if (info && (info.NSLocalizedDescription != null || info.readableErrorCode != null)) return true;
+  return false;
+}
+
+function windowOfferingsPayload(): unknown {
+  return (window as unknown as Record<string, unknown>).offerings;
+}
+
+function offeringsHaveStoreProducts(payload: unknown): boolean {
+  if (payloadIndicatesSdkFailure(payload)) return false;
+  if (parsePaywallProducts(payload).length > 0) return true;
+  return parsePaywallProducts(windowOfferingsPayload()).length > 0;
+}
+
+/**
+ * Native RevenueCat offerings with store prices, without presenting a paywall.
+ * Used to avoid RevenueCatUI's SDK error sheet when offerings fail to load.
+ */
+export async function nativePaywallOfferingsReady(externalId: string): Promise<boolean> {
+  if (!externalId || !isDespiaRuntime()) return false;
+
+  const cached = windowOfferingsPayload();
+  if (offeringsHaveStoreProducts(cached)) return true;
+
+  try {
+    const encodedId = encodeURIComponent(externalId);
+    const raw = await despiaWatch(
+      `revenuecat://getOfferings?external_id=${encodedId}`,
+      ['offerings'],
+      8_000,
+    );
+    return offeringsHaveStoreProducts(raw);
+  } catch {
+    return false;
+  }
+}
+
 type OfferingPackageRow = {
   packageIdentifier: string;
   productId: string;

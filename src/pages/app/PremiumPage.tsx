@@ -3,7 +3,7 @@ import { ArrowLeft } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { PaywallSubscriptionDisclosure } from '@/components/PaywallSubscriptionDisclosure';
-import { launchNativePaywall } from '@/services/revenuecat';
+import { launchNativePaywall, PREMIUM_UNAVAILABLE_MESSAGE } from '@/services/revenuecat';
 import { supabase } from '@/services/supabase';
 
 function isDespiaRuntime(): boolean {
@@ -14,6 +14,7 @@ export default function PremiumPage() {
   const navigate = useNavigate();
   const [userId, setUserId] = useState<string | null>(null);
   const [ready, setReady] = useState(false);
+  const [unavailable, setUnavailable] = useState(false);
   const despia = isDespiaRuntime();
   const autoLaunchedRef = useRef(false);
 
@@ -27,7 +28,9 @@ export default function PremiumPage() {
       setReady(true);
       if (uid && isDespiaRuntime() && !autoLaunchedRef.current) {
         autoLaunchedRef.current = true;
-        launchNativePaywall(uid);
+        const result = await launchNativePaywall(uid, { notify: false });
+        if (cancelled) return;
+        if (result === 'unavailable') setUnavailable(true);
       }
     })();
     return () => {
@@ -63,7 +66,21 @@ export default function PremiumPage() {
           </div>
         ) : (
           <div className="flex flex-col items-center gap-3 sm:items-start">
-            <Button type="button" className="w-full" onClick={() => launchNativePaywall(userId)}>
+            {unavailable ? (
+              <p className="w-full rounded-xl border border-border bg-card p-5 text-sm text-muted-foreground shadow-sm">
+                {PREMIUM_UNAVAILABLE_MESSAGE}
+              </p>
+            ) : null}
+            <Button
+              type="button"
+              className="w-full"
+              onClick={() => {
+                void (async () => {
+                  const result = await launchNativePaywall(userId, { notify: false });
+                  setUnavailable(result === 'unavailable');
+                })();
+              }}
+            >
               View plans
             </Button>
             <PaywallSubscriptionDisclosure externalId={userId} align="start" className="w-full" />

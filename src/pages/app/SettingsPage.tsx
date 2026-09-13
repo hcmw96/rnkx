@@ -1001,7 +1001,7 @@ export default function SettingsPage() {
       onUnlockPremium={() => {
         if (!athlete) return;
         const uid = athlete.user_id;
-        if (uid) launchNativePaywall(uid);
+        if (uid) void launchNativePaywall(uid);
         else window.location.href = '/premium';
       }}
       onSupportBodyChange={setSupportBody}
