@@ -1,4 +1,5 @@
 import despia from 'despia-native';
+import { releaseHealthKit, tryAcquireHealthKit, waitForHealthKitIdle } from '@/lib/healthKitSync';
 import type { WorkoutObject } from '@/services/despia';
 
 /** Used at connect time (days=1) — not for manual sync fetch. */
@@ -16,10 +17,12 @@ export const SYNC_INCLUDED_HR =
 
 export type HealthKitWorkoutReadKind = 'sync' | 'probe';
 
+/** Permission / liveness reads — keep this tiny so the WebView does not freeze. */
+const CONNECT_DAYS = 1;
+
 export function healthKitWorkoutsCommand(kind: HealthKitWorkoutReadKind): string {
   if (kind === 'probe') {
-    // TEMPORARY: days=30 to confirm the bridge returns workouts at all. Restore to 1.
-    return `healthkit://workouts?days=30&included=${PROBE_INCLUDED}`;
+    return `healthkit://workouts?days=${CONNECT_DAYS}&included=${PROBE_INCLUDED}`;
   }
   return `healthkit://workouts?days=${SYNC_DAYS}&included=${SYNC_INCLUDED_HR}`;
 }
@@ -48,17 +51,21 @@ export type AppleWatchHealthKitConnectResult = 'granted' | 'no_permission' | 'er
 export const APPLE_HEALTH_NO_PERMISSION_MESSAGE =
   'Enable Apple Health in iOS Settings → Privacy & Security → Health → RNKX. iOS will not ask again once access has been denied.';
 
-function classifyConnectProbeResponse(raw: unknown): AppleWatchHealthKitConnectResult {
-  if (raw == null) return 'no_permission';
-  if (typeof raw !== 'object' || Array.isArray(raw)) return 'no_permission';
-  const rec = raw as Record<string, unknown>;
-  if (Object.keys(rec).length === 0) return 'no_permission';
-  if (!('healthkitWorkouts' in rec)) return 'no_permission';
-  if (!Array.isArray(rec.healthkitWorkouts)) return 'no_permission';
-  return 'granted';
+function windowHealthkitWorkouts(): unknown[] | null {
+  const raw = (window as unknown as { healthkitWorkouts?: unknown }).healthkitWorkouts;
+  return Array.isArray(raw) ? raw : null;
 }
 
-const CONNECT_PROBE_TIMEOUT_MS = 90_000;
+function classifyConnectProbeResponse(raw: unknown): AppleWatchHealthKitConnectResult {
+  const fromPayload =
+    raw != null && typeof raw === 'object' && !Array.isArray(raw)
+      ? (raw as Record<string, unknown>).healthkitWorkouts
+      : undefined;
+  if (Array.isArray(fromPayload) || windowHealthkitWorkouts() != null) return 'granted';
+  return 'no_permission';
+}
+
+const CONNECT_PROBE_TIMEOUT_MS = 45_000;
 const CONNECT_PROBE_TIMEOUT_MESSAGE = 'HealthKit connect timed out';
 
 function withTimeout<T>(promise: Promise<T>, ms: number, message: string): Promise<T> {
@@ -79,25 +86,51 @@ function withTimeout<T>(promise: Promise<T>, ms: number, message: string): Promi
 
 /**
  * Apple Watch *connect* probe. Despia has no permission-only command — the first
- * HealthKit read shows the authorisation sheet. TEMPORARY days=30 to confirm the
- * bridge returns data; included stays the proven-safe HR types.
+ * HealthKit read shows the authorisation sheet. days=1 and a single HR type so
+ * connect cannot stall the WebView the way a 30-day sync read can.
  */
 export function appleWatchConnectHealthKitCommand(): string {
-  return `healthkit://workouts?days=30&included=${SYNC_INCLUDED_HR}`;
+  return `healthkit://workouts?days=${CONNECT_DAYS}&included=${PROBE_INCLUDED}`;
+}
+
+/** Despia ignores empty arrays as "not ready"; an empty list still means access was granted. */
+function waitUntilHealthkitWorkoutsArray(signal: { cancelled: boolean }): Promise<{
+  healthkitWorkouts: unknown[];
+}> {
+  return new Promise((resolve) => {
+    const tick = () => {
+      if (signal.cancelled) return;
+      const arr = windowHealthkitWorkouts();
+      if (arr) {
+        resolve({ healthkitWorkouts: arr });
+        return;
+      }
+      window.setTimeout(tick, 100);
+    };
+    tick();
+  });
 }
 
 export async function requestAppleWatchHealthKitConnect(): Promise<AppleWatchHealthKitConnectResult> {
-  const command = appleWatchConnectHealthKitCommand();
+  const idle = await waitForHealthKitIdle(15_000);
+  if (!idle || !tryAcquireHealthKit('connect')) {
+    return 'error';
+  }
 
+  const signal = { cancelled: false };
   try {
+    const command = appleWatchConnectHealthKitCommand();
     const raw = await withTimeout(
-      despia(command, ['healthkitWorkouts']),
+      Promise.race([despia(command, ['healthkitWorkouts']), waitUntilHealthkitWorkoutsArray(signal)]),
       CONNECT_PROBE_TIMEOUT_MS,
       CONNECT_PROBE_TIMEOUT_MESSAGE,
     );
     return classifyConnectProbeResponse(raw);
   } catch {
-    return 'error';
+    return windowHealthkitWorkouts() != null ? 'granted' : 'error';
+  } finally {
+    signal.cancelled = true;
+    releaseHealthKit('connect');
   }
 }
 
