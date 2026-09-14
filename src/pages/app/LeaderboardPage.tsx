@@ -202,6 +202,7 @@ async function fetchSeasonBoard(
     .select(SEASON_BOARD_COLUMNS)
     .eq('season_id', seasonId)
     .eq('league', league)
+    .gt('season_score', 0)
     .order('rank', { ascending: true })
     .range(offset, offset + BOARD_PAGE_SIZE - 1);
 
@@ -483,7 +484,7 @@ export default function LeaderboardPage() {
   const countryOptions = useMemo(() => {
     const names = new Set<string>();
     for (const m of merged) {
-      if (m.country?.trim()) names.add(m.country.trim());
+      if (m.season_score > 0 && m.country?.trim()) names.add(m.country.trim());
     }
     return [
       { value: 'all', label: 'All' },
@@ -514,15 +515,17 @@ export default function LeaderboardPage() {
   }, [merged]);
 
   const rows = useMemo(() => {
-    let base: LeaderboardRow[] = merged.map((m) => ({
-      id: m.id,
-      rank: m.rank,
-      score: m.season_score,
-      displayName: m.display_name,
-      username: m.username || m.display_name || 'Athlete',
-      country: m.country,
-      avatarUrl: m.avatar_url,
-    }));
+    let base: LeaderboardRow[] = merged
+      .filter((m) => m.season_score > 0)
+      .map((m) => ({
+        id: m.id,
+        rank: m.rank,
+        score: m.season_score,
+        displayName: m.display_name,
+        username: m.username || m.display_name || 'Athlete',
+        country: m.country,
+        avatarUrl: m.avatar_url,
+      }));
 
     if (countryFilter !== 'all') {
       base = base.filter((r) => r.country === countryFilter);
@@ -716,7 +719,9 @@ export default function LeaderboardPage() {
         </PremiumGate>
       ) : !error && rows.length === 0 ? (
         <p className="rounded-xl border border-border bg-[hsla(0,0%,10%,1)] px-4 py-10 text-center text-sm text-muted-foreground">
-          {merged.length === 0 ? 'No athletes ranked yet' : 'No athletes match these filters'}
+          {merged.every((m) => m.season_score <= 0)
+            ? 'No athletes ranked yet'
+            : 'No athletes match these filters'}
         </p>
       ) : (
         !error && (
