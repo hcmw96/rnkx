@@ -1,23 +1,41 @@
 import { supabase } from '@/services/supabase';
 
-const ATHLETE_SESSION_COLUMNS = 'id, has_seen_welcome';
+const ATHLETE_SESSION_COLUMNS = 'id, has_seen_welcome, is_comped, has_seen_founders_welcome';
 
 let cachedAuthUserId: string | null = null;
 let cachedAthleteId: string | undefined;
 let cachedHasSeenWelcome: boolean | null = null;
+let cachedIsComped: boolean | null = null;
+let cachedHasSeenFoundersWelcome: boolean | null = null;
 let inflight: Promise<string | undefined> | null = null;
+
+function cacheReady(authUserId: string): boolean {
+  return cachedAuthUserId === authUserId && cachedAthleteId !== undefined;
+}
 
 export function clearAthleteIdCache(): void {
   cachedAuthUserId = null;
   cachedAthleteId = undefined;
   cachedHasSeenWelcome = null;
+  cachedIsComped = null;
+  cachedHasSeenFoundersWelcome = null;
   inflight = null;
 }
 
 /** Welcome flag from the last resolveAthleteId hit for this auth user. Undefined if not cached. */
 export function peekCachedHasSeenWelcome(authUserId: string): boolean | null | undefined {
-  if (cachedAuthUserId !== authUserId || cachedAthleteId === undefined) return undefined;
+  if (!cacheReady(authUserId)) return undefined;
   return cachedHasSeenWelcome;
+}
+
+export function peekCachedIsComped(authUserId: string): boolean | null | undefined {
+  if (!cacheReady(authUserId)) return undefined;
+  return cachedIsComped;
+}
+
+export function peekCachedHasSeenFoundersWelcome(authUserId: string): boolean | null | undefined {
+  if (!cacheReady(authUserId)) return undefined;
+  return cachedHasSeenFoundersWelcome;
 }
 
 /** Resolve athlete row id for the signed-in auth user (supports user_id or id = auth uid).
@@ -47,15 +65,24 @@ export async function resolveAthleteId(authUserId: string): Promise<string | und
         .not('username', 'is', null)
         .maybeSingle(),
     ]);
-    type Row = { id: string; has_seen_welcome: boolean | null };
+    type Row = {
+      id: string;
+      has_seen_welcome: boolean | null;
+      is_comped?: boolean | null;
+      has_seen_founders_welcome?: boolean | null;
+    };
     const row = (byUserId.data as Row | null) ?? (byId.data as Row | null);
     const athleteId = row?.id;
 
     if (athleteId) {
       cachedHasSeenWelcome = row?.has_seen_welcome ?? null;
+      cachedIsComped = row?.is_comped ?? null;
+      cachedHasSeenFoundersWelcome = row?.has_seen_founders_welcome ?? null;
       void supabase.rpc('ensure_athlete_user_id', { p_athlete_id: athleteId });
     } else {
       cachedHasSeenWelcome = null;
+      cachedIsComped = null;
+      cachedHasSeenFoundersWelcome = null;
     }
 
     cachedAthleteId = athleteId;

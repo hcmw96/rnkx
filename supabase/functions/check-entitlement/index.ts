@@ -98,12 +98,14 @@ serve(async (req) => {
 
   const { data: athleteRows, error: athErr } = await supabase
     .from('athletes')
-    .select('id')
+    .select('id, is_comped, is_premium')
     .or(`user_id.eq.${user.id},id.eq.${user.id}`)
     .not('username', 'is', null)
     .limit(1);
 
-  const athlete = athleteRows?.[0] as { id: string } | undefined;
+  const athlete = athleteRows?.[0] as
+    | { id: string; is_comped?: boolean | null; is_premium?: boolean | null }
+    | undefined;
 
   if (athErr || !athlete?.id) {
     return new Response(JSON.stringify({ isPremium: false, error: 'Athlete not found' }), {
@@ -113,17 +115,18 @@ serve(async (req) => {
   }
 
   const athleteId = athlete.id as string;
+  const isComped = athlete.is_comped === true;
   const email = typeof user.email === 'string' && user.email.trim() !== '' ? user.email.trim() : null;
 
   // Primary: auth UUID — matches launchNativePaywall external_id.
   // Fallback: email — historical check-entitlement identity (may own legacy subscribers).
-  let isPremium = await isPremiumForAppUserId(user.id, rcSecretKey);
-  let matchedBy: 'auth_uuid' | 'email' | 'none' = isPremium ? 'auth_uuid' : 'none';
+  let rcPremium = await isPremiumForAppUserId(user.id, rcSecretKey);
+  let matchedBy: 'auth_uuid' | 'email' | 'none' = rcPremium ? 'auth_uuid' : 'none';
 
-  if (!isPremium && email && email !== user.id) {
+  if (!rcPremium && email && email !== user.id) {
     const emailPremium = await isPremiumForAppUserId(email, rcSecretKey);
     if (emailPremium) {
-      isPremium = true;
+      rcPremium = true;
       matchedBy = 'email';
     }
   }
@@ -135,13 +138,20 @@ serve(async (req) => {
     );
   }
 
-  const { error: upErr } = await supabase.from('athletes').update({ is_premium: isPremium }).eq('id', athleteId);
-  if (upErr) {
-    console.error('[check-entitlement] athletes update', upErr);
-    return new Response(JSON.stringify({ error: upErr.message, isPremium }), {
-      status: 500,
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-    });
+  // Comped athletes stay premium even with no RC entitlement. RC may still set true.
+  const isPremium = rcPremium || isComped;
+  if (!isComped || athlete.is_premium !== true) {
+    const { error: upErr } = await supabase
+      .from('athletes')
+      .update({ is_premium: isPremium })
+      .eq('id', athleteId);
+    if (upErr) {
+      console.error('[check-entitlement] athletes update', upErr);
+      return new Response(JSON.stringify({ error: upErr.message, isPremium }), {
+        status: 500,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
   }
 
   return new Response(JSON.stringify({ isPremium }), {

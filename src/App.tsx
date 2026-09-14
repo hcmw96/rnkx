@@ -12,7 +12,13 @@ import { RequireAuth } from '@/components/app/RequireAuth';
 import { SHOW_RECOVERY } from '@/lib/featureFlags';
 import { clearRouteCaches } from '@/lib/routeCaches';
 import { clearPremiumCache } from '@/lib/premiumCache';
-import { clearAthleteIdCache, peekCachedHasSeenWelcome, resolveAthleteId } from '@/lib/resolveAthleteId';
+import {
+  clearAthleteIdCache,
+  peekCachedHasSeenFoundersWelcome,
+  peekCachedHasSeenWelcome,
+  peekCachedIsComped,
+  resolveAthleteId,
+} from '@/lib/resolveAthleteId';
 import { AthleteSessionProvider } from '@/context/AthleteSessionContext';
 import { NotificationNavigationBridge } from '@/components/NotificationNavigationBridge';
 import { isDespiaNative, registerPushForAthlete } from './services/onesignal';
@@ -47,6 +53,9 @@ const NotificationsPage = lazy(() => import('./pages/app/NotificationsPage'));
 const WelcomeModal = lazy(() =>
   import('@/components/WelcomeModal').then((m) => ({ default: m.WelcomeModal })),
 );
+const FoundersWelcomeModal = lazy(() =>
+  import('@/components/FoundersWelcomeModal').then((m) => ({ default: m.FoundersWelcomeModal })),
+);
 const PrivacyPolicyPageRoute = lazy(() =>
   import('./pages/legal/StaticLegalPages').then((m) => ({ default: m.PrivacyPolicyPageRoute })),
 );
@@ -80,6 +89,7 @@ function SessionRoutes() {
   const [profileComplete, setProfileComplete] = useState(false);
   const [welcomeAthleteId, setWelcomeAthleteId] = useState<string | null>(null);
   const [showWelcomeOverlay, setShowWelcomeOverlay] = useState(false);
+  const [showFoundersOverlay, setShowFoundersOverlay] = useState(false);
   const [passwordRecovery, setPasswordRecovery] = useState(
     () => urlIndicatesPasswordRecovery() || hasPasswordRecoveryFlag(),
   );
@@ -183,6 +193,7 @@ function SessionRoutes() {
     if (!session?.user?.id || !profileComplete) {
       setWelcomeAthleteId(null);
       setShowWelcomeOverlay(false);
+      setShowFoundersOverlay(false);
       return;
     }
     const uid = session.user.id;
@@ -195,11 +206,18 @@ function SessionRoutes() {
       if (!athleteId) {
         setWelcomeAthleteId(null);
         setShowWelcomeOverlay(false);
+        setShowFoundersOverlay(false);
         return;
       }
 
+      const needsWelcome = peekCachedHasSeenWelcome(uid) !== true;
+      const needsFounders =
+        peekCachedIsComped(uid) === true && peekCachedHasSeenFoundersWelcome(uid) !== true;
+
       setWelcomeAthleteId(athleteId);
-      setShowWelcomeOverlay(peekCachedHasSeenWelcome(uid) !== true);
+      setShowWelcomeOverlay(needsWelcome);
+      // After onboarding only (profileComplete). Never under the general welcome overlay.
+      setShowFoundersOverlay(!needsWelcome && needsFounders);
     })();
 
     return () => {
@@ -305,7 +323,24 @@ function SessionRoutes() {
         <Suspense fallback={null}>
           <WelcomeModal
             athleteId={welcomeAthleteId}
-            onDismiss={() => setShowWelcomeOverlay(false)}
+            onDismiss={() => {
+              setShowWelcomeOverlay(false);
+              const uid = session?.user?.id;
+              if (
+                uid &&
+                peekCachedIsComped(uid) === true &&
+                peekCachedHasSeenFoundersWelcome(uid) !== true
+              ) {
+                setShowFoundersOverlay(true);
+              }
+            }}
+          />
+        </Suspense>
+      ) : welcomeAthleteId && showFoundersOverlay && !passwordRecovery ? (
+        <Suspense fallback={null}>
+          <FoundersWelcomeModal
+            athleteId={welcomeAthleteId}
+            onDismiss={() => setShowFoundersOverlay(false)}
           />
         </Suspense>
       ) : null}
