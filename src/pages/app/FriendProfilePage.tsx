@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button';
 import { getCountryByName } from '@/data/countries';
 import { fetchProfileSeasonStats, fetchSeasonStanding } from '@/lib/profileStats';
 import { leagueFromSelectedLeagues } from '@/lib/leagueAvatars';
-import { invokePushNotify } from '@/lib/pushNotify';
+import { fetchAthleteNotifyName, invokePushNotify } from '@/lib/pushNotify';
 import { supabase } from '@/services/supabase';
 import { toast } from 'sonner';
 
@@ -198,10 +198,11 @@ export default function FriendProfilePage() {
     }
     toast.success(accept ? 'Friend added.' : 'Request declined.');
     if (accept && myAthleteId && friendship.requesterId) {
+      const accepterName = await fetchAthleteNotifyName(myAthleteId);
       invokePushNotify('send-notification', {
         athlete_id: friendship.requesterId,
         title: 'Friend request accepted',
-        message: `${friend?.display_name || friend?.username || 'Someone'} accepted your friend request.`,
+        message: `${accepterName} accepted your friend request.`,
         path: '/app/social/friends',
       });
     }

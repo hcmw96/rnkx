@@ -4,7 +4,7 @@ import { Bell, Check, MessageCircle, UserPlus, Users, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { fetchChatNotifications } from '@/lib/chatInboxNotifications';
 import { fetchPushSubscriptionStatus } from '@/lib/checkPushSubscription';
-import { invokePushNotify } from '@/lib/pushNotify';
+import { fetchAthleteNotifyName, invokePushNotify } from '@/lib/pushNotify';
 import {
   checkNativePushEnabled,
   isDespiaNative,
@@ -211,10 +211,11 @@ export default function NotificationsPage() {
       toast.success(accept ? 'Friend added.' : 'Request declined.');
 
       if (accept && row?.athleteId) {
+        const accepterName = await fetchAthleteNotifyName(athleteId);
         invokePushNotify('send-notification', {
           athlete_id: row.athleteId,
           title: 'Friend request accepted',
-          message: `${row.displayName} accepted your friend request.`,
+          message: `${accepterName} accepted your friend request.`,
           path: '/app/social/friends',
         });
       }

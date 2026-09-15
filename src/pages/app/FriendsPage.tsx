@@ -6,7 +6,7 @@ import { PremiumGate } from '@/components/PremiumGate';
 import { FriendsPreview } from '@/components/premium/PreviewMocks';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { invokePushNotify } from '@/lib/pushNotify';
+import { fetchAthleteNotifyName, invokePushNotify } from '@/lib/pushNotify';
 import { formatScore } from '@/lib/formatScore';
 import { AthleteAvatarImg } from '@/components/AthleteAvatarImg';
 import { leagueFromSelectedLeagues } from '@/lib/leagueAvatars';
@@ -274,10 +274,12 @@ export default function FriendsPage({ embedded = false }: FriendsPageProps) {
     }
     toast.success(accept ? 'Friend added.' : 'Request declined.');
     if (accept && athleteId && row?.athlete_id) {
+      const accepterId = row.friend_id || athleteId;
+      const accepterName = await fetchAthleteNotifyName(accepterId);
       invokePushNotify('send-notification', {
         athlete_id: row.athlete_id,
         title: 'Friend request accepted',
-        message: `${row.requester.display_name || row.requester.username || 'Someone'} accepted your friend request.`,
+        message: `${accepterName} accepted your friend request.`,
         path: '/app/social/friends',
       });
     }

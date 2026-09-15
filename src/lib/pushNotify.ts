@@ -1,5 +1,19 @@
 import { supabase } from '@/services/supabase';
 
+/** Display name for push copy: prefer display_name, then username. */
+export async function fetchAthleteNotifyName(athleteId: string): Promise<string> {
+  const { data } = await supabase
+    .from('athletes')
+    .select('display_name, username')
+    .eq('id', athleteId)
+    .maybeSingle();
+  const display = typeof data?.display_name === 'string' ? data.display_name.trim() : '';
+  if (display) return display;
+  const username = typeof data?.username === 'string' ? data.username.trim() : '';
+  if (username) return username;
+  return 'Someone';
+}
+
 /** Fire-and-forget edge function invoke for push notifications — never blocks UI. */
 export function invokePushNotify(functionName: string, body: Record<string, unknown>): void {
   void (async () => {

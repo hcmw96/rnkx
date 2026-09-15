@@ -1,7 +1,5 @@
 import { supabase } from '@/services/supabase';
 
-import { notifyConversationMessagePush } from './pushAfterMessage';
-
 export type ChatMessageRow = {
   id: string;
   athlete_id: string;
@@ -51,7 +49,6 @@ export async function sendConversationMessage(
   const raw = Array.isArray(data) ? data[0] : data;
   const message = normalizeChatMessageRow(raw as RpcMessageRow | undefined);
   if (message) {
-    void notifyConversationMessagePush(conversationId, athleteId, trimmed);
     return { message, error: null };
   }
 
@@ -62,7 +59,6 @@ export async function sendConversationMessage(
       .reverse()
       .find((m) => m.athlete_id === athleteId && m.content === trimmed);
     if (recent) {
-      void notifyConversationMessagePush(conversationId, athleteId, trimmed);
       return { message: recent, error: null };
     }
   }
