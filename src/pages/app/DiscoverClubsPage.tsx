@@ -158,6 +158,7 @@ export default function DiscoverClubsPage() {
               cacheKey: club.id,
               leagueType: club.league_type,
             });
+            const canJoin = club.joined || athleteCanJoinClub(club.gender, myGender);
             return (
             <li key={club.id}>
               <div
@@ -194,12 +195,14 @@ export default function DiscoverClubsPage() {
 
                 <button
                   type="button"
-                  disabled={joining === club.id}
+                  disabled={joining === club.id || !canJoin}
                   onClick={() => void handleJoin(club)}
                   className={
                     club.joined
                       ? 'shrink-0 rounded-full bg-muted px-3.5 py-1 text-xs font-medium text-muted-foreground transition-colors hover:bg-muted/70'
-                      : 'shrink-0 rounded-full bg-muted px-3.5 py-1 text-xs font-semibold text-foreground transition-colors hover:bg-muted/70 active:scale-95'
+                      : !canJoin
+                        ? 'shrink-0 cursor-not-allowed rounded-full bg-muted/60 px-3.5 py-1 text-xs font-medium text-muted-foreground/70'
+                        : 'shrink-0 rounded-full bg-muted px-3.5 py-1 text-xs font-semibold text-foreground transition-colors hover:bg-muted/70 active:scale-95'
                   }
                 >
                   {joining === club.id ? 'Joining…' : club.joined ? 'Joined' : 'Join'}

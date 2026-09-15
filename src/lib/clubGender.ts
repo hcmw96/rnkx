@@ -30,6 +30,15 @@ export const ATHLETE_GENDER_OPTIONS: { value: AthleteProfileGender; label: strin
   { value: 'female', label: 'Female' },
 ];
 
+export function normalizeAthleteGender(
+  value: string | null | undefined,
+): AthleteProfileGender | null {
+  const g = value?.trim().toLowerCase();
+  if (g === 'male' || g === 'm') return 'male';
+  if (g === 'female' || g === 'f') return 'female';
+  return null;
+}
+
 export function athleteProfileGenderLabel(value: string | null | undefined): string {
   if (value === 'male') return 'Male';
   if (value === 'female') return 'Female';
@@ -42,7 +51,7 @@ export function athleteCanJoinClub(
 ): boolean {
   const club = normalizeClubGender(clubGender);
   if (club === 'mixed') return true;
-  return athleteGender === club;
+  return normalizeAthleteGender(athleteGender) === club;
 }
 
 export function clubGenderJoinMessage(clubGender: ClubGender): string {
@@ -54,8 +63,9 @@ export function clubGenderJoinMessage(clubGender: ClubGender): string {
 export function clubGendersCreatableByAthlete(
   athleteGender: string | null | undefined,
 ): ClubGender[] {
-  if (athleteGender === 'male' || athleteGender === 'female') {
-    return ['mixed', athleteGender];
+  const g = normalizeAthleteGender(athleteGender);
+  if (g === 'male' || g === 'female') {
+    return ['mixed', g];
   }
   return ['mixed'];
 }

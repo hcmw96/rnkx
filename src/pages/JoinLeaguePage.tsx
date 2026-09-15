@@ -8,12 +8,18 @@ import { JoinClubPreview } from '@/components/premium/PreviewMocks';
 import { supabase } from '@/services/supabase';
 import { toast } from 'sonner';
 import { PENDING_LEAGUE_INVITE_SESSION_KEY } from '@/lib/shareLeagueInvite';
+import {
+  athleteCanJoinClub,
+  clubGenderJoinMessage,
+  normalizeClubGender,
+} from '@/lib/clubGender';
 
 type LeaguePreview = {
   id: string;
   name: string;
   member_count: number;
   conversation_id: string | null;
+  gender: string | null;
 };
 
 export default function JoinLeaguePage() {
@@ -22,6 +28,7 @@ export default function JoinLeaguePage() {
   const [sessionChecked, setSessionChecked] = useState(false);
   const [loggedIn, setLoggedIn] = useState(false);
   const [athleteId, setAthleteId] = useState<string | undefined>();
+  const [myGender, setMyGender] = useState<string | null>(null);
   const [preview, setPreview] = useState<LeaguePreview | null>(null);
   const [leagueNotFound, setLeagueNotFound] = useState(false);
   const [lookupLoading, setLookupLoading] = useState(false);
@@ -51,15 +58,20 @@ export default function JoinLeaguePage() {
         }
         setLoggedIn(false);
         setAthleteId(undefined);
+        setMyGender(null);
       } else {
         setLoggedIn(true);
         const uid = user.id;
         const [byUserId, byId] = await Promise.all([
-          supabase.from('athletes').select('id').eq('user_id', uid).not('username', 'is', null).maybeSingle(),
-          supabase.from('athletes').select('id').eq('id', uid).not('username', 'is', null).maybeSingle(),
+          supabase.from('athletes').select('id, gender').eq('user_id', uid).not('username', 'is', null).maybeSingle(),
+          supabase.from('athletes').select('id, gender').eq('id', uid).not('username', 'is', null).maybeSingle(),
         ]);
-        const aid = (byUserId.data?.id ?? byId.data?.id) as string | undefined;
-        if (!cancelled) setAthleteId(aid);
+        const row = (byUserId.data ?? byId.data) as { id?: string; gender?: string | null } | null;
+        const aid = row?.id;
+        if (!cancelled) {
+          setAthleteId(aid);
+          setMyGender(row?.gender ?? null);
+        }
       }
 
       if (!cancelled) setSessionChecked(true);
@@ -100,6 +112,7 @@ export default function JoinLeaguePage() {
       name: string;
       member_count: number | string;
       conversation_id: string | null;
+      gender?: string | null;
     };
 
     setPreview({
@@ -107,6 +120,7 @@ export default function JoinLeaguePage() {
       name: r.name,
       member_count: Number(r.member_count ?? 0),
       conversation_id: r.conversation_id ?? null,
+      gender: r.gender ?? 'mixed',
     });
     setLookupLoading(false);
   }, [inviteCode, loggedIn]);
@@ -118,6 +132,11 @@ export default function JoinLeaguePage() {
 
   const handleJoin = async () => {
     if (!preview || !athleteId) return;
+    const clubGender = normalizeClubGender(preview.gender);
+    if (!athleteCanJoinClub(clubGender, myGender)) {
+      toast.error(clubGenderJoinMessage(clubGender));
+      return;
+    }
     setJoining(true);
     try {
       const { error: memErr } = await supabase.rpc('add_member_to_club', {
@@ -236,9 +255,20 @@ export default function JoinLeaguePage() {
           description="Join private clubs and compete with friends on club leaderboards."
           previewContent={<JoinClubPreview />}
         >
-          <Button type="button" className="w-full font-semibold" disabled={joining} onClick={() => void handleJoin()}>
-            {joining ? 'Joining…' : 'Join Club'}
-          </Button>
+          {!athleteCanJoinClub(preview.gender, myGender) ? (
+            <p className="text-center text-sm text-muted-foreground">
+              {clubGenderJoinMessage(normalizeClubGender(preview.gender))}
+            </p>
+          ) : (
+            <Button
+              type="button"
+              className="w-full font-semibold"
+              disabled={joining}
+              onClick={() => void handleJoin()}
+            >
+              {joining ? 'Joining\u2026' : 'Join Club'}
+            </Button>
+          )}
         </PremiumGate>
       </div>
     </div>

@@ -3,6 +3,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { Input } from '@/components/ui/input';
 import { AthleteAvatarImg } from '@/components/AthleteAvatarImg';
 import { invokePushNotify } from '@/lib/pushNotify';
+import { athleteCanJoinClub, clubGenderJoinMessage, normalizeClubGender } from '@/lib/clubGender';
 import { supabase } from '@/services/supabase';
 import { toast } from 'sonner';
 import { Search, Loader2, UserPlus } from 'lucide-react';
@@ -80,6 +81,20 @@ export function InviteFriendModal({ open, onOpenChange, leagueId, leagueName, on
   const handleAdd = async (athlete: SearchResult) => {
     setAdding(athlete.id);
     try {
+      const [{ data: club }, { data: invitee }] = await Promise.all([
+        supabase.from('private_leagues').select('gender').eq('id', leagueId).maybeSingle(),
+        supabase.from('athletes').select('gender').eq('id', athlete.id).maybeSingle(),
+      ]);
+      const restrictedGender = normalizeClubGender(club?.gender as string | null);
+      if (!athleteCanJoinClub(restrictedGender, invitee?.gender as string | null)) {
+        toast.error(
+          restrictedGender === 'mixed'
+            ? 'You cannot invite this athlete to this club.'
+            : clubGenderJoinMessage(restrictedGender),
+        );
+        return;
+      }
+
       const { error } = await supabase.rpc('add_member_to_club', {
         p_league_id: leagueId,
         p_athlete_id: athlete.id,
