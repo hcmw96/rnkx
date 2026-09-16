@@ -1,6 +1,6 @@
 import { lazy, Suspense, useCallback, useEffect, useState } from 'react';
 import type { Session } from '@supabase/supabase-js';
-import { BrowserRouter, Navigate, Route, Routes, useNavigate } from 'react-router-dom';
+import { BrowserRouter, Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { toast, Toaster } from 'sonner';
 import { ProfileGateContext } from '@/context/ProfileGateContext';
@@ -21,7 +21,9 @@ import {
 } from '@/lib/resolveAthleteId';
 import { AthleteSessionProvider } from '@/context/AthleteSessionContext';
 import { NotificationNavigationBridge } from '@/components/NotificationNavigationBridge';
+import { isPublicWebPath, shouldServeNativeApp } from '@/lib/nativeShell';
 import { isDespiaNative, registerPushForAthlete } from './services/onesignal';
+import DownloadAppPage from './pages/DownloadAppPage';
 import {
   applyPremiumIfStoreHasEntitlement,
   pollCheckEntitlementUntilPremium,
@@ -350,6 +352,7 @@ function SessionRoutes() {
         <Route path="/terms" element={<TermsPageRoute />} />
         <Route path="/waiver" element={<WaiverPageRoute />} />
         <Route path="/cookies" element={<CookiesPageRoute />} />
+        <Route path="/get-app" element={<DownloadAppPage />} />
         <Route path="/auth/whoop/callback" element={<WhoopCallback />} />
         <Route path="/auth/apple/complete" element={<AppleAuthComplete />} />
         <Route path="/whoop-callback" element={<WhoopCallback />} />
@@ -462,12 +465,21 @@ function SessionRoutes() {
   );
 }
 
+function NativeOrDownload() {
+  const { pathname } = useLocation();
+  const previewDownload = pathname === '/get-app' && !isDespiaNative();
+  if (previewDownload || (!shouldServeNativeApp() && !isPublicWebPath(pathname))) {
+    return <DownloadAppPage />;
+  }
+  return <SessionRoutes />;
+}
+
 export default function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <BrowserRouter>
         <Toaster richColors closeButton position="top-center" theme="dark" />
-        <SessionRoutes />
+        <NativeOrDownload />
       </BrowserRouter>
     </QueryClientProvider>
   );
