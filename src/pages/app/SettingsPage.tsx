@@ -808,13 +808,16 @@ export default function SettingsPage() {
     }
     setSupportSending(true);
     try {
-      const { error } = await supabase.from('support_messages').insert({ athlete_id: athlete.id, body });
+      const { error } = await supabase.rpc('submit_support_message', {
+        p_athlete_id: athlete.id,
+        p_body: body,
+      });
       if (error) {
         toast.error(error.message);
         return false;
       }
       setSupportBody('');
-      toast.success("Thanks — we've got your message and we'll be in touch.");
+      toast.success("Thanks — that's gone to support. We'll reply in Messages.");
       return true;
     } finally {
       setSupportSending(false);

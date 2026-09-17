@@ -534,7 +534,7 @@ export function SettingsPageLayout(props: SettingsPageLayoutProps) {
                     <DialogHeader>
                       <DialogTitle>Contact support</DialogTitle>
                       <p className="text-sm text-muted-foreground">
-                        Send us a message — we&apos;ll get back to you as soon as possible.
+                        Send us a message — we&apos;ll reply in Messages as soon as we can.
                       </p>
                     </DialogHeader>
                     <Textarea

@@ -104,7 +104,7 @@ export const FAQ_SECTIONS: FaqSection[] = [
       {
         question: 'How do I get support?',
         answer:
-          'Contact hello@rnkxglobal.com and our team will get back to you as soon as possible.',
+          'Use Settings → Contact support. Messages go to the RNKX team in-app, and we will reply in Messages.',
       },
     ],
   },

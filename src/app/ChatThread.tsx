@@ -18,6 +18,7 @@ import {
 } from "@/lib/chatMessages";
 import { toast } from "sonner";
 import { conversationUnreadKey, markConversationRead } from "@/lib/unreadMessages";
+import { isSupportInboxUsername } from "@/lib/supportInbox";
 
 export default function ChatThread() {
   const { friendId } = useParams<{ friendId: string }>();
@@ -30,6 +31,7 @@ export default function ChatThread() {
   const [sending, setSending] = useState(false);
   const [initError, setInitError] = useState<string | null>(null);
   const [threadReady, setThreadReady] = useState(false);
+  const [supportThread, setSupportThread] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
 
   const loadMessages = useCallback(async (cid: string) => {
@@ -50,6 +52,7 @@ export default function ChatThread() {
       setMessages([]);
       setMyAthleteId(null);
       setInitError(null);
+      setSupportThread(false);
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) {
         setInitError("Sign in to send messages.");
@@ -66,12 +69,18 @@ export default function ChatThread() {
 
       const { data: friend } = await supabase
         .from("athletes")
-        .select("username, avatar_url")
+        .select("username, display_name, avatar_url")
         .eq("id", friendId)
         .single();
 
       if (friend) {
-        setFriendName(friend.username ?? "Friend");
+        const username = typeof friend.username === "string" ? friend.username : "";
+        setSupportThread(isSupportInboxUsername(username));
+        setFriendName(
+          (typeof friend.display_name === "string" && friend.display_name.trim())
+            || username
+            || "Friend",
+        );
         setFriendAvatar(friend.avatar_url);
       }
 
@@ -162,7 +171,7 @@ export default function ChatThread() {
   }
 
   return (
-    <ChatPremiumGate>
+    <ChatPremiumGate bypass={supportThread}>
     <div className="app-root">
       <header className="app-header border-b border-border bg-background">
         <div className="flex h-14 items-center gap-3 px-4">
