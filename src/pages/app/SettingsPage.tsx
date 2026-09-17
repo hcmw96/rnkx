@@ -9,6 +9,7 @@ import {
 import { useLocation, useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import { sendPasswordResetEmail } from '@/lib/authRedirect';
+import { openExternalUrl } from '@/lib/openExternalUrl';
 import {
   AlertDialog,
   AlertDialogContent,
@@ -496,7 +497,8 @@ export default function SettingsPage() {
         toast.error('Could not open device connection');
         return;
       }
-      window.location.href = (data as { url: string }).url;
+      openExternalUrl((data as { url: string }).url);
+      toast.message('Continue in the browser to connect your device.');
     } catch {
       toast.error('Could not open device connection');
     } finally {

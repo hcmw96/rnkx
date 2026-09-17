@@ -31,8 +31,8 @@ serve(async (req) => {
         reference_id,
         providers: "GARMIN,POLAR,COROS,FITBIT",
         language: "en",
-        auth_success_redirect_url: "rnkx://app/profile",
-        auth_failure_redirect_url: "rnkx://app/profile",
+        auth_success_redirect_url: "https://rnkx.netlify.app/auth/terra/callback",
+        auth_failure_redirect_url: "https://rnkx.netlify.app/auth/terra/callback?status=failed",
       }),
     });
 

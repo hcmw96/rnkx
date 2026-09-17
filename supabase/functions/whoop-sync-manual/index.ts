@@ -132,7 +132,7 @@ serve(async (req) => {
 
     const { data: athlete } = await supabase
       .from('athletes')
-      .select('id, max_hr')
+      .select('id, max_hr, created_at')
       .eq('id', athleteId)
       .maybeSingle();
     if (!athlete) return json({ inserted: 0, skipped: workouts.length });
@@ -169,6 +169,11 @@ serve(async (req) => {
       }
 
       const startMs = new Date(startIso).getTime();
+      const joinedMs = athlete.created_at ? Date.parse(String(athlete.created_at)) : NaN;
+      if (Number.isFinite(joinedMs) && Number.isFinite(startMs) && startMs < joinedMs) {
+        skipped++;
+        continue;
+      }
       const endMs = new Date(endIso).getTime();
       const durationMinutes = Math.min(120, Math.max(0, Math.round((endMs - startMs) / 60_000)));
       const avgHr = typeof workout.score?.average_heart_rate === 'number' ? workout.score.average_heart_rate : null;
@@ -184,6 +189,7 @@ serve(async (req) => {
         activity_date: startIso.split('T')[0] ?? startIso.slice(0, 10),
         source: 'whoop',
         source_id: wid,
+        workout_start_time: startIso,
       });
 
       if (error) {

@@ -8,25 +8,13 @@ type AthleteRow = {
   selected_leagues: string[] | null;
   date_of_birth: string | null;
   max_hr: number | string | null;
+  created_at: string | null;
 };
 
-function toDateString(d: Date): string {
-  return d.toISOString().slice(0, 10);
-}
-
-function extractTerraWorkouts(payload: unknown): unknown[] {
-  const p = payload as Record<string, unknown> | null;
-  if (!p) return [];
-
-  const data = p.data as Record<string, unknown> | unknown[] | undefined;
-  if (Array.isArray(data)) return data;
-  if (Array.isArray((data as Record<string, unknown> | undefined)?.workouts)) {
-    return (data as Record<string, unknown>).workouts as unknown[];
-  }
-  if (Array.isArray((p as Record<string, unknown>).workouts)) {
-    return (p as Record<string, unknown>).workouts as unknown[];
-  }
-  return [];
+/** `activities.avg_hr` is integer — COROS (and some other Terra providers) send fractional BPM. */
+function toWholeBpm(value: number | null | undefined): number | null {
+  if (value == null || !Number.isFinite(value)) return null;
+  return Math.round(value);
 }
 
 async function processTerraWorkouts(params: {
@@ -72,6 +60,11 @@ async function processTerraWorkouts(params: {
       skipped++;
       continue;
     }
+    const joinedMs = athlete.created_at ? Date.parse(athlete.created_at) : NaN;
+    if (Number.isFinite(joinedMs) && startMs < joinedMs) {
+      skipped++;
+      continue;
+    }
     const workoutStartTime = new Date(startMs).toISOString();
     const activityDate = startTimeRaw.split('T')[0] ?? workoutStartTime.slice(0, 10);
 
@@ -82,7 +75,7 @@ async function processTerraWorkouts(params: {
     if (typeof maxHrFromDevice === 'number' && Number.isFinite(maxHrFromDevice) && maxHrFromDevice > sessionPeakMaxHr) {
       sessionPeakMaxHr = maxHrFromDevice;
     }
-    const avgHrBpm = summary?.avg_hr_bpm ?? null;
+    const avgHrBpm = toWholeBpm(summary?.avg_hr_bpm);
     const maxHrAge = athlete.date_of_birth
       ? 220 - Math.floor((Date.now() - new Date(athlete.date_of_birth).getTime()) / (365.25 * 24 * 60 * 60 * 1000))
       : 190;
@@ -207,48 +200,6 @@ async function processTerraWorkouts(params: {
   return { inserted, skipped };
 }
 
-async function fetchAndProcessLast30Days(params: {
-  supabase: ReturnType<typeof createClient>;
-  athlete: AthleteRow;
-  provider: string;
-  terraUserId: string;
-  seasonId: string | null;
-}) {
-  const { supabase, athlete, provider, terraUserId, seasonId } = params;
-  const terraApiKey = Deno.env.get('TERRA_API_KEY')?.trim();
-  const terraDevId = Deno.env.get('TERRA_DEV_ID')?.trim();
-  if (!terraApiKey || !terraDevId) {
-    throw new Error('Missing TERRA_API_KEY or TERRA_DEV_ID');
-  }
-
-  const end = new Date();
-  const start = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
-  const query = new URLSearchParams({
-    user_id: terraUserId,
-    start_date: toDateString(start),
-    end_date: toDateString(end),
-    to_webhook: 'false',
-  });
-  const res = await fetch(`https://api.tryterra.co/v2/activity?${query.toString()}`, {
-    headers: {
-      'x-api-key': terraApiKey,
-      'dev-id': terraDevId,
-    },
-  });
-  if (!res.ok) {
-    let detail: unknown;
-    try {
-      detail = await res.json();
-    } catch {
-      detail = await res.text();
-    }
-    throw new Error(`Terra activity fetch failed (${res.status}): ${JSON.stringify(detail)}`);
-  }
-  const payload = await res.json();
-  const workouts = extractTerraWorkouts(payload);
-  return processTerraWorkouts({ supabase, athlete, seasonId, provider, workouts });
-}
-
 serve(async (req) => {
   try {
     const body = await req.json();
@@ -298,22 +249,15 @@ serve(async (req) => {
 
       const { data: athlete } = await supabase
         .from('athletes')
-        .select('id, selected_leagues, date_of_birth, max_hr')
+        .select('id, selected_leagues, date_of_birth, max_hr, created_at')
         .eq('id', referenceId)
         .single();
       if (!athlete) {
         return new Response(JSON.stringify({ error: 'Athlete not found' }), { status: 404 });
       }
-      const backfill = await fetchAndProcessLast30Days({
-        supabase,
-        athlete: athlete as AthleteRow,
-        provider: provider ?? 'unknown',
-        terraUserId,
-        seasonId: season?.id ?? null,
-      });
 
       console.log('[terra-webhook] User reauthed:', terraUserId, provider, referenceId);
-      return new Response(JSON.stringify({ status: 'reauthed', ...backfill }), { status: 200 });
+      return new Response(JSON.stringify({ status: 'reauthed' }), { status: 200 });
     }
 
     if (type === 'user_auth' || type === 'auth') {
@@ -342,22 +286,15 @@ serve(async (req) => {
 
       const { data: athlete } = await supabase
         .from('athletes')
-        .select('id, selected_leagues, date_of_birth, max_hr')
+        .select('id, selected_leagues, date_of_birth, max_hr, created_at')
         .eq('id', referenceId)
         .single();
       if (!athlete) {
         return new Response(JSON.stringify({ error: 'Athlete not found' }), { status: 404 });
       }
-      const backfill = await fetchAndProcessLast30Days({
-        supabase,
-        athlete: athlete as AthleteRow,
-        provider: provider ?? 'unknown',
-        terraUserId,
-        seasonId: season?.id ?? null,
-      });
 
       console.log('[terra-webhook] User connected:', terraUserId, provider, referenceId);
-      return new Response(JSON.stringify({ status: 'connected', ...backfill }), { status: 200 });
+      return new Response(JSON.stringify({ status: 'connected' }), { status: 200 });
     }
 
     const isUntypedArrayPayload = (type == null || type === '') && Array.isArray(data) && data.length > 0;
@@ -382,7 +319,7 @@ serve(async (req) => {
 
     const { data: athlete } = await supabase
       .from('athletes')
-      .select('id, selected_leagues, date_of_birth, max_hr')
+      .select('id, selected_leagues, date_of_birth, max_hr, created_at')
       .eq('id', connection.athlete_id)
       .single();
     if (!athlete) {

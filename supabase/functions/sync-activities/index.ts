@@ -64,10 +64,22 @@ serve(async (req) => {
   }
 
   const workouts: unknown[] = body.appleWorkouts;
+  const { data: athlete } = await supabase
+    .from('athletes')
+    .select('created_at')
+    .eq('id', body.athlete_id)
+    .maybeSingle();
+  const joinedMs = athlete?.created_at ? Date.parse(String(athlete.created_at)) : NaN;
 
   const results = [];
   for (const workout of workouts) {
     const w = workout as Record<string, unknown>;
+    const startedAt = typeof w.startedAt === 'string' ? w.startedAt : '';
+    const startMs = startedAt ? Date.parse(startedAt) : NaN;
+    if (Number.isFinite(joinedMs) && Number.isFinite(startMs) && startMs < joinedMs) {
+      results.push({ sourceId: w.sourceId, result: { status: 'skipped', reject_reason: 'before_join' }, error: null });
+      continue;
+    }
     const payload = {
       athlete_id: body.athlete_id,
       source_id: w.sourceId,

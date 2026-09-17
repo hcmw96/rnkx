@@ -8,7 +8,7 @@ export const HEALTHKIT_WORKOUT_INCLUDED_FULL =
 
 const PROBE_INCLUDED = 'HKQuantityTypeIdentifierHeartRateAverage';
 
-/** Wider window re-reads history; process_activity dedups on source_id. */
+/** Catch-up window for post-join sessions. Pre-join workouts are dropped in process_activity. */
 export const SYNC_DAYS = 30;
 
 /** Proven safe on devices where RunningSpeed / Distance aggregates kill the WebView. */

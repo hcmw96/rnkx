@@ -49,6 +49,7 @@ const ChatPage = lazy(() => import('./app/ChatPage'));
 const JoinLeaguePage = lazy(() => import('./pages/JoinLeaguePage'));
 const AthleteAuth = lazy(() => import('./pages/AthleteAuth'));
 const WhoopCallback = lazy(() => import('./pages/auth/WhoopCallback'));
+const TerraCallback = lazy(() => import('./pages/auth/TerraCallback'));
 const AppleAuthComplete = lazy(() => import('./pages/auth/AppleAuthComplete'));
 const Onboarding = lazy(() => import('./pages/Onboarding'));
 const NotificationsPage = lazy(() => import('./pages/app/NotificationsPage'));
@@ -354,6 +355,7 @@ function SessionRoutes() {
         <Route path="/cookies" element={<CookiesPageRoute />} />
         <Route path="/get-app" element={<DownloadAppPage />} />
         <Route path="/auth/whoop/callback" element={<WhoopCallback />} />
+        <Route path="/auth/terra/callback" element={<TerraCallback />} />
         <Route path="/auth/apple/complete" element={<AppleAuthComplete />} />
         <Route path="/whoop-callback" element={<WhoopCallback />} />
         <Route path="/app/whoop-callback" element={<WhoopCallback />} />
