@@ -393,18 +393,7 @@ function SessionRoutes() {
             )
           }
         />
-        <Route
-          path="/admin"
-          element={
-            !session ? (
-              <Navigate to="/auth" replace />
-            ) : !profileComplete ? (
-              <Navigate to="/onboarding" replace />
-            ) : (
-              <AdminPage />
-            )
-          }
-        />
+        <Route path="/admin" element={<AdminPage />} />
         <Route
           path="/app"
           element={authShell}

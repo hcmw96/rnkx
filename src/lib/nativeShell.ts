@@ -10,7 +10,8 @@ export const APP_STORE_URL =
 
 /**
  * Safari-only surfaces that must keep working outside Despia:
- * App Store / GDPR legal docs, WHOOP + Apple OAuth returns, password-reset emails.
+ * App Store / GDPR legal docs, WHOOP + Apple OAuth returns, password-reset emails,
+ * and the admin dashboard (its own sign-in, not the in-app product).
  */
 export function isPublicWebPath(pathname: string): boolean {
   if (
@@ -18,6 +19,7 @@ export function isPublicWebPath(pathname: string): boolean {
     pathname === '/terms' ||
     pathname === '/waiver' ||
     pathname === '/cookies' ||
+    pathname === '/admin' ||
     pathname === '/auth/whoop/callback' ||
     pathname === '/auth/apple/complete' ||
     pathname === '/whoop-callback'
