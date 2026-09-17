@@ -1,6 +1,5 @@
 import { activitySessionScore } from '@/lib/activitySessionScore';
-import { fetchLiveCategoryRanks } from '@/lib/categoryRank';
-import { divisionForRank } from '@/lib/division';
+import { fetchAcceptedFriendIds } from '@/lib/friendships';
 import type { ProfileCareerStats, ProfileSeasonStats } from '@/lib/profileStats';
 import { fetchProfileCareerStats, fetchProfileSeasonStats } from '@/lib/profileStats';
 import { supabase } from '@/services/supabase';
@@ -28,8 +27,8 @@ export const ACHIEVEMENTS: AchievementDefinition[] = [
   { id: 'pacemaker', name: 'Pacemaker', criteria: '8,000 run league pts', color: 'cyan' },
   { id: 'double-day', name: 'Double Day', criteria: 'Engine + run same day', color: 'gradient' },
   { id: 'iron-week', name: 'Iron Week', criteria: '7-day scoring streak', color: 'gradient' },
-  { id: 'promoted', name: 'Promoted', criteria: 'Moved up a division', color: 'gradient' },
-  { id: 'top-3', name: 'Top 3', criteria: 'Podium finish in a season', color: 'gold' },
+  { id: 'promoted', name: 'Promoted', criteria: 'Promoted at season end', color: 'gradient' },
+  { id: 'top-3', name: 'Top 3', criteria: 'Finish top 3 when a season ends', color: 'gold' },
   { id: 'recruiter', name: 'Recruiter', criteria: 'Friend joined and scored', color: 'gradient' },
 ];
 
@@ -45,10 +44,20 @@ function num(v: number | string | null | undefined): number {
   return Number.isFinite(n) ? n : 0;
 }
 
+/** Competition days are Europe/London calendar dates, matching scoring weeks. */
 function dayKey(iso: string): string {
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return '';
-  return d.toISOString().slice(0, 10);
+  try {
+    return new Intl.DateTimeFormat('en-CA', {
+      timeZone: 'Europe/London',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+    }).format(d);
+  } catch {
+    return d.toISOString().slice(0, 10);
+  }
 }
 
 type StoredAchievementRow = {
@@ -86,31 +95,33 @@ async function fetchScoredDaysByCategory(athleteId: string): Promise<Map<string,
   const [{ data: workouts }, { data: activities }] = await Promise.all([
     supabase
       .from('workouts')
-      .select('created_at, engine_score, run_score, activity_type')
+      .select('started_at, created_at, engine_score, run_score')
       .eq('athlete_id', athleteId)
       .eq('status', 'scored'),
     supabase
       .from('activities')
-      .select('created_at, league_type, duration_minutes, avg_hr_percent, avg_pace_seconds')
+      .select('workout_start_time, activity_date, created_at, league_type, duration_minutes, avg_hr_percent, avg_pace_seconds')
       .eq('athlete_id', athleteId)
       .eq('status', 'scored'),
   ]);
 
   for (const row of workouts ?? []) {
     const w = row as {
+      started_at: string | null;
       created_at: string;
       engine_score: number | string | null;
       run_score: number | string | null;
-      activity_type: string | null;
     };
     const enginePts = num(w.engine_score);
     const runPts = num(w.run_score);
-    const t = String(w.activity_type ?? '').toLowerCase();
-    mark(w.created_at, enginePts > 0 || t.includes('engine') || t.includes('hr'), runPts > 0 || t.includes('run'));
+    if (enginePts <= 0 && runPts <= 0) continue;
+    mark(w.started_at || w.created_at, enginePts > 0, runPts > 0);
   }
 
   for (const row of activities ?? []) {
     const a = row as {
+      workout_start_time: string | null;
+      activity_date: string | null;
       created_at: string;
       league_type: string;
       duration_minutes: number | null;
@@ -124,8 +135,9 @@ async function fetchScoredDaysByCategory(athleteId: string): Promise<Map<string,
       a.avg_pace_seconds,
     );
     if (pts <= 0) continue;
-    if (a.league_type === 'engine') mark(a.created_at, true, false);
-    else if (a.league_type === 'run') mark(a.created_at, false, true);
+    const when = a.workout_start_time || a.activity_date || a.created_at;
+    if (a.league_type === 'engine') mark(when, true, false);
+    else if (a.league_type === 'run') mark(when, false, true);
   }
 
   return map;
@@ -149,17 +161,25 @@ function hasSevenDayStreak(dayKeys: string[]): boolean {
   return false;
 }
 
-async function hasRecruitedScoringFriend(athleteId: string): Promise<boolean> {
-  const { data: friendships } = await supabase
-    .from('friendships')
-    .select('friend_id')
-    .eq('athlete_id', athleteId)
-    .eq('status', 'accepted');
+async function hasRecruitedScoringFriend(athleteId: string, joinedAt: string | null): Promise<boolean> {
+  const friendIds = await fetchAcceptedFriendIds(athleteId);
+  if (!friendIds.length || !joinedAt) return false;
+  const joinedMs = Date.parse(joinedAt);
+  if (!Number.isFinite(joinedMs)) return false;
 
-  const friendIds = (friendships ?? []).map((f) => String((f as { friend_id?: string }).friend_id ?? '')).filter(Boolean);
-  if (!friendIds.length) return false;
+  const { data: friends } = await supabase
+    .from('athletes')
+    .select('id, created_at')
+    .in('id', friendIds);
+  const laterJoiners = (friends ?? [])
+    .filter((row) => {
+      const created = Date.parse(String((row as { created_at?: string }).created_at ?? ''));
+      return Number.isFinite(created) && created > joinedMs;
+    })
+    .map((row) => String((row as { id: string }).id));
+  if (!laterJoiners.length) return false;
 
-  for (const fid of friendIds) {
+  for (const fid of laterJoiners) {
     const [{ count: w }, { count: a }] = await Promise.all([
       supabase
         .from('workouts')
@@ -177,12 +197,61 @@ async function hasRecruitedScoringFriend(athleteId: string): Promise<boolean> {
   return false;
 }
 
-async function fetchActiveSeason(): Promise<{ id: string; name: string } | null> {
-  const { data } = await supabase.from('seasons').select('id, name').eq('is_active', true).maybeSingle();
-  if (!data?.id) return null;
+async function fetchSeasonEndEligibility(athleteId: string): Promise<{
+  founder: boolean;
+  top3: boolean;
+  promoted: boolean;
+  joinedAt: string | null;
+}> {
+  const [{ data: athlete }, { data: seasons }, { data: promotions }] = await Promise.all([
+    supabase.from('athletes').select('created_at, is_comped').eq('id', athleteId).maybeSingle(),
+    supabase.from('seasons').select('id, name, is_active, ends_at'),
+    supabase
+      .from('promotion_history')
+      .select('id')
+      .eq('athlete_id', athleteId)
+      .eq('result', 'promoted')
+      .limit(1),
+  ]);
+
+  const joinedAt = athlete?.created_at ? String(athlete.created_at) : null;
+  const isComped = athlete?.is_comped === true;
+  const seasonRows = (seasons ?? []) as {
+    id: string;
+    name: string | null;
+    is_active: boolean | null;
+    ends_at: string | null;
+  }[];
+
+  const season1 = seasonRows.find((s) => {
+    const name = (s.name ?? '').trim().toLowerCase();
+    return name.includes('season 1') || name.startsWith('season 1');
+  });
+  let founder = isComped;
+  if (!founder && joinedAt && season1?.ends_at) {
+    const joinedMs = Date.parse(joinedAt);
+    const endsMs = Date.parse(season1.ends_at);
+    founder = Number.isFinite(joinedMs) && Number.isFinite(endsMs) && joinedMs <= endsMs;
+  }
+
+  const finishedIds = seasonRows.filter((s) => s.is_active === false).map((s) => s.id);
+  let top3 = false;
+  if (finishedIds.length) {
+    const { data: podium } = await supabase
+      .from('season_division_leaderboard')
+      .select('rank')
+      .eq('id', athleteId)
+      .in('season_id', finishedIds)
+      .lte('rank', 3)
+      .limit(1);
+    top3 = (podium ?? []).length > 0;
+  }
+
   return {
-    id: String(data.id),
-    name: typeof data.name === 'string' ? data.name : '',
+    founder,
+    top3,
+    promoted: (promotions ?? []).length > 0,
+    joinedAt,
   };
 }
 
@@ -195,17 +264,11 @@ async function computeUnlockEligibility(
   const runScore = season?.runScore ?? 0;
   const bestSession = career?.bestSession ?? 0;
 
-  const [dayMap, recruiter, seasonPack] = await Promise.all([
+  const [dayMap, seasonEnd] = await Promise.all([
     fetchScoredDaysByCategory(athleteId),
-    hasRecruitedScoringFriend(athleteId),
-    (async () => {
-      const activeSeason = await fetchActiveSeason();
-      const liveRanks = activeSeason
-        ? await fetchLiveCategoryRanks(athleteId, activeSeason.id)
-        : { engine: null, run: null };
-      return { activeSeason, liveRanks };
-    })(),
+    fetchSeasonEndEligibility(athleteId),
   ]);
+  const recruiter = await hasRecruitedScoringFriend(athleteId, seasonEnd.joinedAt);
 
   const dayKeys = [...dayMap.keys()];
   let doubleDay = false;
@@ -218,24 +281,15 @@ async function computeUnlockEligibility(
 
   const ironWeek = hasSevenDayStreak(dayKeys);
 
-  const seasonName = seasonPack.activeSeason?.name.trim().toLowerCase() ?? '';
-  const seasonOne = seasonName.includes('season 1') || seasonName.startsWith('season 1');
-
-  const ranks = [seasonPack.liveRanks.engine, seasonPack.liveRanks.run].filter(
-    (r): r is number => r != null,
-  );
-  const top3 = ranks.some((r) => r <= 3);
-  const promoted = ranks.some((r) => divisionForRank(r) !== 'Open');
-
   return {
-    founder: seasonOne,
+    founder: seasonEnd.founder,
     century: bestSession >= 100,
     'engine-room': engineScore >= 8000,
     pacemaker: runScore >= 8000,
     'double-day': doubleDay,
     'iron-week': ironWeek,
-    promoted,
-    'top-3': top3,
+    promoted: seasonEnd.promoted,
+    'top-3': seasonEnd.top3,
     recruiter,
   };
 }
@@ -328,11 +382,16 @@ export async function syncAthleteAchievements(
       celebrated_at: isBackfill ? now : null,
     }));
 
-    const { error } = await supabase.from('athlete_achievements').insert(rows);
+    const { data: inserted, error } = await supabase
+      .from('athlete_achievements')
+      .insert(rows)
+      .select('achievement_id');
     if (error) {
       console.warn('[achievements] insert failed', error.message);
     } else {
-      insertedIds.push(...toInsert.map((d) => d.id));
+      insertedIds.push(
+        ...(inserted ?? []).map((row) => String((row as { achievement_id?: string }).achievement_id ?? '')).filter(Boolean),
+      );
     }
   }
 
