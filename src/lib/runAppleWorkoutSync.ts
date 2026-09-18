@@ -72,11 +72,6 @@ export async function runAppleWorkoutSync(
       releaseHealthKit('sync');
     }
   }
-  const { processed, results, error } = await syncAppleWorkoutsToDatabase(athleteId, workouts);
-  if (error) {
-    return empty(error);
-  }
-
   if (profile && shouldApplyAppleMaxHrToProfile(profile.max_hr_source)) {
     const inferred = inferMaxHrFromAppleWorkouts(workouts);
     const curMax = parseMaxHr(profile.max_hr);
@@ -90,6 +85,11 @@ export async function runAppleWorkoutSync(
         .update({ max_hr: nextMax, max_hr_source: 'apple_watch' })
         .eq('id', athleteId);
     }
+  }
+
+  const { processed, results, error } = await syncAppleWorkoutsToDatabase(athleteId, workouts);
+  if (error) {
+    return empty(error);
   }
 
   return { ok: true, processed, workouts, results, error: null };

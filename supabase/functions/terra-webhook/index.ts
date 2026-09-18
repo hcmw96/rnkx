@@ -1,5 +1,15 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import {
+  ageMaxHrFromDob,
+  avgHrPercent,
+  effectiveMaxHr,
+  isBeforeJoin,
+  isOutsideSeason,
+  observedSessionHr,
+  parseStoredMaxHr,
+  toWholeBpm,
+} from "../_shared/hrScoring.ts";
 import { scheduleActivityScoringPushes } from "../_shared/pushAfterActivityScored.ts";
 import { scheduleLoopsFirstWorkout } from "../_shared/scheduleLoopsFirstWorkout.ts";
 
@@ -11,25 +21,66 @@ type AthleteRow = {
   created_at: string | null;
 };
 
-/** `activities.avg_hr` is integer — COROS (and some other Terra providers) send fractional BPM. */
-function toWholeBpm(value: number | null | undefined): number | null {
-  if (value == null || !Number.isFinite(value)) return null;
-  return Math.round(value);
+type SeasonWindow = {
+  id: string;
+  starts_at: string | null;
+  ends_at: string | null;
+};
+
+function terraSessionHr(workout: Record<string, any>): {
+  avgHrBpm: number | null;
+  observed: number | null;
+} {
+  const summary = workout.heart_rate_data?.summary as
+    | { avg_hr_bpm?: number; max_hr_bpm?: number; max_heart_rate?: number }
+    | undefined;
+  const avgHrBpm = toWholeBpm(summary?.avg_hr_bpm);
+  const observed = observedSessionHr(avgHrBpm, summary?.max_hr_bpm ?? summary?.max_heart_rate);
+  return { avgHrBpm, observed };
+}
+
+async function raiseMaxHrFromPayload(params: {
+  supabase: ReturnType<typeof createClient>;
+  athlete: AthleteRow;
+  workouts: unknown[];
+}): Promise<number | null> {
+  const { supabase, athlete, workouts } = params;
+  let payloadPeak = 0;
+  for (const raw of workouts) {
+    const { observed } = terraSessionHr(raw as Record<string, any>);
+    if (observed != null && observed > payloadPeak) payloadPeak = observed;
+  }
+
+  const stored = parseStoredMaxHr(athlete.max_hr);
+  if (payloadPeak <= 0) return stored;
+
+  const next = stored == null || payloadPeak > stored ? payloadPeak : stored;
+  if (stored == null || payloadPeak > stored) {
+    const { error: mxErr } = await supabase
+      .from("athletes")
+      .update({ max_hr: Math.round(next), max_hr_source: "terra_live" })
+      .eq("id", athlete.id);
+    if (mxErr) console.error("[terra-webhook] max_hr update", mxErr);
+    else athlete.max_hr = Math.round(next);
+  }
+  return next;
 }
 
 async function processTerraWorkouts(params: {
   supabase: ReturnType<typeof createClient>;
   athlete: AthleteRow;
-  seasonId: string | null;
+  season: SeasonWindow | null;
   provider: string;
   workouts: unknown[];
 }) {
-  const { supabase, athlete, seasonId, provider, workouts } = params;
+  const { supabase, athlete, season, provider, workouts } = params;
   let inserted = 0;
   let skipped = 0;
-  let sessionPeakMaxHr = 0;
   const insertedActivityIds: string[] = [];
   const providerUpper = String(provider || "").toUpperCase();
+
+  // Calibrate max HR from the whole dump (including pre-join / pre-season) before scoring.
+  const calibratedMax = await raiseMaxHrFromPayload({ supabase, athlete, workouts });
 
   for (const raw of workouts) {
     const workout = raw as Record<string, any>;
@@ -60,39 +111,22 @@ async function processTerraWorkouts(params: {
       skipped++;
       continue;
     }
-    const joinedMs = athlete.created_at ? Date.parse(athlete.created_at) : NaN;
-    if (Number.isFinite(joinedMs) && startMs < joinedMs) {
+    if (isBeforeJoin(startMs, athlete.created_at)) {
+      skipped++;
+      continue;
+    }
+    if (!season || isOutsideSeason(startMs, season.starts_at, season.ends_at)) {
       skipped++;
       continue;
     }
     const workoutStartTime = new Date(startMs).toISOString();
     const activityDate = startTimeRaw.split('T')[0] ?? workoutStartTime.slice(0, 10);
 
-    const summary = workout.heart_rate_data?.summary as
-      | { avg_hr_bpm?: number; max_hr_bpm?: number; max_heart_rate?: number }
-      | undefined;
-    const maxHrFromDevice = summary?.max_hr_bpm ?? summary?.max_heart_rate;
-    if (typeof maxHrFromDevice === 'number' && Number.isFinite(maxHrFromDevice) && maxHrFromDevice > sessionPeakMaxHr) {
-      sessionPeakMaxHr = maxHrFromDevice;
-    }
-    const avgHrBpm = toWholeBpm(summary?.avg_hr_bpm);
-    const maxHrAge = athlete.date_of_birth
-      ? 220 - Math.floor((Date.now() - new Date(athlete.date_of_birth).getTime()) / (365.25 * 24 * 60 * 60 * 1000))
-      : 190;
-    // Score against the athlete's stored device max HR when present, else 220 - age.
-    // Mirrors process_activity (Apple path): coalesce(max_hr, 220 - age). Previously this
-    // used observed_max_hr, which is never written, so every Terra/WHOOP/Garmin session was
-    // scored against 220 - age regardless of the athlete's real max HR.
-    const storedMaxHrRaw = athlete.max_hr;
-    const storedMaxHr =
-      typeof storedMaxHrRaw === 'number'
-        ? storedMaxHrRaw
-        : typeof storedMaxHrRaw === 'string'
-          ? Number(storedMaxHrRaw)
-          : NaN;
-    const effectiveMaxHr =
-      Number.isFinite(storedMaxHr) && storedMaxHr > 0 ? storedMaxHr : maxHrAge;
-    const avgHrPercent = avgHrBpm ? Math.round((avgHrBpm / effectiveMaxHr) * 100) : null;
+    const { avgHrBpm, observed } = terraSessionHr(workout);
+    const maxHrAge = ageMaxHrFromDob(athlete.date_of_birth);
+    const storedMaxHr = parseStoredMaxHr(athlete.max_hr) ?? calibratedMax;
+    const sessionMaxHr = effectiveMaxHr(storedMaxHr, maxHrAge, observed);
+    const hrPercent = avgHrPercent(avgHrBpm, sessionMaxHr);
 
     const avgSpeedMps = workout.movement_data?.avg_speed_meters_per_second ?? null;
     const avgPaceSeconds = avgSpeedMps && avgSpeedMps > 0 ? Math.round(1000 / avgSpeedMps) : null;
@@ -120,9 +154,9 @@ async function processTerraWorkouts(params: {
       leagueType = 'engine';
     } else if (isRun && leagues.includes('run') && avgPaceSeconds) {
       leagueType = 'run';
-    } else if (!isRun && leagues.includes('engine') && avgHrPercent && avgHrPercent >= 65) {
+    } else if (!isRun && leagues.includes('engine') && hrPercent && hrPercent >= 65) {
       leagueType = 'engine';
-    } else if (isRun && leagues.includes('engine') && avgHrPercent && avgHrPercent >= 65) {
+    } else if (isRun && leagues.includes('engine') && hrPercent && hrPercent >= 65) {
       leagueType = 'engine';
     }
 
@@ -132,7 +166,7 @@ async function processTerraWorkouts(params: {
       activityType,
       durationMin,
       avgHrBpm,
-      avgHrPercent,
+      avgHrPercent: hrPercent,
       isRun,
       leagueType,
       leagues: athlete.selected_leagues
@@ -146,12 +180,12 @@ async function processTerraWorkouts(params: {
       .upsert(
         {
           athlete_id: athlete.id,
-          season_id: seasonId,
+          season_id: season?.id ?? null,
           league_type: leagueType,
           activity_type: isRun ? 'outdoor_run' : 'engine',
           duration_minutes: Math.min(durationMin, 120),
           avg_pace_seconds: avgPaceSeconds,
-          avg_hr_percent: avgHrPercent,
+          avg_hr_percent: hrPercent,
           avg_hr: avgHrBpm,
           activity_date: activityDate,
           source: provider,
@@ -179,24 +213,6 @@ async function processTerraWorkouts(params: {
     scheduleLoopsFirstWorkout(athlete.id, "terra-webhook");
   }
 
-  try {
-    if (sessionPeakMaxHr > 0) {
-      const rawMx = athlete.max_hr as number | string | null | undefined;
-      const curMx =
-        typeof rawMx === 'number' ? rawMx : typeof rawMx === 'string' ? Number(rawMx) : NaN;
-      const curOk = Number.isFinite(curMx) && curMx > 0;
-      if (!curOk || sessionPeakMaxHr > curMx) {
-        const { error: mxErr } = await supabase
-          .from('athletes')
-          .update({ max_hr: Math.round(sessionPeakMaxHr), max_hr_source: 'terra_live' })
-          .eq('id', athlete.id);
-        if (mxErr) console.error('[terra-webhook] max_hr update', mxErr);
-      }
-    }
-  } catch (e) {
-    console.warn('[terra-webhook] max_hr update skipped', e);
-  }
-
   return { inserted, skipped };
 }
 
@@ -215,7 +231,7 @@ serve(async (req) => {
 
     const { data: season } = await supabase
       .from('seasons')
-      .select('id')
+      .select('id, starts_at, ends_at')
       .eq('is_active', true)
       .maybeSingle();
 
@@ -330,7 +346,7 @@ serve(async (req) => {
     const { inserted, skipped } = await processTerraWorkouts({
       supabase,
       athlete: athlete as AthleteRow,
-      seasonId: season?.id ?? null,
+      season: (season as SeasonWindow | null) ?? null,
       provider: String(connection.provider ?? 'unknown'),
       workouts,
     });

@@ -1,5 +1,13 @@
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import {
+  avgHrPercent,
+  effectiveMaxHr,
+  isBeforeJoin,
+  isOutsideSeason,
+  observedSessionHr,
+  parseStoredMaxHr,
+} from '../_shared/hrScoring.ts';
 import { scheduleActivityScoringPushes } from '../_shared/pushAfterActivityScored.ts';
 import { scheduleLoopsFirstWorkout } from '../_shared/scheduleLoopsFirstWorkout.ts';
 
@@ -190,24 +198,46 @@ serve(async (req) => {
     }
 
     const rawMaxHr = athlete.max_hr as number | string | null | undefined;
-    const parsedMax =
-      typeof rawMaxHr === 'number' ? rawMaxHr : typeof rawMaxHr === 'string' ? Number(rawMaxHr) : NaN;
-    const maxHr = Number.isFinite(parsedMax) && parsedMax > 0 ? parsedMax : 190;
+    const storedMax = parseStoredMaxHr(rawMaxHr);
     const avgHr = typeof workout.score?.average_heart_rate === 'number' ? workout.score.average_heart_rate : null;
-    const avgHrPercent = avgHr != null ? Math.round((avgHr / maxHr) * 100) : null;
+    const workoutMaxHr = typeof workout.score?.max_heart_rate === 'number'
+      ? workout.score.max_heart_rate
+      : null;
+    const observed = observedSessionHr(avgHr, workoutMaxHr);
+    if (observed != null && observed > 0 && (storedMax == null || observed > storedMax)) {
+      const { error: mxErr } = await supabase
+        .from('athletes')
+        .update({ max_hr: Math.round(observed), max_hr_source: 'whoop_live' })
+        .eq('id', athlete.id);
+      if (mxErr) console.error('[whoop-webhook] max_hr update', mxErr);
+    }
+    const sessionMaxHr = effectiveMaxHr(
+      observed != null && (storedMax == null || observed > storedMax) ? observed : storedMax,
+      190,
+      observed,
+    );
+    const hrPercent = avgHrPercent(avgHr, sessionMaxHr);
 
     const startMs = new Date(startIso).getTime();
-    const joinedMs = athlete.created_at ? Date.parse(String(athlete.created_at)) : NaN;
-    if (Number.isFinite(joinedMs) && Number.isFinite(startMs) && startMs < joinedMs) {
+    if (isBeforeJoin(startMs, athlete.created_at ? String(athlete.created_at) : null)) {
       return new Response(JSON.stringify({ status: 'ignored', reason: 'before_join' }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
+    const { data: season } = await supabase
+      .from('seasons')
+      .select('id, starts_at, ends_at')
+      .eq('is_active', true)
+      .maybeSingle();
+    if (!season || isOutsideSeason(startMs, season.starts_at as string | null, season.ends_at as string | null)) {
+      return new Response(JSON.stringify({ status: 'ignored', reason: 'outside_season' }), {
         status: 200,
         headers: { 'Content-Type': 'application/json' },
       });
     }
     const endMs = new Date(endIso).getTime();
     const durationMinutes = Math.min(120, Math.max(0, Math.round((endMs - startMs) / 60_000)));
-
-    const { data: season } = await supabase.from('seasons').select('id').eq('is_active', true).maybeSingle();
 
     const { data: dup } = await supabase
       .from('activities')
@@ -234,7 +264,7 @@ serve(async (req) => {
         activity_type: 'engine',
         duration_minutes: durationMinutes,
         avg_pace_seconds: null,
-        avg_hr_percent: avgHrPercent,
+        avg_hr_percent: hrPercent,
         activity_date: activityDate,
         source: 'whoop',
         source_id: wid.toString(),
@@ -257,28 +287,6 @@ serve(async (req) => {
       });
     }
 
-    try {
-      const workoutMaxHr = typeof workout.score?.max_heart_rate === 'number'
-        ? workout.score.max_heart_rate
-        : null;
-      if (workoutMaxHr != null && workoutMaxHr > 0) {
-        const rawCur = athlete.max_hr as number | string | null | undefined;
-        const cur =
-          typeof rawCur === 'number' ? rawCur : typeof rawCur === 'string' ? Number(rawCur) : NaN;
-        const curOk = Number.isFinite(cur) && cur > 0;
-        if (!curOk || workoutMaxHr > cur) {
-          const { error: mxErr } = await supabase
-            .from('athletes')
-            .update({ max_hr: Math.round(workoutMaxHr), max_hr_source: 'whoop_live' })
-            .eq('id', athlete.id);
-          if (mxErr) console.error('[whoop-webhook] max_hr update', mxErr);
-        }
-      }
-    } catch (e) {
-      console.warn('[whoop-webhook] max_hr live update skipped', e);
-    }
-
-    // After on_activity_inserted scoring — fire-and-forget; never block webhook response.
     const activityId = insertedRow?.id != null ? String(insertedRow.id) : '';
     if (activityId) {
       const athleteId = String(conn.athlete_id);
