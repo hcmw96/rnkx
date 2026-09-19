@@ -15,6 +15,7 @@ import {
 } from '@/lib/profileStats';
 import { leagueFromSelectedLeagues } from '@/lib/leagueAvatars';
 import { getProfileCache, setProfileCache } from '@/lib/routeCaches';
+import { uploadAthleteAvatar } from '@/lib/uploadAthleteAvatar';
 import { supabase } from '@/services/supabase';
 
 const ATHLETE_COLUMNS =
@@ -157,33 +158,13 @@ export default function ProfilePage() {
 
     setUploading(true);
 
-    const { error: linkErr } = await supabase.rpc('ensure_athlete_user_id', {
-      p_athlete_id: athlete.id,
-    });
-    if (linkErr) {
-      toast.error(linkErr.message);
+    const { publicUrl: avatarUrl, error: uploadError } = await uploadAthleteAvatar(athlete.id, file);
+    if (uploadError || !avatarUrl) {
+      toast.error(uploadError ?? 'Could not upload your photo.');
       setUploading(false);
       return;
     }
 
-    const path = `${athlete.id}/avatar.jpg`;
-
-    // Remove stale object so upload succeeds even if storage UPDATE policy is missing.
-    await supabase.storage.from('avatars').remove([path]);
-
-    const { error: uploadError } = await supabase.storage.from('avatars').upload(path, file, {
-      upsert: true,
-      contentType: file.type || 'image/jpeg',
-    });
-
-    if (uploadError) {
-      toast.error(uploadError.message);
-      setUploading(false);
-      return;
-    }
-
-    const { data: pub } = supabase.storage.from('avatars').getPublicUrl(path);
-    const avatarUrl = `${pub.publicUrl}?v=${Date.now()}`;
     const { error: updateError } = await supabase
       .from('athletes')
       .update({ avatar_url: avatarUrl })

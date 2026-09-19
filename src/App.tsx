@@ -35,6 +35,7 @@ import {
   markPasswordRecovery,
   urlIndicatesPasswordRecovery,
 } from '@/lib/authRedirect';
+import { isAthleteProfileComplete } from '@/lib/authPostLogin';
 import { supabase } from './services/supabase';
 
 const AdminPage = lazy(() => import('./pages/app/AdminPage'));
@@ -118,7 +119,8 @@ function SessionRoutes() {
       setSession(null);
       return false;
     }
-    const ok = !!(await resolveAthleteId(s.user.id));
+    const ok = await isAthleteProfileComplete(s.user.id);
+    if (ok) await resolveAthleteId(s.user.id);
     setSession(s);
     setProfileComplete(ok);
     return ok;
@@ -139,7 +141,8 @@ function SessionRoutes() {
           }
           return;
         }
-        const ok = !!(await resolveAthleteId(s.user.id));
+        const ok = await isAthleteProfileComplete(s.user.id);
+        if (ok) await resolveAthleteId(s.user.id);
         if (!cancelled) {
           setSession(s);
           setProfileComplete(ok);

@@ -1,14 +1,27 @@
+import { resolveAthleteAvatarUrl } from '@/lib/leagueAvatars';
 import { resolveAthleteId } from '@/lib/resolveAthleteId';
 import { supabase } from '@/services/supabase';
 
 export async function isAthleteProfileComplete(userId: string): Promise<boolean> {
   const [byUserId, byId] = await Promise.all([
-    supabase.from('athletes').select('id').eq('user_id', userId).not('username', 'is', null).maybeSingle(),
-    supabase.from('athletes').select('id').eq('id', userId).not('username', 'is', null).maybeSingle(),
+    supabase
+      .from('athletes')
+      .select('id, avatar_url')
+      .eq('user_id', userId)
+      .not('username', 'is', null)
+      .maybeSingle(),
+    supabase
+      .from('athletes')
+      .select('id, avatar_url')
+      .eq('id', userId)
+      .not('username', 'is', null)
+      .maybeSingle(),
   ]);
 
   if (byUserId.error && byId.error) return false;
-  return !!(byUserId.data?.id ?? byId.data?.id);
+  const row = byUserId.data ?? byId.data;
+  if (!row?.id) return false;
+  return resolveAthleteAvatarUrl(row.avatar_url as string | null) != null;
 }
 
 type ApplePersonName = {

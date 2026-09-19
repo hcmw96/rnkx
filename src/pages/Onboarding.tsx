@@ -13,6 +13,7 @@ import OnboardingStep from '@/components/onboarding/OnboardingStep';
 import OnboardingWearables, {
   type WearableProvider,
 } from '@/components/onboarding/OnboardingWearables';
+import ProfilePhotoPicker from '@/components/onboarding/ProfilePhotoPicker';
 import ProgressDots from '@/components/onboarding/ProgressDots';
 import UsernameInput from '@/components/onboarding/UsernameInput';
 import { Button } from '@/components/ui/button';
@@ -20,10 +21,14 @@ import { useProfileGate } from '@/context/ProfileGateContext';
 import { getSeededDisplayName, isAppleAuthUser } from '@/lib/authPostLogin';
 import { consumeAfterOnboardingPath } from '@/hooks/useWearableConnect';
 import { notifyLoopsAccountCreated } from '@/lib/loopsAccountCreated';
+import { resolveAthleteAvatarUrl } from '@/lib/leagueAvatars';
 import { getPendingLeagueInvitePath } from '@/lib/shareLeagueInvite';
+import { uploadAthleteAvatar } from '@/lib/uploadAthleteAvatar';
 import { supabase } from '@/services/supabase';
 
-const ONBOARDING_STEP_COUNT = 8;
+const ONBOARDING_STEP_COUNT = 9;
+const PHOTO_STEP = 3;
+const LEGAL_STEP = 9;
 
 function formatLocalDate(d: Date): string {
   const y = d.getFullYear();
@@ -58,6 +63,9 @@ export default function Onboarding() {
   const [leagues, setLeagues] = useState<string[]>(['run', 'engine']);
   const [wearables, setWearables] = useState<WearableProvider[]>([]);
   const [legalAccepted, setLegalAccepted] = useState(false);
+  const [photoFile, setPhotoFile] = useState<File | null>(null);
+  const [photoOnly, setPhotoOnly] = useState(false);
+  const [existingAthleteId, setExistingAthleteId] = useState<string | null>(null);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [finishing, setFinishing] = useState(false);
 
@@ -71,14 +79,34 @@ export default function Onboarding() {
         return;
       }
 
-      const [seeded, appleUser] = await Promise.all([
+      const [seeded, appleUser, athleteLookup] = await Promise.all([
         getSeededDisplayName(userId),
         isAppleAuthUser(),
+        Promise.all([
+          supabase
+            .from('athletes')
+            .select('id, username, avatar_url')
+            .eq('user_id', userId)
+            .maybeSingle(),
+          supabase
+            .from('athletes')
+            .select('id, username, avatar_url')
+            .eq('id', userId)
+            .maybeSingle(),
+        ]),
       ]);
 
       if (cancelled) return;
 
-      if (seeded) {
+      const existing = athleteLookup[0].data ?? athleteLookup[1].data;
+      const hasUsername =
+        typeof existing?.username === 'string' && existing.username.trim().length >= 3;
+      const hasPhoto = resolveAthleteAvatarUrl(existing?.avatar_url) != null;
+      if (existing?.id && hasUsername && !hasPhoto) {
+        setExistingAthleteId(existing.id);
+        setPhotoOnly(true);
+        setStep(PHOTO_STEP);
+      } else if (seeded) {
         setDisplayName(seeded);
         // Apple already provided name via Authentication Services — skip re-asking.
         if (appleUser) {
@@ -110,27 +138,30 @@ export default function Onboarding() {
         return displayName.trim().length >= 2;
       case 2:
         return usernameValid && username.trim().length >= 3;
-      case 3:
+      case PHOTO_STEP:
+        return photoFile != null;
+      case 4:
         if (!dob || age === null) return false;
         return age >= 13 && age <= 100;
-      case 4:
-        return gender !== null && gender.length > 0;
       case 5:
+        return gender !== null && gender.length > 0;
+      case 6:
         // Country is optional (Guideline 5.1.1(v)) — useful for leaderboards, not required.
         return true;
-      case 6:
-        return leagues.length > 0;
       case 7:
-        return true;
+        return leagues.length > 0;
       case 8:
+        return true;
+      case LEGAL_STEP:
         return legalAccepted;
       default:
         return false;
     }
-  }, [step, displayName, username, usernameValid, dob, age, gender, leagues, legalAccepted]);
+  }, [step, displayName, username, usernameValid, photoFile, dob, age, gender, leagues, legalAccepted]);
 
   const handlePrevStep = () => {
     setSubmitError(null);
+    if (photoOnly) return;
     if (step <= 1) return;
     if (step === 2 && nameFromApple) return;
     setStep((s) => s - 1);
@@ -145,6 +176,10 @@ export default function Onboarding() {
   };
 
   const handleBack = () => {
+    if (photoOnly) {
+      handleSignInInstead();
+      return;
+    }
     if (step > 1 && !(step === 2 && nameFromApple)) {
       handlePrevStep();
       return;
@@ -152,11 +187,59 @@ export default function Onboarding() {
     handleSignInInstead();
   };
 
+  const enterApp = async () => {
+    await refetchProfile();
+    setFinishing(false);
+    const afterPath = consumeAfterOnboardingPath();
+    navigate(afterPath ?? getPendingLeagueInvitePath() ?? '/app', { replace: true });
+  };
+
+  const savePhotoForAthlete = async (athleteId: string): Promise<boolean> => {
+    if (!photoFile) {
+      setSubmitError('A profile photo is required.');
+      return false;
+    }
+    if (!photoFile.type.startsWith('image/')) {
+      setSubmitError('Please choose an image file.');
+      return false;
+    }
+    const { publicUrl, error: uploadError } = await uploadAthleteAvatar(athleteId, photoFile);
+    if (uploadError || !publicUrl) {
+      setSubmitError(uploadError ?? 'Could not upload your photo. Try another image.');
+      return false;
+    }
+    const { error: updateError } = await supabase
+      .from('athletes')
+      .update({ avatar_url: publicUrl })
+      .eq('id', athleteId);
+    if (updateError) {
+      setSubmitError(updateError.message);
+      return false;
+    }
+    return true;
+  };
+
   const handleNext = async () => {
     setSubmitError(null);
     if (!canAdvanceFromStep()) return;
 
-    if (step === 8) {
+    if (photoOnly) {
+      const athleteId = existingAthleteId;
+      if (!athleteId) {
+        setSubmitError('Could not find your profile.');
+        return;
+      }
+      setFinishing(true);
+      const ok = await savePhotoForAthlete(athleteId);
+      if (!ok) {
+        setFinishing(false);
+        return;
+      }
+      await enterApp();
+      return;
+    }
+
+    if (step === LEGAL_STEP) {
       setFinishing(true);
       const { data: userData, error: userError } = await supabase.auth.getUser();
       if (userError || !userData.user) {
@@ -176,6 +259,12 @@ export default function Onboarding() {
       if (trimmedName.length < 2) {
         setFinishing(false);
         setSubmitError('A display name is required for leaderboards.');
+        return;
+      }
+
+      if (!photoFile) {
+        setFinishing(false);
+        setSubmitError('A profile photo is required.');
         return;
       }
 
@@ -201,6 +290,12 @@ export default function Onboarding() {
         return;
       }
 
+      const photoOk = await savePhotoForAthlete(userId);
+      if (!photoOk) {
+        setFinishing(false);
+        return;
+      }
+
       const email = userData.user.email?.trim();
       if (email) {
         notifyLoopsAccountCreated(userId, email);
@@ -208,10 +303,7 @@ export default function Onboarding() {
         console.warn('[loops] skip accountCreated — auth user has no email');
       }
 
-      await refetchProfile();
-      setFinishing(false);
-      const afterPath = consumeAfterOnboardingPath();
-      navigate(afterPath ?? getPendingLeagueInvitePath() ?? '/app', { replace: true });
+      await enterApp();
       return;
     }
 
@@ -237,22 +329,28 @@ export default function Onboarding() {
           onClick={handleBack}
         >
           <ArrowLeft className="h-4 w-4" aria-hidden />
-          {step > 1 && !(step === 2 && nameFromApple) ? 'Back' : 'Sign in'}
+          {photoOnly || (step <= 1) || (step === 2 && nameFromApple) ? 'Sign in' : 'Back'}
         </Button>
 
         <header className="mb-6 flex flex-col items-center gap-2 pt-2">
           <RNKXLogo size="md" />
-          <p className="text-center text-sm text-muted-foreground">Complete your profile</p>
-          {nameFromApple ? (
+          <p className="text-center text-sm text-muted-foreground">
+            {photoOnly ? 'Add a profile photo to continue' : 'Complete your profile'}
+          </p>
+          {nameFromApple && !photoOnly ? (
             <p className="text-center text-xs text-muted-foreground">
               Signed in with Apple as {displayName}
             </p>
           ) : null}
         </header>
 
-        <div className="mb-6">
-          <ProgressDots currentStep={step - 1} totalSteps={ONBOARDING_STEP_COUNT} />
-        </div>
+        {!photoOnly ? (
+          <div className="mb-6">
+            <ProgressDots currentStep={step - 1} totalSteps={ONBOARDING_STEP_COUNT} />
+          </div>
+        ) : (
+          <div className="mb-6" />
+        )}
 
         {submitError && (
           <p className="mb-4 rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">
@@ -261,33 +359,43 @@ export default function Onboarding() {
         )}
 
         <AnimatePresence mode="wait">
-          {step === 1 && !nameFromApple && (
+          {step === 1 && !nameFromApple && !photoOnly && (
             <OnboardingStep key="s1" title="Display name" subtitle="How should we show you on leaderboards?">
               <DisplayNameInput value={displayName} onChange={setDisplayName} />
             </OnboardingStep>
           )}
 
-          {step === 2 && (
+          {step === 2 && !photoOnly && (
             <OnboardingStep key="s2" title="Username" subtitle="Pick a unique handle (letters, numbers, underscore).">
               <UsernameInput value={username} onChange={setUsername} onValidChange={onUsernameValidChange} />
             </OnboardingStep>
           )}
 
-          {step === 3 && (
-            <OnboardingStep key="s3" title="Date of birth" subtitle="You must be at least 13 years old.">
+          {step === PHOTO_STEP && (
+            <OnboardingStep
+              key="s3"
+              title="Profile photo"
+              subtitle="Required — this is how other athletes see you on the leaderboard."
+            >
+              <ProfilePhotoPicker file={photoFile} onFile={setPhotoFile} />
+            </OnboardingStep>
+          )}
+
+          {step === 4 && !photoOnly && (
+            <OnboardingStep key="s4" title="Date of birth" subtitle="You must be at least 13 years old.">
               <DateOfBirthPicker value={dob} onChange={setDob} />
             </OnboardingStep>
           )}
 
-          {step === 4 && (
-            <OnboardingStep key="s4" title="Gender" subtitle="Used for athlete categories and rankings.">
+          {step === 5 && !photoOnly && (
+            <OnboardingStep key="s5" title="Gender" subtitle="Used for athlete categories and rankings.">
               <GenderSelect value={gender} onChange={setGender} />
             </OnboardingStep>
           )}
 
-          {step === 5 && (
+          {step === 6 && !photoOnly && (
             <OnboardingStep
-              key="s5"
+              key="s6"
               title="Country"
               subtitle="Optional — shown on leaderboards if you choose one. You can skip or add this later in Settings."
             >
@@ -295,9 +403,9 @@ export default function Onboarding() {
             </OnboardingStep>
           )}
 
-          {step === 6 && (
+          {step === 7 && !photoOnly && (
             <OnboardingStep
-              key="s6"
+              key="s7"
               title="Choose Your Leagues"
               subtitle="Compete in one or both leagues. You can change this anytime."
             >
@@ -305,32 +413,32 @@ export default function Onboarding() {
             </OnboardingStep>
           )}
 
-          {step === 7 && (
+          {step === 8 && !photoOnly && (
             <OnboardingStep
-              key="s7"
+              key="s8"
               title="Connect Your Wearable"
               subtitle="Apple Watch can connect now. Garmin, WHOOP and others connect in Settings after sign up."
             >
               <OnboardingWearables
                 initialConnected={wearables}
                 onConnectionsChange={onWearablesChange}
-                onSkip={() => setStep(8)}
-                onContinue={() => setStep(8)}
+                onSkip={() => setStep(LEGAL_STEP)}
+                onContinue={() => setStep(LEGAL_STEP)}
               />
             </OnboardingStep>
           )}
 
-          {step === 8 && (
-            <OnboardingStep key="s8" title="Almost there" subtitle="Review and accept to finish setup.">
+          {step === LEGAL_STEP && !photoOnly && (
+            <OnboardingStep key="s9" title="Almost there" subtitle="Review and accept to finish setup.">
               <LegalConsent checked={legalAccepted} onChange={setLegalAccepted} />
             </OnboardingStep>
           )}
         </AnimatePresence>
 
         <div className="mt-8 flex flex-col gap-3">
-          {step > 1 ? (
+          {photoOnly || step > 1 ? (
             <div className="flex gap-3">
-              {!(step === 2 && nameFromApple) ? (
+              {!photoOnly && !(step === 2 && nameFromApple) ? (
                 <Button type="button" variant="outline" className="flex-1 gap-2" onClick={handlePrevStep}>
                   <ArrowLeft className="h-4 w-4 shrink-0" aria-hidden />
                   Back
@@ -342,11 +450,13 @@ export default function Onboarding() {
                 onClick={() => void handleNext()}
                 disabled={!canAdvanceFromStep() || finishing}
               >
-                {step === 8
+                {photoOnly || step === LEGAL_STEP
                   ? finishing
                     ? 'Saving…'
-                    : 'Finish & go to app'
-                  : step === 5 && !country.trim()
+                    : photoOnly
+                      ? 'Continue'
+                      : 'Finish & go to app'
+                  : step === 6 && !country.trim()
                     ? 'Skip'
                     : 'Next'}
               </Button>
@@ -361,7 +471,7 @@ export default function Onboarding() {
               Next
             </Button>
           )}
-          {step === 1 && !nameFromApple ? (
+          {step === 1 && !nameFromApple && !photoOnly ? (
             <button
               type="button"
               onClick={handleSignInInstead}
